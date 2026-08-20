@@ -5,7 +5,7 @@ import { useRole } from '@/hooks/useRole.tsx';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, User, Check, Crown, Briefcase, DollarSign, Calendar, Building2, X, Heart, RotateCcw, FileText, Shield, UserCheck } from 'lucide-react';
+import { Loader2, User, Check, Crown, Briefcase, DollarSign, Calendar, Building2, X, Heart, RotateCcw, FileText, Shield, UserCheck, Globe } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { BottomNavigation } from '@/components/BottomNavigation';
@@ -28,6 +28,7 @@ interface PendingDeal {
   budget_range: string | null;
   timeline: string | null;
   details: string | null;
+  website_url: string | null;
   budget_cycle: string | null;
   deliverables: string | null;
   exclusivity: string | null;
@@ -81,7 +82,7 @@ export default function Dashboard() {
       try {
         const { data, error } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, timeline, details, budget_cycle, deliverables, exclusivity, why_them, sender_id, celebrity_id, status')
+          .select('id, deal_type, company_name, budget_range, timeline, details, website_url, budget_cycle, deliverables, exclusivity, why_them, sender_id, celebrity_id, status')
           .eq('celebrity_id', managedCelebrityId)
           .eq('status', 'pending')
           .order('created_at', { ascending: false });
@@ -227,6 +228,9 @@ export default function Dashboard() {
 
       // 4. Show success toast
       toast.success(isRTL ? 'تم قبول العرض وإرسال رد' : 'Offer accepted and reply sent');
+
+      // 5. Navigate to chat with deal pinned
+      navigate(`/chat/${deal.sender_id}?dealId=${deal.id}`);
     } catch (error) {
       console.error('Error accepting deal:', error);
       toast.error(isRTL ? 'فشل قبول العرض' : 'Failed to accept offer');
@@ -413,31 +417,33 @@ export default function Dashboard() {
                   </div>
 
                   {/* Additional Details Section */}
-                  {(deal.budget_cycle || deal.deliverables || deal.exclusivity || deal.why_them || deal.details) && (
+                  {(deal.website_url || deal.budget_cycle || deal.deliverables || deal.exclusivity || deal.why_them || deal.details) && (
                     <div className="space-y-2 mb-4 pt-3 border-t border-border/50">
+                      {deal.website_url && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="p-1.5 bg-cyan-100 dark:bg-cyan-900/30 rounded-full">
+                            <Globe className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {isRTL ? 'الموقع الإلكتروني' : 'Website'}
+                            </p>
+                            <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary truncate hover:underline">
+                              {deal.website_url}
+                            </a>
+                          </div>
+                        </div>
+                      )}
                       {deal.budget_cycle && (
                         <div className="flex items-center gap-2 text-sm">
                           <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                            <RotateCcw className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                            <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
                               {isRTL ? 'دورة الميزانية' : 'Budget Cycle'}
                             </p>
                             <p className="font-medium text-foreground truncate">{deal.budget_cycle}</p>
-                          </div>
-                        </div>
-                      )}
-                      {deal.deliverables && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
-                            <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                              {isRTL ? 'المخرجات' : 'Deliverables'}
-                            </p>
-                            <p className="font-medium text-foreground truncate">{deal.deliverables}</p>
                           </div>
                         </div>
                       )}
@@ -451,6 +457,19 @@ export default function Dashboard() {
                               {isRTL ? 'الحصرية' : 'Exclusivity'}
                             </p>
                             <p className="font-medium text-foreground truncate">{deal.exclusivity}</p>
+                          </div>
+                        </div>
+                      )}
+                      {deal.deliverables && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                            <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {isRTL ? 'المخرجات' : 'Deliverables'}
+                            </p>
+                            <p className="font-medium text-foreground truncate">{deal.deliverables}</p>
                           </div>
                         </div>
                       )}
@@ -491,7 +510,7 @@ export default function Dashboard() {
                       onClick={() => handleReject(deal)}
                     >
                       <X className="h-4 w-4 me-1" />
-                      {isRTL ? 'رفض' : 'Reject'}
+                      {isRTL ? 'غير مناسب' : 'Not a fit'}
                     </Button>
                     <Button
                       size="sm"
@@ -499,7 +518,7 @@ export default function Dashboard() {
                       onClick={() => handleInterested(deal)}
                     >
                       <Heart className="h-4 w-4 me-1" />
-                      {isRTL ? 'مهتم' : 'Interested'}
+                      {isRTL ? 'قبول مبدئي' : 'Accept in principle'}
                     </Button>
                   </div>
                 </div>

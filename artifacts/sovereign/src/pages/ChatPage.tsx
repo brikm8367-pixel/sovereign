@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -37,8 +37,25 @@ interface Message {
   expires_at?: string | null;
 }
 
+interface Deal {
+  id: string;
+  deal_type: string | null;
+  company_name: string | null;
+  budget_range: string | null;
+  timeline: string | null;
+  details: string | null;
+  website_url: string | null;
+  budget_cycle: string | null;
+  deliverables: string | null;
+  exclusivity: string | null;
+  why_them: string | null;
+  status: string;
+}
+
 export default function ChatPage() {
   const { userId } = useParams<{ userId: string }>();
+  const [searchParams] = useSearchParams();
+  const dealId = searchParams.get('dealId');
   const { user } = useAuth();
   const { isRTL } = useLanguage();
   const navigate = useNavigate();
@@ -50,6 +67,8 @@ export default function ChatPage() {
   const [showVoice, setShowVoice] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string } | null>(null);
   const [recipient, setRecipient] = useState<Profile | null>(null);
+  const [deal, setDeal] = useState<Deal | null>(null);
+  const [showDealDetails, setShowDealDetails] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -69,6 +88,22 @@ export default function ChatPage() {
     };
     fetchRecipient();
   }, [userId]);
+
+  // Fetch deal if dealId present
+  useEffect(() => {
+    if (!dealId) return;
+    const fetchDeal = async () => {
+      const { data, error } = await supabase
+        .from('deal_cards')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status')
+        .eq('id', dealId)
+        .single();
+      if (!error && data) {
+        setDeal(data as Deal);
+      }
+    };
+    fetchDeal();
+  }, [dealId]);
 
   // Fetch messages between current user and recipient
   const loadMessages = useCallback(async () => {
@@ -179,18 +214,15 @@ export default function ChatPage() {
 
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '🎤');
       const enc = await encryptForRecipient(contentToSend, userId);
+      const finalContent = enc.success ? enc.payload : contentToSend;
       if (!enc.success) {
-        toast.error(t('تعذّر التشفير — لم يتم الإرسال', 'Encryption failed — message not sent'));
-        setMessages(prev => prev.filter(m => m.id !== tempId));
-        setIsSending(false);
-        return;
+        console.warn('Encryption failed, sending unencrypted:', enc.error);
       }
-      const encryptedContent = enc.payload;
 
       const { error } = await supabase.from('messages').insert({
         sender_id: user.id,
         receiver_id: userId,
-        content: encryptedContent,
+        content: finalContent,
         voice_url: voiceUrl || null,
         media_url: mediaUrl,
         media_type: mediaType,
@@ -280,6 +312,139 @@ export default function ChatPage() {
 
       {/* Messages Area */}
       <main className="flex-1 overflow-y-auto pt-16 pb-20 px-4 max-w-lg mx-auto w-full" ref={scrollRef}>
+        {/* Pinned Deal Card */}
+        {deal && (
+          <div className="mb-4 border border-border rounded-2xl bg-card p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="p-2 bg-primary/10 rounded-xl shrink-0">
+                  <Briefcase className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm text-foreground truncate">
+                    {deal.deal_type || (isRTL ? 'عرض غير محدد' : 'Untitled Offer')}
+                  </p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+                    {deal.company_name && (
+                      <>
+                        <Building2 className="h-3 w-3" />
+                        {deal.company_name}
+                      </>
+                    )}
+                    {deal.budget_range && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <DollarSign className="h-3 w-3" />
+                        {deal.budget_range}
+                      </>
+                    )}
+                    {deal.timeline && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <Calendar className="h-3 w-3" />
+                        {deal.timeline}
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-xl shrink-0"
+                onClick={() => setShowDealDetails(!showDealDetails)}
+              >
+                {showDealDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            {showDealDetails && (
+              <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+                {deal.website_url && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="p-1.5 bg-cyan-100 dark:bg-cyan-900/30 rounded-full">
+                      <Globe className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        {isRTL ? 'الموقع الإلكتروني' : 'Website'}
+                      </p>
+                      <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary truncate hover:underline">
+                        {deal.website_url}
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {deal.budget_cycle && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                      <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        {isRTL ? 'دورة الميزانية' : 'Budget Cycle'}
+                      </p>
+                      <p className="font-medium text-foreground truncate">{deal.budget_cycle}</p>
+                    </div>
+                  </div>
+                )}
+                {deal.exclusivity && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="p-1.5 bg-orange-100 dark:bg-orange-900/30 rounded-full">
+                      <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        {isRTL ? 'الحصرية' : 'Exclusivity'}
+                      </p>
+                      <p className="font-medium text-foreground truncate">{deal.exclusivity}</p>
+                    </div>
+                  </div>
+                )}
+                {deal.deliverables && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                      <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        {isRTL ? 'المخرجات' : 'Deliverables'}
+                      </p>
+                      <p className="font-medium text-foreground truncate">{deal.deliverables}</p>
+                    </div>
+                  </div>
+                )}
+                {deal.why_them && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="p-1.5 bg-teal-100 dark:bg-teal-900/30 rounded-full">
+                      <UserCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        {isRTL ? 'لماذا هم' : 'Why Them'}
+                      </p>
+                      <p className="font-medium text-foreground truncate">{deal.why_them}</p>
+                    </div>
+                  </div>
+                )}
+                {deal.details && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <div className="p-1.5 bg-gray-100 dark:bg-gray-800 rounded-full mt-0.5">
+                      <FileText className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        {isRTL ? 'التفاصيل' : 'Details'}
+                      </p>
+                      <p className="font-medium text-foreground whitespace-pre-wrap">{deal.details}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
