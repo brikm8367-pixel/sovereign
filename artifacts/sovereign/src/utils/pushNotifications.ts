@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { playWorkNotificationSound, playPrivateNotificationSound, playNotificationSound } from './sounds';
 
 let cachedVapidKey: string | null = null;
 
@@ -50,11 +51,17 @@ export async function registerPushNotifications() {
     if (!auth.user) return;
 
     const subJson = subscription.toJSON();
+    const endpoint = subJson.endpoint!;
+    const p256dh = subJson.keys!.p256dh;
+    const authKey = subJson.keys!.auth;
+
+    // Store subscription with profile id and endpoint
     await supabase.from('push_subscriptions').upsert({
       user_id: auth.user.id,
-      endpoint: subJson.endpoint!,
-      p256dh: subJson.keys!.p256dh,
-      auth: subJson.keys!.auth,
+      endpoint,
+      p256dh,
+      auth: authKey,
+      profile_id: auth.user.id, // Store current profile id
     }, { onConflict: 'user_id,endpoint' as any });
 
     console.log('Push notifications registered successfully');
@@ -70,8 +77,51 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
 }
 
+/** Play incoming message sound based on category */
+export function playIncomingMessageSound(category: 'work' | 'direct' | 'audience' | string) {
+  switch (category) {
+    case 'work':
+      playWorkNotificationSound();
+      break;
+    case 'direct':
+      playPrivateNotificationSound();
+      break;
+    case 'audience':
+    default:
+      playNotificationSound();
+      break;
+  }
+}
+
+/** Send a test push notification to the current user */
+export async function sendTestNotification() {
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return;
+
+    const { error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        receiverId: auth.user.id,
+        senderName: 'Sovereign Test',
+        messageType: 'test',
+        content: 'This is a test notification from Sovereign',
+        notificationType: 'test',
+      },
+    });
+
+    if (error) {
+      console.error('Test notification error:', error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Failed to send test notification:', error);
+    return false;
+  }
+}
+
 /** Show in-app notification with sound when a message arrives */
-export function showInAppNotification(title: string, body: string) {
+export function showInAppNotification(title: string, body: string, category?: 'work' | 'direct' | 'audience') {
   if (Notification.permission === 'granted') {
     const n = new Notification(title, {
       body,
@@ -79,5 +129,10 @@ export function showInAppNotification(title: string, body: string) {
       tag: 'directly-msg',
     });
     setTimeout(() => n.close(), 5000);
+  }
+  
+  // Play sound based on category
+  if (category) {
+    playIncomingMessageSound(category);
   }
 }
