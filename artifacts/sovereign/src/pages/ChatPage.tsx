@@ -54,7 +54,7 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const t = (ar: string, en: string) => (isRTL ? ar : en);
+  const t = useCallback((ar: string, en: string) => (isRTL ? ar : en), [isRTL]);
 
   // Fetch recipient profile
   useEffect(() => {

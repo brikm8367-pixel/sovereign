@@ -5,7 +5,7 @@ import { useRole } from '@/hooks/useRole.tsx';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, User, Check, Crown, Briefcase, DollarSign, Calendar, Building2, X, Heart } from 'lucide-react';
+import { Loader2, User, Check, Crown, Briefcase, DollarSign, Calendar, Building2, X, Heart, RotateCcw, FileText, Shield, UserCheck } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { BottomNavigation } from '@/components/BottomNavigation';
@@ -28,6 +28,10 @@ interface PendingDeal {
   budget_range: string | null;
   timeline: string | null;
   details: string | null;
+  budget_cycle: string | null;
+  deliverables: string | null;
+  exclusivity: string | null;
+  why_them: string | null;
   sender_id: string;
   celebrity_id: string;
   status: string;
@@ -77,7 +81,7 @@ export default function Dashboard() {
       try {
         const { data, error } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, timeline, details, sender_id, celebrity_id, status')
+          .select('id, deal_type, company_name, budget_range, timeline, details, budget_cycle, deliverables, exclusivity, why_them, sender_id, celebrity_id, status')
           .eq('celebrity_id', managedCelebrityId)
           .eq('status', 'pending')
           .order('created_at', { ascending: false });
@@ -407,6 +411,77 @@ export default function Dashboard() {
                       </div>
                     )}
                   </div>
+
+                  {/* Additional Details Section */}
+                  {(deal.budget_cycle || deal.deliverables || deal.exclusivity || deal.why_them || deal.details) && (
+                    <div className="space-y-2 mb-4 pt-3 border-t border-border/50">
+                      {deal.budget_cycle && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                            <RotateCcw className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {isRTL ? 'دورة الميزانية' : 'Budget Cycle'}
+                            </p>
+                            <p className="font-medium text-foreground truncate">{deal.budget_cycle}</p>
+                          </div>
+                        </div>
+                      )}
+                      {deal.deliverables && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                            <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {isRTL ? 'المخرجات' : 'Deliverables'}
+                            </p>
+                            <p className="font-medium text-foreground truncate">{deal.deliverables}</p>
+                          </div>
+                        </div>
+                      )}
+                      {deal.exclusivity && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="p-1.5 bg-orange-100 dark:bg-orange-900/30 rounded-full">
+                            <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {isRTL ? 'الحصرية' : 'Exclusivity'}
+                            </p>
+                            <p className="font-medium text-foreground truncate">{deal.exclusivity}</p>
+                          </div>
+                        </div>
+                      )}
+                      {deal.why_them && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="p-1.5 bg-teal-100 dark:bg-teal-900/30 rounded-full">
+                            <UserCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {isRTL ? 'لماذا هم' : 'Why Them'}
+                            </p>
+                            <p className="font-medium text-foreground truncate">{deal.why_them}</p>
+                          </div>
+                        </div>
+                      )}
+                      {deal.details && (
+                        <div className="flex items-start gap-2 text-sm">
+                          <div className="p-1.5 bg-gray-100 dark:bg-gray-800 rounded-full mt-0.5">
+                            <FileText className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {isRTL ? 'التفاصيل' : 'Details'}
+                            </p>
+                            <p className="font-medium text-foreground whitespace-pre-wrap">{deal.details}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2">
                     <Button
