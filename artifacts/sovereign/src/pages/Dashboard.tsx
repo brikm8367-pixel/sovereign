@@ -318,9 +318,12 @@ export default function Dashboard() {
           <div className="mb-4 space-y-3">
             {/* Current Celebrity Badge */}
             <div className="flex items-center gap-2 p-3 rounded-2xl bg-card border border-border">
-              <div className="h-8 w-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
-                <Crown className="h-4 w-4 text-amber-500" />
-              </div>
+              <Avatar className="h-10 w-10 ring-2 ring-amber-500/20 shrink-0">
+                <AvatarImage src={activeCelebrity?.avatar_url || undefined} />
+                <AvatarFallback className="bg-amber-500/10 text-amber-500 text-sm">
+                  {activeCelebrity?.display_name?.[0] || activeCelebrity?.username?.[0] || <Crown className="h-4 w-4" />}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground">
                   {isRTL ? 'تدير حالياً' : 'Currently managing'}
