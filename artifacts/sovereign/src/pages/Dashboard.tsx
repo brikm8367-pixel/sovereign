@@ -104,12 +104,12 @@ export default function Dashboard() {
       setIsLoadingMessages(true);
 
       let query;
-      if (role === 'manager' && managedCelebrityId) {
-        // Manager viewing managed celebrity's work messages (both sent and received)
+      if (role === 'manager') {
+        // Manager viewing their own work messages (both sent and received)
         query = supabase
           .from('messages')
           .select('*')
-          .or(`receiver_id.eq.${managedCelebrityId},sender_id.eq.${managedCelebrityId}`)
+          .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
           .eq('category', 'work')
           .order('created_at', { ascending: false });
       } else {
