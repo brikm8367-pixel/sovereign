@@ -1,0 +1,146 @@
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
+
+export type UserRole = 'celebrity' | 'sender' | 'manager';
+export type AccountType = 'celebrity' | 'sender';
+
+export interface ManagedCelebrity {
+  id: string;
+  display_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+}
+
+interface RoleContextType {
+  accountType: AccountType;
+  role: UserRole;
+  managedCelebrityId: string | null;
+  managedCelebrities: ManagedCelebrity[];
+  loading: boolean;
+  refresh: () => Promise<void>;
+  switchCelebrity: (celebrityId: string) => Promise<void>;
+}
+
+const RoleContext = createContext<RoleContextType | undefined>(undefined);
+
+export function RoleProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [accountType, setAccountType] = useState<AccountType>('sender');
+  const [role, setRole] = useState<UserRole>('sender');
+  const [managedCelebrityId, setManagedCelebrityId] = useState<string | null>(null);
+  const [managedCelebrities, setManagedCelebrities] = useState<ManagedCelebrity[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!user) {
+      setAccountType('sender');
+      setRole('sender');
+      setManagedCelebrityId(null);
+      setManagedCelebrities([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Fetch profile to get account_type
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_type')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const type = (profile?.account_type as AccountType) || 'sender';
+      setAccountType(type);
+
+      if (type === 'celebrity') {
+        setRole('celebrity');
+        // Fetch managed celebrities (where user is manager)
+        const { data: links } = await supabase
+          .from('manager_links')
+          .select('celebrity_id')
+          .eq('manager_id', user.id)
+          .eq('status', 'active');
+
+        if (links?.length) {
+          const celebrityIds = links.map(l => l.celebrity_id);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, display_name, username, avatar_url')
+            .in('id', celebrityIds);
+          setManagedCelebrities(profiles as ManagedCelebrity[] || []);
+          // Set active celebrity if not set
+          if (!managedCelebrityId && profiles?.length) {
+            setManagedCelebrityId(profiles[0].id);
+          }
+        }
+      } else if (type === 'sender') {
+        // Check if user is a manager for any celebrity
+        const { data: links } = await supabase
+          .from('manager_links')
+          .select('celebrity_id')
+          .eq('manager_id', user.id)
+          .eq('status', 'active');
+
+        if (links?.length) {
+          setRole('manager');
+          const celebrityIds = links.map(l => l.celebrity_id);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, display_name, username, avatar_url')
+            .in('id', celebrityIds);
+          setManagedCelebrities(profiles as ManagedCelebrity[] || []);
+          if (!managedCelebrityId && profiles?.length) {
+            setManagedCelebrityId(profiles[0].id);
+          }
+        } else {
+          setRole('sender');
+          setManagedCelebrityId(null);
+          setManagedCelebrities([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing role:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, managedCelebrityId]);
+
+  const switchCelebrity = useCallback(async (celebrityId: string) => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ active_celebrity_id: celebrityId })
+      .eq('id', user.id);
+    if (!error) {
+      setManagedCelebrityId(celebrityId);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return (
+    <RoleContext.Provider value={{
+      accountType,
+      role,
+      managedCelebrityId,
+      managedCelebrities,
+      loading,
+      refresh,
+      switchCelebrity,
+    }}>
+      {children}
+    </RoleContext.Provider>
+  );
+}
+
+export function useRole() {
+  const context = useContext(RoleContext);
+  if (!context) {
+    throw new Error('useRole must be used within a RoleProvider');
+  }
+  return context;
+}

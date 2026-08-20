@@ -1,0 +1,455 @@
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { useRole } from '@/hooks/useRole.tsx';
+import { useLanguage } from '@/i18n/LanguageContext';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Loader2, User, Check, Crown, Briefcase, DollarSign, Calendar, Building2, X, Heart } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { BottomNavigation } from '@/components/BottomNavigation';
+import InboxSection, { MessageCategory, Message } from '@/components/messaging/InboxSection';
+import { MessageViewer } from '@/components/messaging/MessageViewer';
+import { CelebritySwitcher } from '@/components/manager/CelebritySwitcher';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface Profile {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+interface PendingDeal {
+  id: string;
+  deal_type: string | null;
+  company_name: string | null;
+  budget_range: string | null;
+  timeline: string | null;
+  details: string | null;
+  sender_id: string;
+  celebrity_id: string;
+  status: string;
+}
+
+export default function Dashboard() {
+  const { user, loading } = useAuth();
+  const { role, accountType, managedCelebrityId, managedCelebrities, switchCelebrity } = useRole();
+  const { isRTL, language } = useLanguage();
+  const navigate = useNavigate();
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<MessageCategory>('work');
+  const [viewingMessage, setViewingMessage] = useState<Message | null>(null);
+  const [hasActiveManager, setHasActiveManager] = useState(false);
+  const [pendingDeals, setPendingDeals] = useState<PendingDeal[]>([]);
+  const [isLoadingDeals, setIsLoadingDeals] = useState(false);
+
+  useEffect(() => { if (!loading && !user) navigate('/'); }, [user, loading, navigate]);
+
+  // Check if celebrity has an active manager
+  useEffect(() => {
+    const checkActiveManager = async () => {
+      if (!user || accountType !== 'celebrity') {
+        setHasActiveManager(false);
+        return;
+      }
+      const { data } = await supabase
+        .from('manager_links')
+        .select('id')
+        .eq('celebrity_id', user.id)
+        .eq('status', 'active')
+        .limit(1);
+      setHasActiveManager(!!data && data.length > 0);
+    };
+    checkActiveManager();
+  }, [user, accountType]);
+
+  // Fetch pending deals for manager
+  useEffect(() => {
+    const fetchPendingDeals = async () => {
+      if (role !== 'manager' || !managedCelebrityId || !user) {
+        setPendingDeals([]);
+        return;
+      }
+      setIsLoadingDeals(true);
+      try {
+        const { data, error } = await supabase
+          .from('deal_cards')
+          .select('id, deal_type, company_name, budget_range, timeline, details, sender_id, celebrity_id, status')
+          .eq('celebrity_id', managedCelebrityId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setPendingDeals((data as unknown as PendingDeal[]) || []);
+      } catch (error) {
+        console.error('Error fetching pending deals:', error);
+        toast.error(isRTL ? 'فشل تحميل العروض' : 'Failed to load offers');
+        setPendingDeals([]);
+      } finally {
+        setIsLoadingDeals(false);
+      }
+    };
+    fetchPendingDeals();
+  }, [role, managedCelebrityId, user, isRTL]);
+
+  // Fetch messages
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!user) return;
+      setIsLoadingMessages(true);
+
+      let query;
+      if (role === 'manager' && managedCelebrityId) {
+        // Manager viewing managed celebrity's work messages (both sent and received)
+        query = supabase
+          .from('messages')
+          .select('*')
+          .or(`receiver_id.eq.${managedCelebrityId},sender_id.eq.${managedCelebrityId}`)
+          .eq('category', 'work')
+          .order('created_at', { ascending: false });
+      } else {
+        // Current user logic: all messages (sent and received) without category filter
+        query = supabase
+          .from('messages')
+          .select('*')
+          .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
+          .order('created_at', { ascending: false });
+      }
+
+      const { data: messagesData, error: messagesError } = await query;
+
+      if (messagesError) {
+        console.error('Error fetching messages:', messagesError);
+        setIsLoadingMessages(false);
+        return;
+      }
+
+      const messages = (messagesData as unknown as Message[]) || [];
+
+      // Extract unique sender_ids
+      const senderIds = Array.from(new Set(messages.map(m => m.sender_id).filter(Boolean)));
+
+      // Fetch profiles for those sender_ids
+      let profilesMap: Record<string, Profile> = {};
+      if (senderIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, display_name, username, avatar_url')
+          .in('id', senderIds);
+
+        if (profilesData) {
+          profilesMap = profilesData.reduce((acc, p) => {
+            acc[p.id] = p;
+            return acc;
+          }, {} as Record<string, Profile>);
+        }
+      }
+
+      // Merge profile data into messages
+      const messagesWithProfiles = messages.map(message => ({
+        ...message,
+        sender_profile: profilesMap[message.sender_id] || null,
+      }));
+
+      setMessages(messagesWithProfiles);
+      setIsLoadingMessages(false);
+    };
+
+    if (user) {
+      fetchMessages();
+    }
+  }, [user, role, managedCelebrityId]);
+
+  // Mark message as read
+  const handleMessageRead = useCallback(async (message: Message) => {
+    if (!user || message.is_read) return;
+    await supabase.from('messages').update({ is_read: true }).eq('id', message.id);
+    setMessages(prev => prev.map(m => m.id === message.id ? { ...m, is_read: true } : m));
+  }, [user]);
+
+  // Update deal status
+  const updateDealStatus = async (dealId: string, status: any) => {
+    const { error } = await supabase
+      .from('deal_cards')
+      .update({ status: status as any })
+      .eq('id', dealId);
+    if (error) throw error;
+  };
+
+  // Handle reject
+  const handleReject = async (deal: PendingDeal) => {
+    try {
+      await updateDealStatus(deal.id, 'declined');
+      setPendingDeals(prev => prev.filter(d => d.id !== deal.id));
+      toast.success(isRTL ? 'تم رفض العرض' : 'Offer rejected');
+    } catch (error) {
+      console.error('Error rejecting deal:', error);
+      toast.error(isRTL ? 'فشل رفض العرض' : 'Failed to reject offer');
+    }
+  };
+
+  // Handle interested
+  const handleInterested = async (deal: PendingDeal) => {
+    if (!user) return;
+    try {
+      // 1. Insert message to sender
+      const { data: messageData, error: messageError } = await supabase
+        .from('messages')
+        .insert({
+          sender_id: user.id,
+          receiver_id: deal.sender_id,
+          subject: deal.deal_type ? `Re: ${deal.deal_type}` : null,
+          content: isRTL ? 'مهتم بعرضك' : 'Interested in your offer',
+          category: 'work',
+        })
+        .select('id')
+        .single();
+
+      if (messageError) throw messageError;
+
+      // 2. Update deal status to accepted and link message
+      const { error: dealError } = await supabase
+        .from('deal_cards')
+        .update({ status: 'accepted', message_id: messageData.id })
+        .eq('id', deal.id);
+
+      if (dealError) throw dealError;
+
+      // 3. Remove from pending deals
+      setPendingDeals(prev => prev.filter(d => d.id !== deal.id));
+
+      // 4. Show success toast
+      toast.success(isRTL ? 'تم قبول العرض وإرسال رد' : 'Offer accepted and reply sent');
+    } catch (error) {
+      console.error('Error accepting deal:', error);
+      toast.error(isRTL ? 'فشل قبول العرض' : 'Failed to accept offer');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Find active celebrity for manager badge
+  const activeCelebrity = managedCelebrities.find(c => c.id === managedCelebrityId);
+
+  // Determine allowed categories
+  const allowedCategories: MessageCategory[] = role === 'manager'
+    ? ['work']
+    : hasActiveManager
+      ? ['direct', 'audience']
+      : ['work', 'direct', 'audience'];
+
+  return (
+    <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
+      <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
+        <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-muted-foreground">
+              {isRTL ? 'كل شيء في مكانه — تلقائيًا' : 'Everything in its place — automatically'}
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <LanguageSwitcher />
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-lg mx-auto pt-16 pb-20 px-4">
+        {/* Celebrity Switcher for Managers */}
+        {role === 'manager' && managedCelebrities.length > 0 && (
+          <CelebritySwitcher
+            celebrities={managedCelebrities}
+            activeCelebId={managedCelebrityId}
+            onSwitch={switchCelebrity}
+          />
+        )}
+
+        {/* Manager Section: Current Celebrity + Switcher Chips */}
+        {role === 'manager' && managedCelebrities.length > 0 && (
+          <div className="mb-4 space-y-3">
+            {/* Current Celebrity Badge */}
+            <div className="flex items-center gap-2 p-3 rounded-2xl bg-card border border-border">
+              <div className="h-8 w-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+                <Crown className="h-4 w-4 text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">
+                  {isRTL ? 'تدير حالياً' : 'Currently managing'}
+                </p>
+                <p className="text-sm font-medium truncate">
+                  {activeCelebrity?.display_name || activeCelebrity?.username || '—'}
+                  {activeCelebrity?.username && (
+                    <span className="text-muted-foreground font-normal ml-1">@{activeCelebrity.username}</span>
+                  )}
+                </p>
+              </div>
+              <span className="text-xs font-medium text-primary px-2 py-1 rounded-full bg-primary/10">
+                {isRTL ? 'وكيل' : 'Manager'}
+              </span>
+            </div>
+
+            {/* Horizontal Chip Bar for Switching */}
+            <div className="overflow-x-auto scrollbar-hide pb-1">
+              <div className="flex items-center gap-1.5 min-w-max">
+                {managedCelebrities.map((c) => {
+                  const isActive = c.id === managedCelebrityId;
+                  const initials = (c.display_name || c.username || '?')[0].toUpperCase();
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => switchCelebrity(c.id)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all shrink-0 relative ${
+                        isActive
+                          ? 'bg-primary/10 text-primary border border-primary/20'
+                          : 'bg-muted/50 text-muted-foreground border border-transparent hover:bg-muted/70 hover:border-border/50'
+                      }`}
+                    >
+                      {c.avatar_url ? (
+                        <img src={c.avatar_url} alt="" className="h-3.5 w-3.5 rounded-full" />
+                      ) : (
+                        <span className="h-3.5 w-3.5 rounded-full flex items-center justify-center bg-primary/10 text-primary text-[10px] font-semibold">{initials}</span>
+                      )}
+                      <span className="truncate max-w-[70px]">{c.display_name || c.username || '—'}</span>
+                      {isActive && (
+                        <span className="absolute -top-0.5 -end-0.5 h-4 w-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px]">
+                          <Check className="h-3 w-3" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pending Deals Section for Manager */}
+        {role === 'manager' && pendingDeals.length > 0 && (
+          <div className="mb-6 space-y-3">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-primary" />
+              {isRTL ? 'عروض العمل' : 'Work Offers'}
+              <span className="px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
+                {pendingDeals.length}
+              </span>
+            </h2>
+            {isLoadingDeals ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              pendingDeals.map((deal) => (
+                <div
+                  key={deal.id}
+                  className="border border-border rounded-2xl p-4 bg-card hover:shadow-md transition-shadow duration-200"
+                >
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-base text-foreground truncate">
+                        {deal.deal_type || (isRTL ? 'عرض غير محدد' : 'Untitled Offer')}
+                      </h3>
+                      {deal.company_name && (
+                        <p className="text-sm text-muted-foreground truncate mt-0.5 flex items-center gap-1">
+                          <Building2 className="h-3.5 w-3.5" />
+                          {deal.company_name}
+                        </p>
+                      )}
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 shrink-0">
+                      {isRTL ? 'قيد الانتظار' : 'Pending'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {deal.budget_range && (
+                      <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-xl">
+                        <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-full">
+                          <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                            {isRTL ? 'الميزانية' : 'Budget'}
+                          </p>
+                          <p className="font-medium text-foreground truncate text-sm">
+                            {deal.budget_range}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {deal.timeline && (
+                      <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-xl">
+                        <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                          <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                            {isRTL ? 'الجدول الزمني' : 'Timeline'}
+                          </p>
+                          <p className="font-medium text-foreground truncate text-sm">
+                            {deal.timeline}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-10 text-sm rounded-xl touch-feedback border-red-500 text-red-500 hover:bg-red-500/10"
+                      onClick={() => handleReject(deal)}
+                    >
+                      <X className="h-4 w-4 me-1" />
+                      {isRTL ? 'رفض' : 'Reject'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1 h-10 text-sm rounded-xl touch-feedback bg-primary text-primary-foreground hover:bg-primary/90"
+                      onClick={() => handleInterested(deal)}
+                    >
+                      <Heart className="h-4 w-4 me-1" />
+                      {isRTL ? 'مهتم' : 'Interested'}
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Inbox Section */}
+        <div className="mb-6">
+          <InboxSection
+            messages={messages}
+            isLoading={isLoadingMessages}
+            onMessageClick={(msg) => setViewingMessage(msg)}
+            activeCategory={activeCategory}
+            onCategoryChange={setActiveCategory}
+            allowedCategories={allowedCategories}
+          />
+        </div>
+      </main>
+
+      <MessageViewer
+        message={viewingMessage}
+        isOpen={!!viewingMessage}
+        onClose={() => setViewingMessage(null)}
+        onMessageRead={() => viewingMessage && handleMessageRead(viewingMessage)}
+      />
+
+      <BottomNavigation />
+    </div>
+  );
+}
