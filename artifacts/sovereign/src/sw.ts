@@ -88,7 +88,11 @@ self.addEventListener("push", (event: PushEvent) => {
   } else if (data.notificationType === "direct_access_added") {
     actions.push({ action: "view", title: "👀 View" });
   } else if (data.notificationType !== "pattern_report") {
-    actions.push({ action: "reply", title: "↩️ Reply" }, { action: "like", title: "❤️" });
+    // Add reply action when conversationId and senderId are present
+    if (data.conversationId && data.senderId) {
+      actions.push({ action: "reply", title: "↩️ Reply" });
+    }
+    actions.push({ action: "like", title: "❤️" });
   }
 
   const options: NotificationOptions = {
@@ -103,11 +107,12 @@ self.addEventListener("push", (event: PushEvent) => {
     data: {
       url: data.url || "/home",
       conversationId: data.conversationId || null,
+      dealId: data.dealId || null,
       callId: data.callId || null,
       notificationType: data.notificationType || "message",
       senderId: data.senderId || null,
     },
-  } as NotificationOptions;
+  } as NotificationOptions);
 
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
@@ -117,16 +122,16 @@ self.addEventListener("notificationclick", (event: NotificationEvent) => {
   const nd: any = event.notification.data || {};
   let url = nd.url || "/home";
 
-  if (event.action === "reply" && nd.conversationId) {
-    url = `/home?tab=inbox&conversation=${nd.conversationId}`;
-  } else if (event.action === "like" && nd.conversationId) {
-    url = `/home?tab=inbox&conversation=${nd.conversationId}&action=like`;
+  if (event.action === "reply" && nd.senderId) {
+    url = `/chat/${nd.senderId}?dealId=${nd.dealId || ''}`;
+  } else if (event.action === "view" && nd.senderId) {
+    url = `/chat/${nd.senderId}`;
   } else if (event.action === "accept" && nd.callId) {
     url = `/home?call=${nd.callId}&from=${nd.senderId}`;
   } else if (event.action === "reject") {
     return;
-  } else if (event.action === "view") {
-    url = `/home?tab=inbox`;
+  } else if (event.action === "like" && nd.conversationId) {
+    url = `/home?tab=inbox&conversation=${nd.conversationId}&action=like`;
   } else if (nd.conversationId) {
     url = `/home?tab=inbox&conversation=${nd.conversationId}`;
   }
