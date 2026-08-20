@@ -51,7 +51,17 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         .eq('id', user.id)
         .maybeSingle();
 
-      const type = (profile?.account_type as AccountType) || 'sender';
+      // Check if user has an active manager link (is a celebrity with an agent)
+      const { data: activeManagerLink } = await supabase
+        .from('manager_links')
+        .select('id')
+        .eq('celebrity_id', user.id)
+        .eq('status', 'active')
+        .limit(1);
+
+      // If user has an active manager, they are a celebrity regardless of profile.account_type
+      const hasActiveManager = !!activeManagerLink && activeManagerLink.length > 0;
+      const type = hasActiveManager ? 'celebrity' : ((profile?.account_type as AccountType) || 'sender');
       setAccountType(type);
 
       if (type === 'celebrity') {
