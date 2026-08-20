@@ -88,6 +88,10 @@ export default function Dashboard() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
+
+        // Mark pending deals as viewed
+        await supabase.from('deal_cards').update({ viewed_at: new Date().toISOString() }).eq('celebrity_id', managedCelebrityId).eq('status', 'pending').is('viewed_at', null);
+
         setPendingDeals((data as unknown as PendingDeal[]) || []);
       } catch (error) {
         console.error('Error fetching pending deals:', error);
