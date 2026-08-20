@@ -54,7 +54,7 @@ export default function OfferStatusTracker() {
     setLoading(true);
 
     try {
-      // Fetch deal cards with celebrity profile join
+      // Fetch deal cards without celebrity profile join
       const { data, error } = await supabase
         .from('deal_cards')
         .select(`
@@ -73,7 +73,7 @@ export default function OfferStatusTracker() {
           created_at,
           message_id,
           viewed_at,
-          celebrity_profile:profiles!deal_cards_celebrity_id_fkey(display_name, username)
+          celebrity_id
         `)
         .eq('sender_id', user.id)
         .order('created_at', { ascending: false });
@@ -85,10 +85,35 @@ export default function OfferStatusTracker() {
         return;
       }
 
-      const fetchedOffers = (data as unknown as DealCard[]) || [];
+      const fetchedOffers = (data as unknown as (DealCard & { celebrity_id: string })[]) || [];
+
+      // Extract unique celebrity_ids
+      const celebrityIds = Array.from(new Set(fetchedOffers.map(o => o.celebrity_id).filter(Boolean)));
+
+      // Fetch profiles for those celebrity_ids
+      let profilesMap: Record<string, CelebrityProfile> = {};
+      if (celebrityIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, display_name, username, avatar_url')
+          .in('id', celebrityIds);
+
+        if (profilesData) {
+          profilesMap = profilesData.reduce((acc, p) => {
+            acc[p.id] = { display_name: p.display_name, username: p.username };
+            return acc;
+          }, {} as Record<string, CelebrityProfile>);
+        }
+      }
+
+      // Merge profiles into offers
+      const offersWithProfiles = fetchedOffers.map(offer => ({
+        ...offer,
+        celebrity_profile: profilesMap[offer.celebrity_id] || null,
+      }));
 
       // For offers with message_id, fetch the conversation partner (message sender)
-      const offersWithPartner = await Promise.all(fetchedOffers.map(async (offer) => {
+      const offersWithPartner = await Promise.all(offersWithProfiles.map(async (offer) => {
         if (offer.message_id) {
           const { data: messageData } = await supabase
             .from('messages')
