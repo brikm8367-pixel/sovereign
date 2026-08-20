@@ -117,7 +117,7 @@ export default function Dashboard() {
       query = supabase
         .from('messages')
         .select('*')
-        .eq('celebrity_id', managedCelebrityId)
+        .eq('celebrity_id' as any, managedCelebrityId)
         .eq('category', 'work')
         .order('created_at', { ascending: false });
     } else if (role === 'manager') {
@@ -246,7 +246,7 @@ export default function Dashboard() {
           subject: deal.deal_type ? `Re: ${deal.deal_type}` : null,
           content: isRTL ? 'مهتم بعرضك' : 'Interested in your offer',
           category: 'work',
-        })
+        } as any)
         .select('id')
         .single();
 
