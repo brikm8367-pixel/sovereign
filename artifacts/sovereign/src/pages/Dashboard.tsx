@@ -114,12 +114,7 @@ export default function Dashboard() {
     let query;
     if (role === 'manager' && managedCelebrityId) {
       // Manager viewing messages for the selected celebrity
-      query = supabase
-        .from('messages')
-        .select('*')
-        .eq('celebrity_id' as any, managedCelebrityId)
-        .eq('category', 'work')
-        .order('created_at', { ascending: false });
+      query = (supabase as any).from('messages').select('*').eq('celebrity_id', managedCelebrityId).eq('category', 'work').order('created_at', { ascending: false });
     } else if (role === 'manager') {
       // Fallback for manager without selected celebrity
       query = supabase
