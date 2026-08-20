@@ -97,7 +97,7 @@ export default function ProfilePage() {
     setIsUploading(true);
     try {
       const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
       // Upload directly to bucket root (bucket name is 'avatars')
       const { error: uploadError } = await supabase.storage
