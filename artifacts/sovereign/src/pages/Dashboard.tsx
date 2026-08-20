@@ -112,8 +112,16 @@ export default function Dashboard() {
     setIsLoadingMessages(true);
 
     let query;
-    if (role === 'manager') {
-      // Manager viewing their own work messages (both sent and received)
+    if (role === 'manager' && managedCelebrityId) {
+      // Manager viewing messages for the selected celebrity
+      query = supabase
+        .from('messages')
+        .select('*')
+        .eq('celebrity_id', managedCelebrityId)
+        .eq('category', 'work')
+        .order('created_at', { ascending: false });
+    } else if (role === 'manager') {
+      // Fallback for manager without selected celebrity
       query = supabase
         .from('messages')
         .select('*')
@@ -177,7 +185,7 @@ export default function Dashboard() {
     }
 
     setIsLoadingMessages(false);
-  }, [user, role]);
+  }, [user, role, managedCelebrityId]);
 
   useEffect(() => {
     if (user) {
