@@ -141,6 +141,15 @@ export default function OfferStatusTracker() {
     fetchOffers();
   }, [fetchOffers]);
 
+  // Refetch offers on window focus (e.g., returning from chat)
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchOffers();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchOffers]);
+
   const getDisplayStatus = (offer: DealCard): { label: string; color: string; icon: React.ReactNode } => {
     const status = offer.status?.toLowerCase() || '';
     const hasViewedAt = !!offer.viewed_at;

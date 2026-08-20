@@ -106,6 +106,29 @@ export default function ChatPage() {
     fetchDeal();
   }, [dealId]);
 
+  // Infer deal from messages when no dealId in URL
+  useEffect(() => {
+    if (dealId) return;
+    if (messages.length === 0) return;
+
+    const inferDeal = async () => {
+      const messageIds = messages.map(m => m.id);
+      const { data, error } = await supabase
+        .from('deal_cards')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+        .in('message_id', messageIds)
+        .eq('status', 'accepted')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!error && data && data.length > 0) {
+        setDeal(data[0] as unknown as Deal);
+      }
+    };
+
+    inferDeal();
+  }, [messages, dealId]);
+
   // Fetch messages between current user and recipient
   const loadMessages = useCallback(async () => {
     if (!user || !userId) return;
