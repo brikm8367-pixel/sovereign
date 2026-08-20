@@ -18,22 +18,6 @@ Deno.serve(async (req) => {
     if (userErr || !userData?.user) return json({ error: 'Unauthorized' }, 401)
     const user = userData.user
 
-    const body = await req.json().catch(() => null)
-    const password = typeof body?.password === 'string' ? body.password : ''
-    if (!password) return json({ error: 'Password required' }, 400)
-    if (!user.email) return json({ error: 'Account has no email' }, 400)
-
-    // Verify the celebrity's password.
-    const verifyClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-    )
-    const { error: signInErr } = await verifyClient.auth.signInWithPassword({
-      email: user.email,
-      password,
-    })
-    if (signInErr) return json({ error: 'Invalid password' }, 403)
-
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
