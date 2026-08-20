@@ -185,6 +185,15 @@ export default function ChatPage() {
     if (!user || !userId || (!text.trim() && !voiceUrl && !mediaPreview)) return;
     setIsSending(true);
 
+    // Determine category: check existing messages between these users
+    let category: 'direct' | 'audience' = 'audience';
+    if (messages.length > 0) {
+      const hasDirect = messages.some(m => m.category === 'direct');
+      if (hasDirect) {
+        category = 'direct';
+      }
+    }
+
     const tempId = `temp-${Date.now()}`;
     const optimisticMsg: Message = {
       id: tempId,
@@ -193,7 +202,7 @@ export default function ChatPage() {
       content: text || (voiceUrl ? '🎤' : '📷'),
       created_at: new Date().toISOString(),
       is_read: null,
-      category: 'direct',
+      category,
       parent_id: null,
       voice_url: voiceUrl || null,
       media_url: mediaPreview?.url || null,
@@ -226,7 +235,7 @@ export default function ChatPage() {
         voice_url: voiceUrl || null,
         media_url: mediaUrl,
         media_type: mediaType,
-        category: 'direct',
+        category,
         parent_id: null,
       } as any);
       if (error) throw error;
