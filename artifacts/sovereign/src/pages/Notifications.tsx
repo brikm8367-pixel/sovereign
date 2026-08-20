@@ -10,6 +10,7 @@ import { BottomNavigation } from '@/components/BottomNavigation';
 import { Loader2, Bell, CheckCheck, Filter, Briefcase, Users, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { playNotificationSound } from '@/utils/sounds';
 
 type MessageCategory = 'work' | 'audience' | 'direct';
 
@@ -121,6 +122,41 @@ export default function NotificationsPage() {
     if (user) {
       fetchNotifications();
     }
+  }, [user, role, managedCelebrityId]);
+
+  // Realtime subscription for incoming messages
+  useEffect(() => {
+    if (!user) return;
+
+    const targetId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
+
+    const channel = supabase
+      .channel(`notifications-${targetId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${targetId}`,
+        },
+        (payload) => {
+          const newMessage = payload.new as Notification;
+          // Play notification sound
+          playNotificationSound();
+          // Add to notifications list
+          setNotifications(prev => {
+            // Check if already exists
+            if (prev.some(n => n.id === newMessage.id)) return prev;
+            return [newMessage, ...prev];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, role, managedCelebrityId]);
 
   const handleMarkAllRead = async () => {
@@ -242,7 +278,7 @@ export default function NotificationsPage() {
                     await supabase.from('messages').update({ is_read: true }).eq('id', notification.id);
                     setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n));
                   }
-                  navigate('/dashboard');
+                  navigate(`/chat/${notification.sender_id}`);
                 }}
               >
                 <Avatar className="h-10 w-10 ring-2 ring-primary/10">
