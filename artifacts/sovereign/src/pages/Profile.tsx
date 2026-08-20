@@ -418,7 +418,13 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            {/* Direct Access Manager - Private Circle */}
+            <InviteManagerDialog open={showInviteManager} onOpenChange={setShowInviteManager} />
+          </>
+        )}
+
+        {/* Private Circle - for non-manager users (celebrities and senders) */}
+        {role !== 'manager' && (
+          <>
             <div className="mt-4 p-4 rounded-2xl bg-card border border-border">
               <button
                 onClick={() => setShowDirectAccess(true)}
@@ -432,7 +438,6 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            <InviteManagerDialog open={showInviteManager} onOpenChange={setShowInviteManager} />
             <DirectAccessManager isOpen={showDirectAccess} onClose={() => setShowDirectAccess(false)} />
           </>
         )}
