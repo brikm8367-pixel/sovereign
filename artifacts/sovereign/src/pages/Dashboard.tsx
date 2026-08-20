@@ -111,7 +111,7 @@ export default function Dashboard() {
     setMessages([]);
     setIsLoadingMessages(true);
 
-    let query;
+    let query: any;
     if (role === 'manager' && managedCelebrityId) {
       // Manager viewing messages for the selected celebrity
       query = (supabase as any).from('messages').select('*').eq('celebrity_id', managedCelebrityId).eq('category', 'work').order('created_at', { ascending: false });
