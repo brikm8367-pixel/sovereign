@@ -15,6 +15,20 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Message, MessageCategory } from './InboxSection';
 
+interface DealCard {
+  id: string;
+  deal_type: string | null;
+  company_name: string | null;
+  budget_range: string | null;
+  budget_cycle: string | null;
+  timeline: string | null;
+  details: string | null;
+  exclusivity: string | null;
+  deliverables: string | null;
+  why_them: string | null;
+  status: string;
+}
+
 interface MessageViewerProps {
   message: Message | null;
   isOpen: boolean;
@@ -32,6 +46,8 @@ export function MessageViewer({
   const [replyContent, setReplyContent] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [thread, setThread] = useState<Message[]>([]);
+  const [deal, setDeal] = useState<DealCard | null>(null);
+  const [isLoadingDeal, setIsLoadingDeal] = useState(false);
 
   // Check if message is a deal card (work category or contains deal keywords)
   const isDealMessage = message && (
@@ -58,6 +74,34 @@ export function MessageViewer({
       loadThread();
     }
   }, [isOpen, message?.id]);
+
+  // Fetch associated deal card
+  useEffect(() => {
+    const fetchDeal = async () => {
+      if (!message) return;
+      
+      setIsLoadingDeal(true);
+      try {
+        const { data, error } = await supabase
+          .from('deal_cards')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, exclusivity, deliverables, why_them, status')
+          .eq('message_id', message.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        setDeal(data as DealCard | null);
+      } catch (error) {
+        console.error('Error fetching deal:', error);
+        setDeal(null);
+      } finally {
+        setIsLoadingDeal(false);
+      }
+    };
+
+    if (message) {
+      fetchDeal();
+    }
+  }, [message?.id]);
 
   const loadThread = async () => {
     if (!message) return;
@@ -115,6 +159,8 @@ export function MessageViewer({
     direct: 'bg-[hsl(var(--others))]',
   };
 
+  const t = (ar: string, en: string) => (isRTL ? ar : en);
+
   if (!message) return null;
 
   return (
@@ -133,7 +179,7 @@ export function MessageViewer({
             </Button>
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-lg font-bold truncate">
-                {message.subject || (isRTL ? 'رسالة' : 'Message')}
+                {message.subject || t('رسالة', 'Message')}
               </DialogTitle>
               <div className="flex items-center gap-2 mt-1">
                 <span className={cn(
@@ -145,7 +191,7 @@ export function MessageViewer({
                 {message.is_important && (
                   <span className="text-sm px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 font-medium flex items-center gap-1">
                     <Zap className="h-4 w-4" />
-                    {isRTL ? 'مهم' : 'Important'}
+                    {t('مهم', 'Important')}
                   </span>
                 )}
               </div>
@@ -172,8 +218,8 @@ export function MessageViewer({
             </div>
           </div>
 
-          {/* Message content - Deal card or regular message */}
-          {isDealMessage ? (
+          {/* Pinned Deal Card - if deal exists */}
+          {deal && (
             <div className="p-5 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
@@ -181,10 +227,176 @@ export function MessageViewer({
                 </div>
                 <div>
                   <h3 className="font-semibold text-lg text-foreground">
-                    {isRTL ? 'بطاقة عرض' : 'Deal Card'}
+                    {t('بطاقة عرض', 'Deal Card')}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {isRTL ? 'عرض احترافي مرسل' : 'Professional offer sent'}
+                    {t('عرض احترافي مرسل', 'Professional offer sent')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2 border-t border-amber-200 dark:border-amber-800">
+                {deal.deal_type && (
+                  <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl">
+                    <div className="p-2 bg-primary/10 rounded-full">
+                      <FileText className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {t('نوع العرض', 'Deal Type')}
+                      </p>
+                      <p className="font-medium text-foreground truncate">
+                        {deal.deal_type}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {deal.company_name && (
+                  <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                      <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {t('الشركة', 'Company')}
+                      </p>
+                      <p className="font-medium text-foreground truncate">
+                        {deal.company_name}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {deal.budget_range && (
+                  <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl">
+                    <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-full">
+                      <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {t('الميزانية', 'Budget')}
+                      </p>
+                      <p className="font-medium text-foreground truncate">
+                        {deal.budget_range}
+                        {deal.budget_cycle && ` / ${deal.budget_cycle}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {deal.timeline && (
+                  <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                      <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {t('الجدول الزمني', 'Timeline')}
+                      </p>
+                      <p className="font-medium text-foreground truncate">
+                        {deal.timeline}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {deal.details && (
+                  <div className="flex items-start gap-3 p-3 bg-background/50 rounded-xl">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-full mt-0.5">
+                      <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {t('التفاصيل', 'Details')}
+                      </p>
+                      <p className="font-medium text-foreground whitespace-pre-wrap text-sm">
+                        {deal.details}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {deal.exclusivity && (
+                  <div className="flex items-start gap-3 p-3 bg-background/50 rounded-xl">
+                    <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-full mt-0.5">
+                      <FileText className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {t('الحصرية', 'Exclusivity')}
+                      </p>
+                      <p className="font-medium text-foreground whitespace-pre-wrap text-sm">
+                        {deal.exclusivity}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {deal.deliverables && (
+                  <div className="flex items-start gap-3 p-3 bg-background/50 rounded-xl">
+                    <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-full mt-0.5">
+                      <FileText className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {t('المخرجات', 'Deliverables')}
+                      </p>
+                      <p className="font-medium text-foreground whitespace-pre-wrap text-sm">
+                        {deal.deliverables}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {deal.why_them && (
+                  <div className="flex items-start gap-3 p-3 bg-background/50 rounded-xl">
+                    <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-full mt-0.5">
+                      <FileText className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {t('لماذا هم', 'Why Them')}
+                      </p>
+                      <p className="font-medium text-foreground whitespace-pre-wrap text-sm">
+                        {deal.why_them}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {deal.status && (
+                  <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl">
+                    <div className="p-2 bg-gray-100 dark:bg-gray-900/30 rounded-full">
+                      <FileText className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {t('الحالة', 'Status')}
+                      </p>
+                      <p className="font-medium text-foreground truncate capitalize">
+                        {deal.status}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Message content - Deal card fallback or regular message */}
+          {!deal && isDealMessage ? (
+            <div className="p-5 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+                  <Briefcase className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg text-foreground">
+                    {t('بطاقة عرض', 'Deal Card')}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {t('عرض احترافي مرسل', 'Professional offer sent')}
                   </p>
                 </div>
               </div>
@@ -196,10 +408,10 @@ export function MessageViewer({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                      {isRTL ? 'نوع العرض' : 'Deal Type'}
+                      {t('نوع العرض', 'Deal Type')}
                     </p>
                     <p className="font-medium text-foreground truncate">
-                      {message.subject || message.content.split('\n')[0] || (isRTL ? 'غير محدد' : 'Not specified')}
+                      {message.subject || message.content.split('\n')[0] || t('غير محدد', 'Not specified')}
                     </p>
                   </div>
                 </div>
@@ -210,10 +422,10 @@ export function MessageViewer({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                      {isRTL ? 'الميزانية' : 'Budget'}
+                      {t('الميزانية', 'Budget')}
                     </p>
                     <p className="font-medium text-foreground truncate">
-                      {extractBudget(message.content) || (isRTL ? 'غير محدد' : 'Not specified')}
+                      {extractBudget(message.content) || t('غير محدد', 'Not specified')}
                     </p>
                   </div>
                 </div>
@@ -224,10 +436,10 @@ export function MessageViewer({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                      {isRTL ? 'الجدول الزمني' : 'Timeline'}
+                      {t('الجدول الزمني', 'Timeline')}
                     </p>
                     <p className="font-medium text-foreground truncate">
-                      {extractTimeline(message.content) || (isRTL ? 'غير محدد' : 'Not specified')}
+                      {extractTimeline(message.content) || t('غير محدد', 'Not specified')}
                     </p>
                   </div>
                 </div>
@@ -238,7 +450,7 @@ export function MessageViewer({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                      {isRTL ? 'التفاصيل' : 'Details'}
+                      {t('التفاصيل', 'Details')}
                     </p>
                     <p className="font-medium text-foreground whitespace-pre-wrap text-sm">
                       {extractDetails(message.content) || message.content}
@@ -258,7 +470,7 @@ export function MessageViewer({
           {/* Reply section - Larger, more comfortable */}
           <div className="shrink-0 border-t-2 border-border p-5 space-y-4 bg-muted/30">
             <Textarea
-              placeholder={isRTL ? '✍️ اكتب ردك هنا...' : '✍️ Write your reply here...'}
+              placeholder={t('✍️ اكتب ردك هنا...', '✍️ Write your reply here...')}
               value={replyContent}
               onChange={(e) => setReplyContent(e.target.value)}
               rows={3}
@@ -275,7 +487,7 @@ export function MessageViewer({
               ) : (
                 <>
                   <Send className="h-5 w-5 me-2" />
-                  {isRTL ? 'إرسال الرد' : 'Send Reply'}
+                  {t('إرسال الرد', 'Send Reply')}
                 </>
               )}
             </Button>
