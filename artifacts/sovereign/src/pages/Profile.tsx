@@ -17,7 +17,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { InviteManagerDialog } from '@/components/profile/InviteManagerDialog';
-import { DirectAccessManager } from '@/components/messaging/DirectAccessManager';
+import DirectAccessManager from '@/components/messaging/DirectAccessManager';
 import { buildShareLink } from '@/lib/appUrl';
 
 interface Profile {
