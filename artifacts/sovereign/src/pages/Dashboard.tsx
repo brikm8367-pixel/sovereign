@@ -90,7 +90,7 @@ export default function Dashboard() {
         if (error) throw error;
 
         // Mark pending deals as viewed
-        await supabase.from('deal_cards').update({ viewed_at: new Date().toISOString() }).eq('celebrity_id', managedCelebrityId).eq('status', 'pending').is('viewed_at', null);
+        await supabase.from('deal_cards').update({ viewed_at: new Date().toISOString() } as any).eq('celebrity_id', managedCelebrityId).eq('status', 'pending').is('viewed_at', null);
 
         setPendingDeals((data as unknown as PendingDeal[]) || []);
       } catch (error) {
