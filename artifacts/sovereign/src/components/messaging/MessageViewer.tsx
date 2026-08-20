@@ -89,7 +89,7 @@ export function MessageViewer({
           .single();
 
         if (error && error.code !== 'PGRST116') throw error;
-        setDeal(data as DealCard | null);
+        setDeal(data as unknown as DealCard | null);
       } catch (error) {
         console.error('Error fetching deal:', error);
         setDeal(null);
