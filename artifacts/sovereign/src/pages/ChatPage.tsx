@@ -50,6 +50,7 @@ interface Deal {
   exclusivity: string | null;
   why_them: string | null;
   status: string;
+  celebrity_id: string | null;
 }
 
 export default function ChatPage() {
@@ -95,7 +96,7 @@ export default function ChatPage() {
     const fetchDeal = async () => {
       const { data, error } = await supabase
         .from('deal_cards')
-        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
         .eq('id', dealId)
         .single();
       if (!error && data) {
@@ -237,6 +238,7 @@ export default function ChatPage() {
         media_type: mediaType,
         category,
         parent_id: null,
+        celebrity_id: deal?.celebrity_id || null,
       } as any);
       if (error) throw error;
 
