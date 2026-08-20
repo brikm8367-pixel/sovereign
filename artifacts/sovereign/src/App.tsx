@@ -35,6 +35,7 @@ const SearchPage = lazy(() => import("./pages/SearchPage"));
 const RedeemManagerInvite = lazy(() => import("./pages/RedeemManagerInvite"));
 const SlugRedirect = lazy(() => import("./pages/SlugRedirect"));
 const Offers = lazy(() => import("./pages/Offers"));
+const ChatPage = lazy(() => import("./pages/ChatPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,6 +107,7 @@ const App = () => {
                       <Route path="/join-manager/:celebrityId" element={<Navigate to="/home" replace />} />
                       <Route path="/m/:token" element={<RedeemManagerInvite />} />
                       <Route path="/s/:slug" element={<SlugRedirect />} />
+                      <Route path="/chat/:userId" element={<ChatPage />} />
                       <Route path="/:username" element={<PublicProfile />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

@@ -10,7 +10,6 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { BottomNavigation } from '@/components/BottomNavigation';
 import InboxSection, { MessageCategory, Message } from '@/components/messaging/InboxSection';
-import { MessageViewer } from '@/components/messaging/MessageViewer';
 import { CelebritySwitcher } from '@/components/manager/CelebritySwitcher';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -43,7 +42,6 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [activeCategory, setActiveCategory] = useState<MessageCategory>('work');
-  const [viewingMessage, setViewingMessage] = useState<Message | null>(null);
   const [hasActiveManager, setHasActiveManager] = useState(false);
   const [pendingDeals, setPendingDeals] = useState<PendingDeal[]>([]);
   const [isLoadingDeals, setIsLoadingDeals] = useState(false);
@@ -230,6 +228,12 @@ export default function Dashboard() {
       toast.error(isRTL ? 'فشل قبول العرض' : 'Failed to accept offer');
     }
   };
+
+  // Handle message click - navigate to chat page
+  const handleMessageClick = useCallback((message: Message) => {
+    const otherParticipantId = message.sender_id === user?.id ? message.receiver_id : message.sender_id;
+    navigate(`/chat/${otherParticipantId}`);
+  }, [navigate, user?.id]);
 
   if (loading) {
     return (
@@ -434,20 +438,13 @@ export default function Dashboard() {
           <InboxSection
             messages={messages}
             isLoading={isLoadingMessages}
-            onMessageClick={(msg) => setViewingMessage(msg)}
+            onMessageClick={handleMessageClick}
             activeCategory={activeCategory}
             onCategoryChange={setActiveCategory}
             allowedCategories={allowedCategories}
           />
         </div>
       </main>
-
-      <MessageViewer
-        message={viewingMessage}
-        isOpen={!!viewingMessage}
-        onClose={() => setViewingMessage(null)}
-        onMessageRead={() => viewingMessage && handleMessageRead(viewingMessage)}
-      />
 
       <BottomNavigation />
     </div>
