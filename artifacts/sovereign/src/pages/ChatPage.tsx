@@ -124,7 +124,9 @@ export default function ChatPage() {
       })
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user?.id, userId, loadMessages]);
 
   // Scroll to bottom
