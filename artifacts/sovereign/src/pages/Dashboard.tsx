@@ -78,6 +78,7 @@ export default function Dashboard() {
         setPendingDeals([]);
         return;
       }
+      setPendingDeals([]);
       setIsLoadingDeals(true);
       try {
         const { data, error } = await supabase
@@ -107,6 +108,7 @@ export default function Dashboard() {
   // Fetch messages
   const fetchMessages = useCallback(async () => {
     if (!user) return;
+    setMessages([]);
     setIsLoadingMessages(true);
 
     let query;
@@ -181,7 +183,7 @@ export default function Dashboard() {
     if (user) {
       fetchMessages();
     }
-  }, [fetchMessages, user]);
+  }, [fetchMessages, user, managedCelebrityId]);
 
   // Refetch messages on window focus (e.g., returning from ChatPage)
   useEffect(() => {
