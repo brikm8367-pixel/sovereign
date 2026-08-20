@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BottomNavigation } from '@/components/BottomNavigation';
 import { toast } from 'sonner';
-import { Camera, User, Loader2, Check, Mail, AtSign, FileText, Shield, LogOut, Trash2, Share2, ShieldCheck, Copy, KeyRound, Link, ExternalLink, Heart } from 'lucide-react';
+import { Camera, User, Loader2, Check, Mail, AtSign, FileText, Shield, LogOut, Trash2, Share2, ShieldCheck, Copy, KeyRound, Link, ExternalLink, Heart, ShieldOff } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -42,6 +42,7 @@ export default function ProfilePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [showInviteManager, setShowInviteManager] = useState(false);
   const [showDirectAccess, setShowDirectAccess] = useState(false);
+  const [revokingAgent, setRevokingAgent] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -206,6 +207,24 @@ export default function ProfilePage() {
       navigate('/');
     } catch {
       toast.error(isRTL ? 'فشل حذف الحساب' : 'Failed to delete account');
+    }
+  };
+
+  const handleRevokeAgent = async () => {
+    setRevokingAgent(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manager-kill-switch', {
+        method: 'POST',
+      });
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || 'Failed to revoke agent');
+      }
+      toast.success(isRTL ? 'تم إلغاء تفويض الوكيل' : 'Agent access revoked');
+    } catch (error: any) {
+      console.error('Revoke agent error:', error);
+      toast.error(isRTL ? 'فشل إلغاء التفويض' : 'Failed to revoke agent');
+    } finally {
+      setRevokingAgent(false);
     }
   };
 
@@ -415,6 +434,21 @@ export default function ProfilePage() {
                   {isRTL ? 'دعوة وكيل' : 'Delegate Agent'}
                 </span>
                 <span className="text-xs text-muted-foreground">→</span>
+              </button>
+            </div>
+
+            {/* Revoke Agent Access */}
+            <div className="mt-4 p-4 rounded-2xl bg-card border border-border">
+              <button
+                onClick={handleRevokeAgent}
+                disabled={revokingAgent}
+                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors touch-feedback disabled:opacity-50"
+              >
+                <span className="text-sm font-medium flex items-center gap-2">
+                  <ShieldOff className="h-4 w-4 text-red-500" />
+                  {isRTL ? 'إلغاء تفويض الوكيل' : 'Revoke Agent Access'}
+                </span>
+                {revokingAgent && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </button>
             </div>
 
