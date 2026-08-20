@@ -5,7 +5,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2 } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -99,7 +99,7 @@ export default function ChatPage() {
         .eq('id', dealId)
         .single();
       if (!error && data) {
-        setDeal(data as Deal);
+        setDeal(data as unknown as Deal);
       }
     };
     fetchDeal();
@@ -216,7 +216,7 @@ export default function ChatPage() {
       const enc = await encryptForRecipient(contentToSend, userId);
       const finalContent = enc.success ? enc.payload : contentToSend;
       if (!enc.success) {
-        console.warn('Encryption failed, sending unencrypted:', enc.error);
+        console.warn('Encryption failed, sending unencrypted');
       }
 
       const { error } = await supabase.from('messages').insert({
