@@ -121,14 +121,18 @@ export default function DirectAccessManager({
     toast.success(isRTL ? 'تمت الإضافة ⭐' : 'Added to your circle ⭐');
 
     // ── Send push notification to the added user ──
-    const senderProfile = await supabase.from('profiles').select('display_name').eq('id', user.user.id).single();
-    supabase.functions.invoke('send-push-notification', {
-      body: {
-        receiverId: profile.id,
-        senderName: senderProfile.data?.display_name || 'Someone',
-        notificationType: 'direct_access_added',
-      },
-    }).catch(() => {});
+    try {
+      const senderProfile = await supabase.from('profiles').select('display_name').eq('id', user.user.id).single();
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          receiverId: profile.id,
+          senderName: senderProfile.data?.display_name || 'Someone',
+          notificationType: 'direct_access_added',
+        },
+      }).catch(() => {});
+    } catch {
+      // Silently ignore notification errors
+    }
   };
 
   const removeUser = async (accessId: string, userId: string) => {
@@ -163,7 +167,7 @@ export default function DirectAccessManager({
         </p>
 
         <div className="relative">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute start-3 top-1/2 -translate_y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={isRTL ? 'ابحث عن أشخاص...' : 'Search for people...'}
             value={searchQuery}
@@ -171,7 +175,7 @@ export default function DirectAccessManager({
             className="ps-10 rounded-xl"
           />
           {isSearching && (
-            <Loader2 className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />
+            <Loader2 className="absolute end-3 top-1/2 -translate_y-1/2 h-4 w-4 animate-spin" />
           )}
         </div>
 
