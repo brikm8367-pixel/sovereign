@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
 import { Loader2, Inbox, Globe, Calendar, FileText, DollarSign, Building2, Briefcase, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 
 interface CelebrityProfile {
