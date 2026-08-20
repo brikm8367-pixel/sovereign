@@ -105,72 +105,94 @@ export default function Dashboard() {
   }, [role, managedCelebrityId, user, isRTL]);
 
   // Fetch messages
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!user) return;
-      setIsLoadingMessages(true);
+  const fetchMessages = useCallback(async () => {
+    if (!user) return;
+    setIsLoadingMessages(true);
 
-      let query;
-      if (role === 'manager') {
-        // Manager viewing their own work messages (both sent and received)
-        query = supabase
-          .from('messages')
-          .select('*')
-          .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
-          .eq('category', 'work')
-          .order('created_at', { ascending: false });
-      } else {
-        // Current user logic: all messages (sent and received) without category filter
-        query = supabase
-          .from('messages')
-          .select('*')
-          .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
-          .order('created_at', { ascending: false });
-      }
+    let query;
+    if (role === 'manager') {
+      // Manager viewing their own work messages (both sent and received)
+      query = supabase
+        .from('messages')
+        .select('*')
+        .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
+        .eq('category', 'work')
+        .order('created_at', { ascending: false });
+    } else {
+      // Current user logic: all messages (sent and received) without category filter
+      query = supabase
+        .from('messages')
+        .select('*')
+        .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
+    }
 
-      const { data: messagesData, error: messagesError } = await query;
+    const { data: messagesData, error: messagesError } = await query;
 
-      if (messagesError) {
-        console.error('Error fetching messages:', messagesError);
-        setIsLoadingMessages(false);
-        return;
-      }
-
-      const messages = (messagesData as unknown as Message[]) || [];
-
-      // Extract unique sender_ids
-      const senderIds = Array.from(new Set(messages.map(m => m.sender_id).filter(Boolean)));
-
-      // Fetch profiles for those sender_ids
-      let profilesMap: Record<string, Profile> = {};
-      if (senderIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, display_name, username, avatar_url')
-          .in('id', senderIds);
-
-        if (profilesData) {
-          profilesMap = profilesData.reduce((acc, p) => {
-            acc[p.id] = p;
-            return acc;
-          }, {} as Record<string, Profile>);
-        }
-      }
-
-      // Merge profile data into messages
-      const messagesWithProfiles = messages.map(message => ({
-        ...message,
-        sender_profile: profilesMap[message.sender_id] || null,
-      }));
-
-      setMessages(messagesWithProfiles);
+    if (messagesError) {
+      console.error('Error fetching messages:', messagesError);
       setIsLoadingMessages(false);
-    };
+      return;
+    }
 
+    const messages = (messagesData as unknown as Message[]) || [];
+
+    // Extract unique sender_ids
+    const senderIds = Array.from(new Set(messages.map(m => m.sender_id).filter(Boolean)));
+
+    // Fetch profiles for those sender_ids
+    let profilesMap: Record<string, Profile> = {};
+    if (senderIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, display_name, username, avatar_url')
+        .in('id', senderIds);
+
+      if (profilesData) {
+        profilesMap = profilesData.reduce((acc, p) => {
+          acc[p.id] = p;
+          return acc;
+        }, {} as Record<string, Profile>);
+      }
+    }
+
+    // Merge profile data into messages
+    const messagesWithProfiles = messages.map(message => ({
+      ...message,
+      sender_profile: profilesMap[message.sender_id] || null,
+    }));
+
+    setMessages(messagesWithProfiles);
+
+    // For non-manager users, set activeCategory based on most recent message
+    if (role !== 'manager' && messagesWithProfiles.length > 0) {
+      const mostRecentCategory = messagesWithProfiles[0].category as MessageCategory;
+      if (['work', 'direct', 'audience'].includes(mostRecentCategory)) {
+        setActiveCategory(mostRecentCategory);
+      }
+    } else if (role !== 'manager' && messagesWithProfiles.length === 0) {
+      setActiveCategory('work');
+    }
+
+    setIsLoadingMessages(false);
+  }, [user, role]);
+
+  useEffect(() => {
     if (user) {
       fetchMessages();
     }
-  }, [user, role, managedCelebrityId]);
+  }, [fetchMessages, user]);
+
+  // Refetch messages on window focus (e.g., returning from ChatPage)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user) {
+        fetchMessages();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchMessages, user]);
 
   // Mark message as read
   const handleMessageRead = useCallback(async (message: Message) => {
