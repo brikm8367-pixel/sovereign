@@ -43,6 +43,7 @@ export default function ProfilePage() {
   const [showInviteManager, setShowInviteManager] = useState(false);
   const [showDirectAccess, setShowDirectAccess] = useState(false);
   const [revokingAgent, setRevokingAgent] = useState(false);
+  const [hasActiveAgent, setHasActiveAgent] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -81,6 +82,24 @@ export default function ProfilePage() {
     };
     if (user) fetchProfile();
   }, [user]);
+
+  // Check for active agent (manager link)
+  useEffect(() => {
+    const checkActiveAgent = async () => {
+      if (!user || role === 'manager') {
+        setHasActiveAgent(false);
+        return;
+      }
+      const { data } = await supabase
+        .from('manager_links')
+        .select('id')
+        .eq('celebrity_id', user.id)
+        .eq('status', 'active')
+        .limit(1);
+      setHasActiveAgent(!!data && data.length > 0);
+    };
+    checkActiveAgent();
+  }, [user, role]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -219,6 +238,7 @@ export default function ProfilePage() {
       if (error || data?.error) {
         throw new Error(data?.error || error?.message || 'Failed to revoke agent');
       }
+      setHasActiveAgent(false);
       toast.success(isRTL ? 'تم إلغاء تفويض الوكيل' : 'Agent access revoked');
     } catch (error: any) {
       console.error('Revoke agent error:', error);
@@ -421,8 +441,8 @@ export default function ProfilePage() {
           {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : isRTL ? 'حفظ التغييرات' : 'Save Changes'}
         </Button>
 
-        {/* Delegate Agent / Invite Manager - only for celebrities */}
-        {accountType === 'celebrity' && (
+        {/* Delegate Agent / Invite Manager / Revoke Agent - for non-manager users */}
+        {role !== 'manager' && (
           <>
             <div className="mt-6 p-4 rounded-2xl bg-card border border-border">
               <button
@@ -437,20 +457,22 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            {/* Revoke Agent Access */}
-            <div className="mt-4 p-4 rounded-2xl bg-card border border-border">
-              <button
-                onClick={handleRevokeAgent}
-                disabled={revokingAgent}
-                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors touch-feedback disabled:opacity-50"
-              >
-                <span className="text-sm font-medium flex items-center gap-2">
-                  <ShieldOff className="h-4 w-4 text-red-500" />
-                  {isRTL ? 'إلغاء تفويض الوكيل' : 'Revoke Agent Access'}
-                </span>
-                {revokingAgent && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-              </button>
-            </div>
+            {/* Revoke Agent Access - only show if has active agent */}
+            {hasActiveAgent && (
+              <div className="mt-4 p-4 rounded-2xl bg-card border border-border">
+                <button
+                  onClick={handleRevokeAgent}
+                  disabled={revokingAgent}
+                  className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors touch-feedback disabled:opacity-50"
+                >
+                  <span className="text-sm font-medium flex items-center gap-2">
+                    <ShieldOff className="h-4 w-4 text-red-500" />
+                    {isRTL ? 'إلغاء تفويض الوكيل' : 'Revoke Agent Access'}
+                  </span>
+                  {revokingAgent && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                </button>
+              </div>
+            )}
 
             <InviteManagerDialog open={showInviteManager} onOpenChange={setShowInviteManager} />
           </>
