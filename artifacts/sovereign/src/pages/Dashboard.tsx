@@ -242,6 +242,7 @@ export default function Dashboard() {
         .insert({
           sender_id: user.id,
           receiver_id: deal.sender_id,
+          celebrity_id: deal.celebrity_id,
           subject: deal.deal_type ? `Re: ${deal.deal_type}` : null,
           content: isRTL ? 'مهتم بعرضك' : 'Interested in your offer',
           category: 'work',
