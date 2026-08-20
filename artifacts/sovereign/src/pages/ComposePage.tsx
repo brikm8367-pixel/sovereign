@@ -77,7 +77,7 @@ export const ComposePage = () => {
         sender_id: user.id,
         receiver_id: recipientId,
         content: messageText.trim(),
-        category: 'direct',
+        category: 'audience',
       });
       if (error) throw error;
       toast.success(isRTL ? 'Message envoyé' : 'Message sent');
