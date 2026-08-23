@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { MessageSquare, Briefcase, ArrowRight, X, Send, Paperclip, Mic, Smile, Globe, Building2, DollarSign, Calendar, FileText } from 'lucide-react';
+import { Briefcase, ArrowRight, X, Globe, Building2, DollarSign, Calendar, FileText } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,13 +18,8 @@ export const ComposePage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const recipientId = searchParams.get('recipientId');
   const celebrityId = searchParams.get('celebrityId');
-  const typeParam = searchParams.get('type'); // 'deal' | 'message'
 
-  // États pour les composeurs
-  const [messageText, setMessageText] = useState('');
-  
   // Nouveaux états pour le formulaire de deal
   const [companyName, setCompanyName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
@@ -47,66 +42,24 @@ export const ComposePage = () => {
     }
   }, [authLoading, role, navigate]);
 
-  // Charger le profil du destinataire si recipientId ou celebrityId est présent
+  // Charger le profil du destinataire si celebrityId est présent
   useEffect(() => {
-    const targetId = recipientId || celebrityId;
-    if (targetId && !recipientProfile) {
+    if (celebrityId && !recipientProfile) {
       supabase
         .from('profiles')
         .select('id, display_name, username, avatar_url')
-        .eq('id', targetId)
+        .eq('id', celebrityId)
         .single()
         .then(({ data }) => {
           if (data) setRecipientProfile(data);
         });
     }
-  }, [recipientId, celebrityId]);
+  }, [celebrityId]);
 
   // Determine mode:
-  // - If recipientId present → message mode
-  // - If celebrityId present (and no recipientId) → deal mode (assume deal if type missing)
+  // - If celebrityId present → deal mode
   // - Otherwise → selection screen
-  const isMessageMode = !!recipientId;
-  const isDealMode = !!celebrityId && !recipientId;
-
-  const handleSendMessage = async () => {
-    if (!messageText.trim() || !recipientId || !user) return;
-    setSending(true);
-    try {
-      // Conversation root logic: find oldest root message (parent_id is null) between these two users for 'audience' category
-      let parentId: string | null = null;
-      const { data: rootMsg } = await supabase
-        .from('messages')
-        .select('id')
-        .is('parent_id', null)
-        .eq('category', 'audience')
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${recipientId}),and(sender_id.eq.${recipientId},receiver_id.eq.${user.id})`)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (rootMsg) {
-        parentId = rootMsg.id;
-      }
-
-      const { error } = await supabase.from('messages').insert({
-        sender_id: user.id,
-        receiver_id: recipientId,
-        content: messageText.trim(),
-        category: 'audience',
-        parent_id: parentId,
-      });
-      if (error) throw error;
-      toast.success(isRTL ? 'Message envoyé' : 'Message sent');
-      setMessageText('');
-      navigate('/home');
-    } catch (err) {
-      console.error(err);
-      toast.error(isRTL ? 'Échec de l\'envoi' : 'Failed to send');
-    } finally {
-      setSending(false);
-    }
-  };
+  const isDealMode = !!celebrityId;
 
   const handleSendDeal = async () => {
     // Validation des champs requis
@@ -168,65 +121,6 @@ export const ComposePage = () => {
   // Return null when redirecting (manager)
   if (role === 'manager') {
     return null;
-  }
-
-  // ===== MODE MESSAGE =====
-  if (isMessageMode) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col" dir={isRTL ? 'rtl' : 'ltr'}>
-        <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
-          <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
-            <button onClick={handleBack} className="p-2 -ml-2 rounded-lg hover:bg-accent touch-feedback">
-              <X className="h-5 w-5" />
-            </button>
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Avatar className="h-10 w-10 flex-shrink-0">
-                <AvatarImage src={recipientProfile?.avatar_url || undefined} />
-                <AvatarFallback className="bg-primary/10 text-primary">
-                  {recipientProfile?.display_name?.[0] || recipientProfile?.username?.[0] || '?'}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="font-semibold truncate">{recipientProfile?.display_name || recipientProfile?.username || '...'}</p>
-                {recipientProfile?.username && <p className="text-xs text-muted-foreground">@{recipientProfile.username}</p>}
-              </div>
-            </div>
-            <div className="w-10" />
-          </div>
-        </header>
-
-        <main className="flex-1 flex flex-col pt-16 pb-20 px-4 max-w-lg mx-auto w-full">
-          <div className="flex-1 overflow-y-auto space-y-4 mb-4" id="messages-end">
-            {/* Ici on pourrait afficher l'historique, mais pour l'instant zone de saisie */}
-          </div>
-
-          <div className="border-t border-border p-4 bg-card sticky bottom-0 safe-area-inset-bottom">
-            <div className="flex items-end gap-2">
-              <Textarea
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                placeholder={isRTL ? 'Écrivez un message...' : 'Write a message...'}
-                className="flex-1 min-h-[44px] max-h-32 resize-none rounded-2xl border-2 focus:border-primary"
-                rows={1}
-              />
-              <Button
-                onClick={handleSendMessage}
-                disabled={!messageText.trim() || sending}
-                className="h-11 w-11 rounded-full p-0 flex-shrink-0"
-                size="icon"
-              >
-                <Send className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-              <Paperclip className="h-4 w-4" />
-              <Mic className="h-4 w-4" />
-              <Smile className="h-4 w-4" />
-            </div>
-          </div>
-        </main>
-      </div>
-    );
   }
 
   // ===== MODE DEAL =====
@@ -477,33 +371,14 @@ export const ComposePage = () => {
       <div className="max-w-4xl mx-auto">
         <header className="mb-10 text-center">
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-            {isRTL ? 'إنشاء رسالة' : 'Create Message'}
+            {isRTL ? 'إنشاء عرض' : 'Create Offer'}
           </h1>
           <p className="mt-2 text-muted-foreground text-lg">
-            {isRTL ? 'ابدأ محادثة جديدة أو أرسل عرضًا احترافيًا' : 'Start a new conversation or send a professional offer'}
+            {isRTL ? 'أرسل عرضًا احترافيًا' : 'Send a professional offer'}
           </p>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <button
-            onClick={() => navigate('/search?type=message')}
-            className="group flex flex-col items-center justify-center p-8 bg-card border border-border rounded-2xl shadow-sm hover:shadow-lg hover:border-primary/50 transition-all duration-300"
-          >
-            <div className="p-4 bg-primary/10 rounded-full text-primary mb-4 group-hover:bg-primary/20 transition-colors">
-              <MessageSquare className="h-8 w-8" />
-            </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">
-              {isRTL ? 'رسالة عادية' : 'Regular Message'}
-            </h2>
-            <p className="text-muted-foreground text-center">
-              {isRTL ? 'دردشة سريعة ومباشرة' : 'Quick and direct chat'}
-            </p>
-            <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
-              {isRTL ? 'ابدأ الدردشة' : 'Start chatting'}
-              <ArrowRight className="h-4 w-4" />
-            </span>
-          </button>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-md mx-auto">
           <button
             onClick={() => navigate('/search?type=deal')}
             className="group flex flex-col items-center justify-center p-8 bg-card border border-border rounded-2xl shadow-sm hover:shadow-lg hover:border-primary/50 transition-all duration-300"
