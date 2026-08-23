@@ -73,11 +73,28 @@ export const ComposePage = () => {
     if (!messageText.trim() || !recipientId || !user) return;
     setSending(true);
     try {
+      // Conversation root logic: find oldest root message (parent_id is null) between these two users for 'audience' category
+      let parentId: string | null = null;
+      const { data: rootMsg } = await supabase
+        .from('messages')
+        .select('id')
+        .is('parent_id', null)
+        .eq('category', 'audience')
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${recipientId}),and(sender_id.eq.${recipientId},receiver_id.eq.${user.id})`)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (rootMsg) {
+        parentId = rootMsg.id;
+      }
+
       const { error } = await supabase.from('messages').insert({
         sender_id: user.id,
         receiver_id: recipientId,
         content: messageText.trim(),
         category: 'audience',
+        parent_id: parentId,
       });
       if (error) throw error;
       toast.success(isRTL ? 'Message envoyé' : 'Message sent');
