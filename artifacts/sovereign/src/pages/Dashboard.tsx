@@ -77,51 +77,49 @@ export default function Dashboard() {
     checkActiveManager();
   }, [user, accountType]);
 
-  // Fetch pending deals for manager - useEffect with dependencies [user, role, managedCelebrityId]
-  useEffect(() => {
+  // Fetch pending deals for manager
+  const fetchPendingDeals = useCallback(async () => {
     if (role !== 'manager' || !managedCelebrityId || !user) {
       setPendingDeals([]);
       return;
     }
 
-    let cancelled = false;
-    const fetchPendingDeals = async () => {
-      setIsLoadingDeals(true);
-      try {
-        const { data, error } = await supabase
-          .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, timeline, details, website_url, budget_cycle, deliverables, exclusivity, why_them, sender_id, celebrity_id, status')
-          .eq('celebrity_id', managedCelebrityId)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });
+    setIsLoadingDeals(true);
+    try {
+      const { data, error } = await supabase
+        .from('deal_cards')
+        .select('id, deal_type, company_name, budget_range, timeline, details, website_url, budget_cycle, deliverables, exclusivity, why_them, sender_id, celebrity_id, status')
+        .eq('celebrity_id', managedCelebrityId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        // Mark pending deals as viewed
-        await supabase.from('deal_cards').update({ viewed_at: new Date().toISOString() } as any).eq('celebrity_id', managedCelebrityId).eq('status', 'pending').is('viewed_at', null);
+      // Mark pending deals as viewed
+      await supabase.from('deal_cards').update({ viewed_at: new Date().toISOString() } as any).eq('celebrity_id', managedCelebrityId).eq('status', 'pending').is('viewed_at', null);
 
-        if (!cancelled && isMountedRef.current) {
-          setPendingDeals((data as unknown as PendingDeal[]) || []);
-        }
-      } catch (error) {
-        console.error('Error fetching pending deals:', error);
-        toast.error(isRTL ? 'فشل تحميل العروض' : 'Failed to load offers');
-        if (!cancelled && isMountedRef.current) {
-          setPendingDeals([]);
-        }
-      } finally {
-        if (!cancelled && isMountedRef.current) {
-          setIsLoadingDeals(false);
-        }
+      if (isMountedRef.current) {
+        setPendingDeals((data as unknown as PendingDeal[]) || []);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching pending deals:', error);
+      toast.error(isRTL ? 'فشل تحميل العروض' : 'Failed to load offers');
+      if (isMountedRef.current) {
+        setPendingDeals([]);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoadingDeals(false);
+      }
+    }
+  }, [role, managedCelebrityId, user, isRTL]);
 
-    fetchPendingDeals();
-    return () => { cancelled = true; };
-  }, [user, role, managedCelebrityId, isRTL]);
-
-  // Fetch messages - useEffect with dependencies [user, role, managedCelebrityId]
   useEffect(() => {
+    fetchPendingDeals();
+  }, [fetchPendingDeals]);
+
+  // Fetch messages
+  const fetchMessages = useCallback(async () => {
     if (!user || !isMountedRef.current) return;
     
     // Debounce: prevent fetching more than once per 2 seconds
@@ -132,7 +130,7 @@ export default function Dashboard() {
     lastFetchRef.current = now;
 
     let cancelled = false;
-    const fetchMessages = async () => {
+    const doFetch = async () => {
       setIsLoadingMessages(true);
 
       let query: any;
@@ -210,9 +208,72 @@ export default function Dashboard() {
       }
     };
 
-    fetchMessages();
+    doFetch();
     return () => { cancelled = true; };
   }, [user, role, managedCelebrityId]);
+
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
+
+  // Realtime subscriptions for pending deals and messages
+  useEffect(() => {
+    if (!user) return;
+
+    const channels: any[] = [];
+
+    // Subscribe to pending deals changes for manager
+    if (role === 'manager' && managedCelebrityId) {
+      const dealsChannel = supabase
+        .channel(`deals-${managedCelebrityId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'deal_cards',
+            filter: `celebrity_id=eq.${managedCelebrityId},status=eq.pending`,
+          },
+          () => {
+            fetchPendingDeals();
+          }
+        )
+        .subscribe();
+      channels.push(dealsChannel);
+    }
+
+    // Subscribe to messages changes
+    let messagesFilter = '';
+    if (role === 'manager' && managedCelebrityId) {
+      messagesFilter = `celebrity_id=eq.${managedCelebrityId}`;
+    } else {
+      messagesFilter = `or(receiver_id.eq.${user.id},sender_id.eq.${user.id})`;
+    }
+
+    const messagesChannel = supabase
+      .channel(`messages-${user.id}-${managedCelebrityId || 'all'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: messagesFilter,
+        },
+        () => {
+          fetchMessages();
+        }
+      )
+      .subscribe();
+    channels.push(messagesChannel);
+
+    // Cleanup
+    return () => {
+      channels.forEach(channel => {
+        void supabase.removeChannel(channel);
+      });
+    };
+  }, [user, role, managedCelebrityId, fetchPendingDeals, fetchMessages]);
 
   // Refetch messages on window focus (debounced)
   useEffect(() => {
