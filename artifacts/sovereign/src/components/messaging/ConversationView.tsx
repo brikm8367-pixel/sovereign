@@ -295,7 +295,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
             setIsSending(false); setSendingMsgId(null);
             return;
           }
-          if (classData?.category && classData.category !== 'direct' && message.category !== 'direct') finalCategory = classData.category;
+          if (classData?.category && classData.category === 'work') finalCategory = classData.category;
         } catch { /* keep */ }
       }
 
@@ -447,8 +447,6 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
 
   const categoryBubbleClass = message.category === 'work'
     ? 'bg-[hsl(var(--work))] text-white'
-    : message.category === 'direct'
-    ? 'bg-primary text-primary-foreground'
     : 'bg-[hsl(var(--audience))] text-white';
 
   return (
@@ -488,7 +486,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
             <Button variant="ghost" size="icon" onClick={() => setShowDisappear(!showDisappear)} className={cn("h-9 w-9 rounded-xl", disappearTimer && "text-primary")}>
               <Timer className="h-4 w-4" />
             </Button>
-            {canCall && message.category === 'direct' && (
+            {canCall && message.category === 'work' && (
               <>
                 <Button variant="ghost" size="icon" onClick={() => setActiveCall({ type: 'audio' })} className="h-9 w-9 rounded-xl touch-feedback">
                   <Phone className="h-4 w-4" />
