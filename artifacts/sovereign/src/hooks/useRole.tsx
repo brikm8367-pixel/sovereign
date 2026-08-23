@@ -92,6 +92,9 @@ export function RoleProvider({ children }: { children: ReactNode }) {
           if (!managedCelebrityIdRef.current && profiles?.length) {
             setManagedCelebrityId(profiles[0].id);
           }
+        } else {
+          setManagedCelebrities([]);
+          setManagedCelebrityId(null);
         }
       } else if (type === 'sender') {
         // Check if user is a manager for any celebrity
@@ -109,6 +112,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
             .select('id, display_name, username, avatar_url')
             .in('id', celebrityIds);
           setManagedCelebrities(profiles as ManagedCelebrity[] || []);
+          // Only set default if no celebrity is currently selected
           if (!managedCelebrityIdRef.current && profiles?.length) {
             setManagedCelebrityId(profiles[0].id);
           }
@@ -139,9 +143,13 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
     
     if (link) {
+      // Update ref immediately so refresh() knows a celebrity is selected
+      managedCelebrityIdRef.current = celebrityId;
       setManagedCelebrityId(celebrityId);
+      // Refresh to sync managedCelebrities list and ensure context is up to date
+      await refresh();
     }
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     refresh();
