@@ -21,6 +21,7 @@
     "strictPropertyInitialization": false,
     "noImplicitThis": false,
     "alwaysStrict": false,
+    "ignoreDeprecations": "6.0",
     "useUnknownInCatchVariables": false,
     "noImplicitReturns": false
   }

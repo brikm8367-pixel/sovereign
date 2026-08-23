@@ -109,7 +109,7 @@ serve(async (req: Request) => {
       data: notificationData,
       actions: [
         { action: "reply", title: "↩️ Reply" },
-        { action: "view", title: "👀 View" },
+        { action: "view", title: " View" },
       ],
       requireInteraction: true,
       vibrate: [200, 100, 200, 100, 200],

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <title>Sovereign — صندوقك، قواعدك</title>
+    <meta name="description" content="منصة التواصل الأولى للمشاهير ووكلائهم والعلامات التجارية. تشفير شامل، تصنيف ذكي، وتحكم كامل." />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#B8860B" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Sovereign" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Sovereign" />
+    <meta name="msapplication-TileColor" content="#B8860B" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon.png" />
+    <link rel="mask-icon" href="/pwa-512x512.png" color="#4F46E5" />
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Sovereign — صندوقك، قواعدك" />
+    <meta property="og:description" content="المنصة الأولى لإدارة تواصل المشاهير ووكلائهم والعلامات التجارية." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:site_name" content="Sovereign" />
+    <meta property="og:locale" content="ar_AR" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Sovereign — صندوقك، قواعدك" />
+    <meta name="twitter:description" content="المنصة الأولى لإدارة تواصل المشاهير والعلامات التجارية." />
+    <meta name="twitter:image" content="/pwa-512x512.png" />
+
+    <!-- JSON-LD -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Sovereign",
+      "description": "منصة التواصل الأولى للمشاهير ووكلائهم والعلامات التجارية",
+      "applicationCategory": "CommunicationApplication",
+      "operatingSystem": "Web, iOS, Android",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
