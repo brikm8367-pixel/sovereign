@@ -233,7 +233,7 @@ export default function ChatPage() {
     // For deal messages, keep parent_id null until manager accepts
     let parentId: string | null = null;
     if (!deal) {
-      // Find the oldest root message (parent_id is null) between these two users for this category
+      // Conversation root logic: find oldest root message (parent_id null) between the two users for this category
       const { data: rootMsg } = await supabase
         .from('messages')
         .select('id')

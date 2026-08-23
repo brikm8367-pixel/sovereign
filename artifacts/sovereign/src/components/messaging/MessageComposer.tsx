@@ -151,7 +151,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
         if (category === 'direct') category = 'audience';
       }
 
-      // Smart routing: find the oldest root message (parent_id is null) between these two users for this category
+      // Conversation root logic: find oldest root message (parent_id null) between the two users for this category
       let parentId: string | null = null;
       const { data: rootMsg } = await supabase
         .from('messages')
