@@ -42,7 +42,7 @@ export async function registerPushNotifications() {
       return;
     }
 
-    const subscription = await (registration as any).pushManager.subscribe({
+    const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapidKey),
     });
@@ -62,7 +62,7 @@ export async function registerPushNotifications() {
       p256dh,
       auth: authKey,
       profile_id: auth.user.id, // Store current profile id
-    }, { onConflict: 'user_id,endpoint' as any });
+    }, { onConflict: 'user_id,endpoint' });
 
     console.log('Push notifications registered successfully');
   } catch (error) {
