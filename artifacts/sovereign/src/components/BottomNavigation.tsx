@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
-import { Home, Search, Bell, User, Plus, Briefcase } from 'lucide-react';
+import { Home, Search, Bell, User, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +17,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'home', icon: Home, label: { ar: 'الرئيسية', en: 'Home', fr: 'Accueil', es: 'Inicio' }, path: '/home' },
   { id: 'search', icon: Search, label: { ar: 'بحث', en: 'Search', fr: 'Recherche', es: 'Buscar' }, path: '/home?tab=search' },
-  { id: 'offers', icon: Briefcase, label: { ar: 'العروض', en: 'Offers', fr: 'Offres', es: 'Ofertas' }, path: '/offers' },
   { id: 'notifications', icon: Bell, label: { ar: 'إشعارات', en: 'Alerts', fr: 'Alertes', es: 'Alertas' }, path: '/notifications' },
   { id: 'profile', icon: User, label: { ar: 'حسابي', en: 'Profile', fr: 'Profil', es: 'Perfil' }, path: '/profile' },
 ];
@@ -61,152 +60,50 @@ export function BottomNavigation() {
     return location.pathname === path;
   };
 
-  // Filter out offers for managers
-  const filteredNavItems = navItems.filter(item => {
-    if (item.id === 'offers' && role === 'manager') return false;
-    return true;
-  });
-
-  // For managers: distribute 4 items evenly (home, search, notifications, profile)
-  // For regular users: 5 items with center create button
-  const isManager = role === 'manager';
-
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 safe-area-inset-bottom">
       <div className="bg-card/95 backdrop-blur-lg border-t border-border">
         <div className="max-w-lg mx-auto flex items-center justify-between h-16 px-2 relative">
-          {isManager ? (
-            // Manager layout: 4 items evenly distributed
-            <div className="flex items-center justify-between w-full">
-              {filteredNavItems.map((item) => {
-                const active = isActive(item.path);
-                const Icon = item.icon;
-                const showBadge = item.id === 'home' && unreadCount > 0;
-                
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => navigate(item.path)}
-                    className={cn(
-                      'flex flex-col items-center justify-center flex-1 h-full px-2 transition-all touch-feedback',
-                      active && 'text-primary'
-                    )}
-                  >
-                    <div className={cn(
-                      'relative flex items-center justify-center w-10 h-10 rounded-xl transition-all',
-                      active && 'bg-primary/10'
-                    )}>
-                      <Icon className={cn(
-                        'h-6 w-6 transition-all',
-                        active ? 'text-primary' : 'text-muted-foreground'
-                      )} />
-                      {/* Badge count */}
-                      {showBadge && (
-                        <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <span className={cn(
-                      'text-xs mt-0.5 font-medium transition-all',
+          <div className="flex items-center justify-between w-full">
+            {navItems.map((item) => {
+              const active = isActive(item.path);
+              const Icon = item.icon;
+              const showBadge = item.id === 'home' && unreadCount > 0;
+              
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigate(item.path)}
+                  className={cn(
+                    'flex flex-col items-center justify-center flex-1 h-full px-2 transition-all touch-feedback',
+                    active && 'text-primary'
+                  )}
+                >
+                  <div className={cn(
+                    'relative flex items-center justify-center w-10 h-10 rounded-xl transition-all',
+                    active && 'bg-primary/10'
+                  )}>
+                    <Icon className={cn(
+                      'h-6 w-6 transition-all',
                       active ? 'text-primary' : 'text-muted-foreground'
-                    )}>
-                      {item.label[language] || item.label.en}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            // Regular user layout: left group, center create, right group
-            <>
-              {/* Left group: Home, Search, Offers */}
-              <div className="flex items-center justify-around flex-1">
-                {filteredNavItems.slice(0, 3).map((item) => {
-                  const active = isActive(item.path);
-                  const Icon = item.icon;
-                  const showBadge = item.id === 'home' && unreadCount > 0;
-                  
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => navigate(item.path)}
-                      className={cn(
-                        'flex flex-col items-center justify-center flex-1 h-full px-3 transition-all touch-feedback',
-                        active && 'text-primary'
-                      )}
-                    >
-                      <div className={cn(
-                        'relative flex items-center justify-center w-10 h-10 rounded-xl transition-all',
-                        active && 'bg-primary/10'
-                      )}>
-                        <Icon className={cn(
-                          'h-6 w-6 transition-all',
-                          active ? 'text-primary' : 'text-muted-foreground'
-                        )} />
-                        {/* Badge count */}
-                        {showBadge && (
-                          <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
-                            {unreadCount > 99 ? '99+' : unreadCount}
-                          </span>
-                        )}
-                      </div>
-                      <span className={cn(
-                        'text-xs mt-0.5 font-medium transition-all',
-                        active ? 'text-primary' : 'text-muted-foreground'
-                      )}>
-                        {item.label[language] || item.label.en}
+                    )} />
+                    {/* Badge count */}
+                    {showBadge && (
+                      <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+                        {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Center: Create Button */}
-              <button
-                onClick={() => navigate('/compose')}
-                className="absolute left-1/2 -translate-x-1/2 -translate-y-3 z-10 flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg border-4 border-background touch-feedback hover:scale-105 active:scale-95 transition-transform"
-                aria-label="Create new message"
-              >
-                <Plus className="h-7 w-7" />
-              </button>
-
-              {/* Right group: Notifications, Profile */}
-              <div className="flex items-center justify-around flex-1">
-                {filteredNavItems.slice(3).map((item) => {
-                  const active = isActive(item.path);
-                  const Icon = item.icon;
-                  
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => navigate(item.path)}
-                      className={cn(
-                        'flex flex-col items-center justify-center flex-1 h-full px-3 transition-all touch-feedback',
-                        active && 'text-primary'
-                      )}
-                    >
-                      <div className={cn(
-                        'relative flex items-center justify-center w-10 h-10 rounded-xl transition-all',
-                        active && 'bg-primary/10'
-                      )}>
-                        <Icon className={cn(
-                          'h-6 w-6 transition-all',
-                          active ? 'text-primary' : 'text-muted-foreground'
-                        )} />
-                      </div>
-                      <span className={cn(
-                        'text-xs mt-0.5 font-medium transition-all',
-                        active ? 'text-primary' : 'text-muted-foreground'
-                      )}>
-                        {item.label[language] || item.label.en}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
+                    )}
+                  </div>
+                  <span className={cn(
+                    'text-xs mt-0.5 font-medium transition-all',
+                    active ? 'text-primary' : 'text-muted-foreground'
+                  )}>
+                    {item.label[language] || item.label.en}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </nav>
