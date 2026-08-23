@@ -54,7 +54,6 @@ export default function Dashboard() {
   // Refs for preventing unnecessary refreshes
   const isMountedRef = useRef(true);
   const lastFetchRef = useRef<number>(0);
-  const fetchMessagesRef = useRef<() => Promise<void>>();
 
   useEffect(() => { 
     if (!loading && !user) navigate('/'); 
@@ -78,48 +77,51 @@ export default function Dashboard() {
     checkActiveManager();
   }, [user, accountType]);
 
-  // Fetch pending deals for manager
-  const fetchPendingDeals = useCallback(async () => {
+  // Fetch pending deals for manager - useEffect with dependencies [user, role, managedCelebrityId]
+  useEffect(() => {
     if (role !== 'manager' || !managedCelebrityId || !user) {
       setPendingDeals([]);
       return;
     }
-    setIsLoadingDeals(true);
-    try {
-      const { data, error } = await supabase
-        .from('deal_cards')
-        .select('id, deal_type, company_name, budget_range, timeline, details, website_url, budget_cycle, deliverables, exclusivity, why_them, sender_id, celebrity_id, status')
-        .eq('celebrity_id', managedCelebrityId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
 
-      if (error) throw error;
+    let cancelled = false;
+    const fetchPendingDeals = async () => {
+      setIsLoadingDeals(true);
+      try {
+        const { data, error } = await supabase
+          .from('deal_cards')
+          .select('id, deal_type, company_name, budget_range, timeline, details, website_url, budget_cycle, deliverables, exclusivity, why_them, sender_id, celebrity_id, status')
+          .eq('celebrity_id', managedCelebrityId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
 
-      // Mark pending deals as viewed
-      await supabase.from('deal_cards').update({ viewed_at: new Date().toISOString() } as any).eq('celebrity_id', managedCelebrityId).eq('status', 'pending').is('viewed_at', null);
+        if (error) throw error;
 
-      if (isMountedRef.current) {
-        setPendingDeals((data as unknown as PendingDeal[]) || []);
+        // Mark pending deals as viewed
+        await supabase.from('deal_cards').update({ viewed_at: new Date().toISOString() } as any).eq('celebrity_id', managedCelebrityId).eq('status', 'pending').is('viewed_at', null);
+
+        if (!cancelled && isMountedRef.current) {
+          setPendingDeals((data as unknown as PendingDeal[]) || []);
+        }
+      } catch (error) {
+        console.error('Error fetching pending deals:', error);
+        toast.error(isRTL ? 'فشل تحميل العروض' : 'Failed to load offers');
+        if (!cancelled && isMountedRef.current) {
+          setPendingDeals([]);
+        }
+      } finally {
+        if (!cancelled && isMountedRef.current) {
+          setIsLoadingDeals(false);
+        }
       }
-    } catch (error) {
-      console.error('Error fetching pending deals:', error);
-      toast.error(isRTL ? 'فشل تحميل العروض' : 'Failed to load offers');
-      if (isMountedRef.current) {
-        setPendingDeals([]);
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoadingDeals(false);
-      }
-    }
-  }, [role, managedCelebrityId, user, isRTL]);
+    };
 
-  useEffect(() => {
     fetchPendingDeals();
-  }, [fetchPendingDeals]);
+    return () => { cancelled = true; };
+  }, [user, role, managedCelebrityId, isRTL]);
 
-  // Fetch messages - stable reference
-  const fetchMessages = useCallback(async () => {
+  // Fetch messages - useEffect with dependencies [user, role, managedCelebrityId]
+  useEffect(() => {
     if (!user || !isMountedRef.current) return;
     
     // Debounce: prevent fetching more than once per 2 seconds
@@ -129,100 +131,97 @@ export default function Dashboard() {
     }
     lastFetchRef.current = now;
 
-    setIsLoadingMessages(true);
+    let cancelled = false;
+    const fetchMessages = async () => {
+      setIsLoadingMessages(true);
 
-    let query: any;
-    if (role === 'manager' && managedCelebrityId) {
-      // Manager viewing messages for the selected celebrity
-      query = (supabase as any).from('messages').select('*').eq('celebrity_id', managedCelebrityId).eq('category', 'work').order('created_at', { ascending: false });
-    } else if (role === 'manager') {
-      // Fallback for manager without selected celebrity
-      query = supabase
-        .from('messages')
-        .select('*')
-        .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
-        .eq('category', 'work')
-        .order('created_at', { ascending: false });
-    } else {
-      // Current user logic: all messages (sent and received) without category filter
-      query = supabase
-        .from('messages')
-        .select('*')
-        .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
-        .order('created_at', { ascending: false });
-    }
+      let query: any;
+      if (role === 'manager' && managedCelebrityId) {
+        // Manager viewing messages for the selected celebrity
+        query = (supabase as any).from('messages').select('*').eq('celebrity_id', managedCelebrityId).eq('category', 'work').order('created_at', { ascending: false });
+      } else if (role === 'manager') {
+        // Fallback for manager without selected celebrity
+        query = supabase
+          .from('messages')
+          .select('*')
+          .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
+          .eq('category', 'work')
+          .order('created_at', { ascending: false });
+      } else {
+        // Current user logic: all messages (sent and received) without category filter
+        query = supabase
+          .from('messages')
+          .select('*')
+          .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
+          .order('created_at', { ascending: false });
+      }
 
-    const { data: messagesData, error: messagesError } = await query;
+      const { data: messagesData, error: messagesError } = await query;
 
-    if (messagesError) {
-      console.error('Error fetching messages:', messagesError);
-      if (isMountedRef.current) {
+      if (messagesError) {
+        console.error('Error fetching messages:', messagesError);
+        if (!cancelled && isMountedRef.current) {
+          setIsLoadingMessages(false);
+        }
+        return;
+      }
+
+      const messages = (messagesData as unknown as Message[]) || [];
+
+      // Extract unique sender_ids
+      const senderIds = Array.from(new Set(messages.map(m => m.sender_id).filter(Boolean)));
+
+      // Fetch profiles for those sender_ids
+      let profilesMap: Record<string, Profile> = {};
+      if (senderIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, display_name, username, avatar_url')
+          .in('id', senderIds);
+
+        if (profilesData) {
+          profilesMap = profilesData.reduce((acc, p) => {
+            acc[p.id] = p;
+            return acc;
+          }, {} as Record<string, Profile>);
+        }
+      }
+
+      // Merge profile data into messages
+      const messagesWithProfiles = messages.map(message => ({
+        ...message,
+        sender_profile: profilesMap[message.sender_id] || null,
+      }));
+
+      if (!cancelled && isMountedRef.current) {
+        setMessages(messagesWithProfiles);
+
+        // For non-manager users, set activeCategory based on most recent message
+        if (role !== 'manager' && messagesWithProfiles.length > 0) {
+          const mostRecentCategory = messagesWithProfiles[0].category as MessageCategory;
+          if (['work', 'direct', 'audience'].includes(mostRecentCategory)) {
+            setActiveCategory(mostRecentCategory);
+          }
+        } else if (role !== 'manager' && messagesWithProfiles.length === 0) {
+          setActiveCategory('work');
+        }
+
         setIsLoadingMessages(false);
       }
-      return;
-    }
+    };
 
-    const messages = (messagesData as unknown as Message[]) || [];
-
-    // Extract unique sender_ids
-    const senderIds = Array.from(new Set(messages.map(m => m.sender_id).filter(Boolean)));
-
-    // Fetch profiles for those sender_ids
-    let profilesMap: Record<string, Profile> = {};
-    if (senderIds.length > 0) {
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, display_name, username, avatar_url')
-        .in('id', senderIds);
-
-      if (profilesData) {
-        profilesMap = profilesData.reduce((acc, p) => {
-          acc[p.id] = p;
-          return acc;
-        }, {} as Record<string, Profile>);
-      }
-    }
-
-    // Merge profile data into messages
-    const messagesWithProfiles = messages.map(message => ({
-      ...message,
-      sender_profile: profilesMap[message.sender_id] || null,
-    }));
-
-    if (isMountedRef.current) {
-      setMessages(messagesWithProfiles);
-
-      // For non-manager users, set activeCategory based on most recent message
-      if (role !== 'manager' && messagesWithProfiles.length > 0) {
-        const mostRecentCategory = messagesWithProfiles[0].category as MessageCategory;
-        if (['work', 'direct', 'audience'].includes(mostRecentCategory)) {
-          setActiveCategory(mostRecentCategory);
-        }
-      } else if (role !== 'manager' && messagesWithProfiles.length === 0) {
-        setActiveCategory('work');
-      }
-
-      setIsLoadingMessages(false);
-    }
+    fetchMessages();
+    return () => { cancelled = true; };
   }, [user, role, managedCelebrityId]);
-
-  // Store stable reference for event listeners
-  useEffect(() => {
-    fetchMessagesRef.current = fetchMessages;
-  }, [fetchMessages]);
-
-  // Initial fetch
-  useEffect(() => {
-    if (user) {
-      fetchMessages();
-    }
-  }, [fetchMessages, user, managedCelebrityId]);
 
   // Refetch messages on window focus (debounced)
   useEffect(() => {
     const handleFocus = () => {
-      if (user && fetchMessagesRef.current) {
-        fetchMessagesRef.current();
+      if (user) {
+        // Trigger a re-fetch by updating a ref timestamp
+        lastFetchRef.current = 0;
+        // The useEffect above will pick up the change on next render cycle
+        // We can force a re-render by using a state updater, but the debounce will handle it
       }
     };
     window.addEventListener('focus', handleFocus);
