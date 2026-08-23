@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -31,9 +31,17 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const [managedCelebrityId, setManagedCelebrityId] = useState<string | null>(null);
   const [managedCelebrities, setManagedCelebrities] = useState<ManagedCelebrity[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Use refs to store latest values for use in callbacks without triggering re-renders
+  const managedCelebrityIdRef = useRef(managedCelebrityId);
+  const userRef = useRef(user);
+  
+  managedCelebrityIdRef.current = managedCelebrityId;
+  userRef.current = user;
 
   const refresh = useCallback(async () => {
-    if (!user) {
+    const currentUser = userRef.current;
+    if (!currentUser) {
       setAccountType('sender');
       setRole('sender');
       setManagedCelebrityId(null);
@@ -48,14 +56,14 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('account_type')
-        .eq('id', user.id)
+        .eq('id', currentUser.id)
         .maybeSingle();
 
       // Check if user has an active manager link (is a celebrity with an agent)
       const { data: activeManagerLink } = await supabase
         .from('manager_links')
         .select('id')
-        .eq('celebrity_id', user.id)
+        .eq('celebrity_id', currentUser.id)
         .eq('status', 'active')
         .limit(1);
 
@@ -70,7 +78,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         const { data: links } = await supabase
           .from('manager_links')
           .select('celebrity_id')
-          .eq('manager_id', user.id)
+          .eq('manager_id', currentUser.id)
           .eq('status', 'active');
 
         if (links?.length) {
@@ -81,7 +89,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
             .in('id', celebrityIds);
           setManagedCelebrities(profiles as ManagedCelebrity[] || []);
           // Set active celebrity if not set
-          if (!managedCelebrityId && profiles?.length) {
+          if (!managedCelebrityIdRef.current && profiles?.length) {
             setManagedCelebrityId(profiles[0].id);
           }
         }
@@ -90,7 +98,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         const { data: links } = await supabase
           .from('manager_links')
           .select('celebrity_id')
-          .eq('manager_id', user.id)
+          .eq('manager_id', currentUser.id)
           .eq('status', 'active');
 
         if (links?.length) {
@@ -101,7 +109,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
             .select('id, display_name, username, avatar_url')
             .in('id', celebrityIds);
           setManagedCelebrities(profiles as ManagedCelebrity[] || []);
-          if (!managedCelebrityId && profiles?.length) {
+          if (!managedCelebrityIdRef.current && profiles?.length) {
             setManagedCelebrityId(profiles[0].id);
           }
         } else {
@@ -115,12 +123,25 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [user, managedCelebrityId]);
+  }, []); // Empty deps - uses refs for current values
 
   const switchCelebrity = useCallback(async (celebrityId: string) => {
-    if (!user) return;
-    setManagedCelebrityId(celebrityId);
-  }, [user]);
+    const currentUser = userRef.current;
+    if (!currentUser) return;
+    
+    // Verify the celebrity is in the managed list
+    const { data: link } = await supabase
+      .from('manager_links')
+      .select('id')
+      .eq('manager_id', currentUser.id)
+      .eq('celebrity_id', celebrityId)
+      .eq('status', 'active')
+      .maybeSingle();
+    
+    if (link) {
+      setManagedCelebrityId(celebrityId);
+    }
+  }, []);
 
   useEffect(() => {
     refresh();

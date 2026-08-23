@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
@@ -40,7 +40,7 @@ interface PendingDeal {
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
-  const { role, accountType, managedCelebrityId, managedCelebrities, switchCelebrity } = useRole();
+  const { role, accountType, managedCelebrityId, managedCelebrities, switchCelebrity, refresh: refreshRole } = useRole();
   const { isRTL, language } = useLanguage();
   const navigate = useNavigate();
 
@@ -50,8 +50,15 @@ export default function Dashboard() {
   const [hasActiveManager, setHasActiveManager] = useState(false);
   const [pendingDeals, setPendingDeals] = useState<PendingDeal[]>([]);
   const [isLoadingDeals, setIsLoadingDeals] = useState(false);
+  
+  // Refs for preventing unnecessary refreshes
+  const isMountedRef = useRef(true);
+  const lastFetchRef = useRef<number>(0);
+  const fetchMessagesRef = useRef<() => Promise<void>>();
 
-  useEffect(() => { if (!loading && !user) navigate('/'); }, [user, loading, navigate]);
+  useEffect(() => { 
+    if (!loading && !user) navigate('/'); 
+  }, [user, loading, navigate]);
 
   // Check if celebrity has an active manager
   useEffect(() => {
@@ -72,43 +79,56 @@ export default function Dashboard() {
   }, [user, accountType]);
 
   // Fetch pending deals for manager
-  useEffect(() => {
-    const fetchPendingDeals = async () => {
-      if (role !== 'manager' || !managedCelebrityId || !user) {
-        setPendingDeals([]);
-        return;
-      }
+  const fetchPendingDeals = useCallback(async () => {
+    if (role !== 'manager' || !managedCelebrityId || !user) {
       setPendingDeals([]);
-      setIsLoadingDeals(true);
-      try {
-        const { data, error } = await supabase
-          .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, timeline, details, website_url, budget_cycle, deliverables, exclusivity, why_them, sender_id, celebrity_id, status')
-          .eq('celebrity_id', managedCelebrityId)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });
+      return;
+    }
+    setIsLoadingDeals(true);
+    try {
+      const { data, error } = await supabase
+        .from('deal_cards')
+        .select('id, deal_type, company_name, budget_range, timeline, details, website_url, budget_cycle, deliverables, exclusivity, why_them, sender_id, celebrity_id, status')
+        .eq('celebrity_id', managedCelebrityId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        // Mark pending deals as viewed
-        await supabase.from('deal_cards').update({ viewed_at: new Date().toISOString() } as any).eq('celebrity_id', managedCelebrityId).eq('status', 'pending').is('viewed_at', null);
+      // Mark pending deals as viewed
+      await supabase.from('deal_cards').update({ viewed_at: new Date().toISOString() } as any).eq('celebrity_id', managedCelebrityId).eq('status', 'pending').is('viewed_at', null);
 
+      if (isMountedRef.current) {
         setPendingDeals((data as unknown as PendingDeal[]) || []);
-      } catch (error) {
-        console.error('Error fetching pending deals:', error);
-        toast.error(isRTL ? 'فشل تحميل العروض' : 'Failed to load offers');
+      }
+    } catch (error) {
+      console.error('Error fetching pending deals:', error);
+      toast.error(isRTL ? 'فشل تحميل العروض' : 'Failed to load offers');
+      if (isMountedRef.current) {
         setPendingDeals([]);
-      } finally {
+      }
+    } finally {
+      if (isMountedRef.current) {
         setIsLoadingDeals(false);
       }
-    };
-    fetchPendingDeals();
+    }
   }, [role, managedCelebrityId, user, isRTL]);
 
-  // Fetch messages
+  useEffect(() => {
+    fetchPendingDeals();
+  }, [fetchPendingDeals]);
+
+  // Fetch messages - stable reference
   const fetchMessages = useCallback(async () => {
-    if (!user) return;
-    setMessages([]);
+    if (!user || !isMountedRef.current) return;
+    
+    // Debounce: prevent fetching more than once per 2 seconds
+    const now = Date.now();
+    if (now - lastFetchRef.current < 2000) {
+      return;
+    }
+    lastFetchRef.current = now;
+
     setIsLoadingMessages(true);
 
     let query: any;
@@ -136,7 +156,9 @@ export default function Dashboard() {
 
     if (messagesError) {
       console.error('Error fetching messages:', messagesError);
-      setIsLoadingMessages(false);
+      if (isMountedRef.current) {
+        setIsLoadingMessages(false);
+      }
       return;
     }
 
@@ -167,37 +189,53 @@ export default function Dashboard() {
       sender_profile: profilesMap[message.sender_id] || null,
     }));
 
-    setMessages(messagesWithProfiles);
+    if (isMountedRef.current) {
+      setMessages(messagesWithProfiles);
 
-    // For non-manager users, set activeCategory based on most recent message
-    if (role !== 'manager' && messagesWithProfiles.length > 0) {
-      const mostRecentCategory = messagesWithProfiles[0].category as MessageCategory;
-      if (['work', 'direct', 'audience'].includes(mostRecentCategory)) {
-        setActiveCategory(mostRecentCategory);
+      // For non-manager users, set activeCategory based on most recent message
+      if (role !== 'manager' && messagesWithProfiles.length > 0) {
+        const mostRecentCategory = messagesWithProfiles[0].category as MessageCategory;
+        if (['work', 'direct', 'audience'].includes(mostRecentCategory)) {
+          setActiveCategory(mostRecentCategory);
+        }
+      } else if (role !== 'manager' && messagesWithProfiles.length === 0) {
+        setActiveCategory('work');
       }
-    } else if (role !== 'manager' && messagesWithProfiles.length === 0) {
-      setActiveCategory('work');
-    }
 
-    setIsLoadingMessages(false);
+      setIsLoadingMessages(false);
+    }
   }, [user, role, managedCelebrityId]);
 
+  // Store stable reference for event listeners
+  useEffect(() => {
+    fetchMessagesRef.current = fetchMessages;
+  }, [fetchMessages]);
+
+  // Initial fetch
   useEffect(() => {
     if (user) {
       fetchMessages();
     }
   }, [fetchMessages, user, managedCelebrityId]);
 
-  // Refetch messages on window focus (e.g., returning from ChatPage)
+  // Refetch messages on window focus (debounced)
   useEffect(() => {
     const handleFocus = () => {
-      if (user) {
-        fetchMessages();
+      if (user && fetchMessagesRef.current) {
+        fetchMessagesRef.current();
       }
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchMessages, user]);
+  }, [user]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Mark message as read
   const handleMessageRead = useCallback(async (message: Message) => {
