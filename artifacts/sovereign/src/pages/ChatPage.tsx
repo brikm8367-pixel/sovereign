@@ -221,24 +221,40 @@ export default function ChatPage() {
     
     setIsSending(true);
 
-    // Determine category: check existing messages between these users
-    let category: 'direct' | 'audience' = 'audience';
-    if (messages.length > 0) {
-      const hasDirect = messages.some(m => m.category === 'direct');
-      if (hasDirect) {
-        category = 'direct';
-      }
+    // Check if there's a dealId or existing accepted deal between the two users
+    let hasDeal = !!dealId;
+    
+    if (!hasDeal) {
+      // Check for accepted deal between these two users
+      const { data: acceptedDeal } = await supabase
+        .from('deal_cards')
+        .select('id')
+        .eq('status', 'accepted')
+        .or(`and(sender_id.eq.${user.id},celebrity_id.eq.${userId}),and(sender_id.eq.${userId},celebrity_id.eq.${user.id})`)
+        .limit(1)
+        .maybeSingle();
+      
+      hasDeal = !!acceptedDeal;
     }
+
+    if (!hasDeal) {
+      toast.error(isRTL ? 'لا يمكن بدء محادثة بدون عرض عمل' : 'Cannot start a conversation without a deal');
+      setIsSending(false);
+      return;
+    }
+
+    // Always use 'work' category
+    const category = 'work';
 
     // For deal messages, keep parent_id null until manager accepts
     let parentId: string | null = null;
     if (!deal) {
-      // Conversation root logic: find oldest root message (parent_id null) between the two users for this category
+      // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
       const { data: rootMsg } = await supabase
         .from('messages')
         .select('id')
         .is('parent_id', null)
-        .eq('category', category)
+        .eq('category', 'work')
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`)
         .order('created_at', { ascending: true })
         .limit(1)
