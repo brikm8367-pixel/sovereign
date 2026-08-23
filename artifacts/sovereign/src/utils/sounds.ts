@@ -10,6 +10,14 @@ function getCtx() {
   return audioCtx;
 }
 
+/** Resume audio context if suspended (required by browser autoplay policies) */
+export function resumeAudioContext() {
+  const ctx = getCtx();
+  if (ctx.state === 'suspended') {
+    ctx.resume();
+  }
+}
+
 // Helper: play a warm reverb-like tail
 function addWarmth(ctx: AudioContext, destination: AudioNode, startTime: number, duration: number) {
   const osc = ctx.createOscillator();

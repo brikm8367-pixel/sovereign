@@ -10,7 +10,7 @@ import { BottomNavigation } from '@/components/BottomNavigation';
 import { Loader2, Bell, CheckCheck, Filter, Briefcase, Users, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { playNotificationSound } from '@/utils/sounds';
+import { playNotificationSound, playWorkNotificationSound, playPrivateNotificationSound, resumeAudioContext } from '@/utils/sounds';
 
 type MessageCategory = 'work' | 'audience' | 'direct';
 
@@ -124,6 +124,16 @@ export default function NotificationsPage() {
     }
   }, [user, role, managedCelebrityId]);
 
+  // Resume audio context on first user interaction
+  useEffect(() => {
+    const handlePointerDown = () => {
+      resumeAudioContext();
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, []);
+
   // Realtime subscription for incoming messages
   useEffect(() => {
     if (!user) return;
@@ -142,8 +152,19 @@ export default function NotificationsPage() {
         },
         (payload) => {
           const newMessage = payload.new as Notification;
-          // Play notification sound
-          playNotificationSound();
+          // Play notification sound based on category
+          switch (newMessage.category) {
+            case 'work':
+              playWorkNotificationSound();
+              break;
+            case 'direct':
+              playPrivateNotificationSound();
+              break;
+            case 'audience':
+            default:
+              playNotificationSound();
+              break;
+          }
           // Add to notifications list
           setNotifications(prev => {
             // Check if already exists

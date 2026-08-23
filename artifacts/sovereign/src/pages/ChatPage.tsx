@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import VoiceRecorder from '@/components/messaging/VoiceRecorder';
 import VoicePlayer from '@/components/messaging/VoicePlayer';
 import { encryptForRecipient, decryptFromSender, isEncryptedMessage } from '@/utils/e2eManager';
+import { resumeAudioContext } from '@/utils/sounds';
 
 interface Profile {
   id: string;
@@ -214,6 +215,10 @@ export default function ChatPage() {
 
   const handleSend = async (text: string, voiceUrl?: string) => {
     if (!user || !userId || (!text.trim() && !voiceUrl && !mediaPreview)) return;
+    
+    // Resume audio context on user interaction
+    resumeAudioContext();
+    
     setIsSending(true);
 
     // Determine category: check existing messages between these users
