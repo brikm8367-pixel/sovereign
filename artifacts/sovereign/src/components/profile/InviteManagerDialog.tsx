@@ -58,69 +58,38 @@ export function InviteManagerDialog({ open, onOpenChange }: Props) {
     setLoading(true);
     console.log('[InviteManagerDialog] Attempting to generate invitation...');
     
-    const attemptInvite = async (attempt: number): Promise<{ data: any; error: any }> => {
-      console.log(`[InviteManagerDialog] Invoking Supabase function: create-manager-invite (attempt ${attempt})`);
+    try {
       const { data, error } = await supabase.functions.invoke('create-manager-invite', {
         body: JSON.stringify({ password }),
         headers: { 'Content-Type': 'application/json' },
       });
-      console.log(`[InviteManagerDialog] Supabase response data (attempt ${attempt}):`, data);
-      console.log(`[InviteManagerDialog] Supabase response error (attempt ${attempt}):`, error);
-      return { data, error };
-    };
+      console.log('[InviteManagerDialog] Supabase response data:', data);
+      console.log('[InviteManagerDialog] Supabase response error:', error);
 
-    let lastError: any = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const { data, error } = await attemptInvite(attempt);
-
-        if (error) {
-          console.error(`Supabase function invocation error (attempt ${attempt}):`, error);
-          // Check if it's a non-2xx error (FunctionsHttpError) or network error
-          const isHttpError = error && typeof error === 'object' && 'status' in error && typeof error.status === 'number' && error.status >= 400;
-          const isNetworkError = error && (error.name === 'TypeError' || error.message?.includes('network') || error.message?.includes('fetch'));
-          const shouldRetry = attempt === 1 && (isHttpError || isNetworkError || (error.status === 403));
-          
-          if (shouldRetry) {
-            console.log('[InviteManagerDialog] Retrying in 1 second...');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            continue; // retry
-          }
-          throw error;
-        }
-        if (data?.error) {
-          console.error('Edge function returned an error:', data.error);
-          throw new Error(data.error);
-        }
-
-        console.log('[InviteManagerDialog] Invitation generated successfully:', data);
-        setInvite(data as Invite);
-        setPassword('');
-        return; // success, exit function
-      } catch (err: any) {
-        lastError = err;
-        console.error(`Attempt ${attempt} failed:`, err);
-        // If this was the last attempt, break to show toast
-        if (attempt === 2) break;
-        // Otherwise, wait and retry (but only if it's a retryable error)
-        // The retry logic is already handled above with continue, so we only reach here for non-retryable errors on first attempt
-        // For non-retryable errors on first attempt, we break and show toast
-        break;
+      if (error) {
+        console.error('Supabase function invocation error:', error);
+        throw error;
       }
-    }
+      if (data?.error) {
+        console.error('Edge function returned an error:', data.error);
+        throw new Error(data.error);
+      }
 
-    // If we reach here, both attempts failed (or first attempt failed with non-retryable error)
-    console.error('Failed to create manager invitation after retries. Full error details:', lastError);
-    console.error('Error message:', lastError?.message);
-    console.error('Error name:', lastError?.name);
-    console.error('Error stack:', lastError?.stack);
-    const msg = lastError?.message || '';
-    toast.error(
-      msg.toLowerCase().includes('password')
-        ? (isRTL ? 'كلمة المرور غير صحيحة' : 'Invalid password')
-        : (isRTL ? 'تعذّر إنشاء الدعوة' : 'Could not create invitation'),
-    );
-    finally {
+      console.log('[InviteManagerDialog] Invitation generated successfully:', data);
+      setInvite(data as Invite);
+      setPassword('');
+    } catch (err: any) {
+      console.error('Failed to create manager invitation:', err);
+      console.error('Error message:', err?.message);
+      console.error('Error name:', err?.name);
+      console.error('Error stack:', err?.stack);
+      const msg = err?.message || '';
+      toast.error(
+        msg.toLowerCase().includes('password')
+          ? (isRTL ? 'كلمة المرور غير صحيحة' : 'Invalid password')
+          : (isRTL ? 'تعذّر إنشاء الدعوة' : 'Could not create invitation'),
+      );
+    } finally {
       setLoading(false);
     }
   };
