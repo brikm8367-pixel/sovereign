@@ -112,7 +112,7 @@ self.addEventListener("push", (event: PushEvent) => {
       notificationType: data.notificationType || "message",
       senderId: data.senderId || null,
     },
-  } as NotificationOptions);
+  } as NotificationOptions;
 
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
