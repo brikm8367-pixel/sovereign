@@ -1,9 +1,9 @@
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Briefcase, Lock, Users, Loader2, Inbox as InboxIcon, User } from 'lucide-react';
+import { Briefcase, Loader2, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type MessageCategory = 'work' | 'audience' | 'direct';
+export type MessageCategory = 'work';
 
 export interface Message {
   id: string;
@@ -33,23 +33,14 @@ interface InboxSectionProps {
   onMessageClick: (message: Message) => void;
   activeCategory: MessageCategory;
   onCategoryChange: (category: MessageCategory) => void;
-  allowedCategories?: MessageCategory[];
 }
 
-const tabOrder: MessageCategory[] = ['work', 'direct', 'audience'];
+const tabOrder: MessageCategory[] = ['work'];
 
 const categoryConfig = {
   work: {
     icon: Briefcase,
     label: { ar: 'العمل', en: 'Work', fr: 'Travail', es: 'Trabajo' },
-  },
-  direct: {
-    icon: Lock,
-    label: { ar: 'الخاص', en: 'Private', fr: 'Privé', es: 'Privado' },
-  },
-  audience: {
-    icon: Users,
-    label: { ar: 'الجمهور', en: 'Audience', fr: 'Audience', es: 'Audiencia' },
   },
 };
 
@@ -59,20 +50,16 @@ export default function InboxSection({
   onMessageClick,
   activeCategory,
   onCategoryChange,
-  allowedCategories,
 }: InboxSectionProps) {
   const { isRTL, language } = useLanguage();
 
   const filteredMessages = messages.filter((m) => m.category === activeCategory);
 
-  // Filter tabOrder based on allowedCategories
-  const visibleTabs = allowedCategories ? tabOrder.filter(cat => allowedCategories.includes(cat)) : tabOrder;
-
   return (
     <div className="space-y-4" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Category Tabs */}
       <div className="flex gap-1 p-1 bg-muted/50 rounded-xl">
-        {visibleTabs.map((cat) => {
+        {tabOrder.map((cat) => {
           const config = categoryConfig[cat];
           const Icon = config.icon;
           const isActive = activeCategory === cat;
@@ -103,7 +90,9 @@ export default function InboxSection({
           </div>
         ) : filteredMessages.length === 0 ? (
           <div className="text-center py-12">
-            <InboxIcon className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+            <div className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3 flex items-center justify-center">
+              <Briefcase className="h-6 w-6" />
+            </div>
             <p className="text-muted-foreground">
               {isRTL ? 'لا توجد رسائل' : 'No messages'}
             </p>
