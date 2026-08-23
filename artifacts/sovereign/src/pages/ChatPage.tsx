@@ -230,6 +230,25 @@ export default function ChatPage() {
       }
     }
 
+    // For deal messages, keep parent_id null until manager accepts
+    let parentId: string | null = null;
+    if (!deal) {
+      // Find the oldest root message (parent_id is null) between these two users for this category
+      const { data: rootMsg } = await supabase
+        .from('messages')
+        .select('id')
+        .is('parent_id', null)
+        .eq('category', category)
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (rootMsg) {
+        parentId = rootMsg.id;
+      }
+    }
+
     const tempId = `temp-${Date.now()}`;
     const optimisticMsg: Message = {
       id: tempId,
@@ -239,7 +258,7 @@ export default function ChatPage() {
       created_at: new Date().toISOString(),
       is_read: null,
       category,
-      parent_id: null,
+      parent_id: parentId,
       voice_url: voiceUrl || null,
       media_url: mediaPreview?.url || null,
       media_type: mediaPreview?.file.type.startsWith('video/') ? 'video' : mediaPreview ? 'image' : null,
@@ -272,7 +291,7 @@ export default function ChatPage() {
         media_url: mediaUrl,
         media_type: mediaType,
         category,
-        parent_id: null,
+        parent_id: parentId,
         celebrity_id: deal?.celebrity_id || null,
       } as any);
       if (error) throw error;

@@ -151,25 +151,30 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
         if (category === 'direct') category = 'audience';
       }
 
-      // Smart routing
-      const { data: roots } = await supabase
+      // Smart routing: find the oldest root message (parent_id is null) between these two users for this category
+      let parentId: string | null = null;
+      const { data: rootMsg } = await supabase
         .from('messages')
-        .select('id, created_at')
+        .select('id')
         .is('parent_id', null)
         .eq('category', category)
         .or(`and(sender_id.eq.${senderId},receiver_id.eq.${recipient.id}),and(sender_id.eq.${recipient.id},receiver_id.eq.${senderId})`)
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-      let parentId: string | null = null;
+      if (rootMsg) {
+        parentId = rootMsg.id;
+      }
+
       let shouldDeductCredit = true;
 
-      if (roots && roots.length > 0) {
-        parentId = roots[0].id;
+      if (parentId) {
+        // Check last message time in this conversation thread
         const { data: lastMsg } = await supabase
           .from('messages')
           .select('created_at')
-          .or(`id.eq.${roots[0].id},parent_id.eq.${roots[0].id}`)
+          .or(`id.eq.${parentId},parent_id.eq.${parentId}`)
           .order('created_at', { ascending: false })
           .limit(1);
 
