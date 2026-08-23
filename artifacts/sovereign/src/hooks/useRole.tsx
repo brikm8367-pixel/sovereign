@@ -52,14 +52,16 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
     try {
-      // Fetch profile to get account_type
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('account_type')
-        .eq('id', currentUser.id)
-        .maybeSingle();
+      // 1. First, check if user is a MANAGER (has active manager_links where manager_id = user.id)
+      const { data: managerLinks } = await supabase
+        .from('manager_links')
+        .select('celebrity_id')
+        .eq('manager_id', currentUser.id)
+        .eq('status', 'active');
 
-      // Check if user has an active manager link (is a celebrity with an agent)
+      const isManager = !!managerLinks && managerLinks.length > 0;
+
+      // 2. Check if user is a CELEBRITY (has active manager link where celebrity_id = user.id)
       const { data: activeManagerLink } = await supabase
         .from('manager_links')
         .select('id')
@@ -67,63 +69,88 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         .eq('status', 'active')
         .limit(1);
 
-      // If user has an active manager, they are a celebrity regardless of profile.account_type
-      const hasActiveManager = !!activeManagerLink && activeManagerLink.length > 0;
-      const type = hasActiveManager ? 'celebrity' : ((profile?.account_type as AccountType) || 'sender');
-      setAccountType(type);
+      const isCelebrity = !!activeManagerLink && activeManagerLink.length > 0;
 
-      if (type === 'celebrity') {
-        setRole('celebrity');
-        // Fetch managed celebrities (where user is manager)
-        const { data: links } = await supabase
+      // 3. Fetch profile for account_type (used as fallback)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_type')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      // 4. Determine role and accountType based on priority:
+      //    - If manager_links exist as manager → role = 'manager'
+      //    - Else if active manager link as celebrity → accountType = 'celebrity', role = 'celebrity'
+      //    - Else use profile.account_type (sender or celebrity)
+      let determinedAccountType: AccountType = 'sender';
+      let determinedRole: UserRole = 'sender';
+      let celebrityIds: string[] = [];
+
+      if (isManager) {
+        // User is a manager - highest priority for role determination
+        determinedRole = 'manager';
+        determinedAccountType = 'sender'; // Managers are senders by account type
+        celebrityIds = managerLinks.map(l => l.celebrity_id);
+      } else if (isCelebrity) {
+        // User is a celebrity with an active manager
+        determinedAccountType = 'celebrity';
+        determinedRole = 'celebrity';
+        // Fetch managed celebrities (where user is manager) - celebrities can also manage others
+        const { data: celebrityManagerLinks } = await supabase
           .from('manager_links')
           .select('celebrity_id')
           .eq('manager_id', currentUser.id)
           .eq('status', 'active');
-
-        if (links?.length) {
-          const celebrityIds = links.map(l => l.celebrity_id);
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, display_name, username, avatar_url')
-            .in('id', celebrityIds);
-          setManagedCelebrities(profiles as ManagedCelebrity[] || []);
-          // Set active celebrity if not set
-          if (!managedCelebrityIdRef.current && profiles?.length) {
-            setManagedCelebrityId(profiles[0].id);
-          }
-        } else {
-          setManagedCelebrities([]);
-          setManagedCelebrityId(null);
+        if (celebrityManagerLinks?.length) {
+          celebrityIds = celebrityManagerLinks.map(l => l.celebrity_id);
         }
-      } else if (type === 'sender') {
-        // Check if user is a manager for any celebrity
-        const { data: links } = await supabase
-          .from('manager_links')
-          .select('celebrity_id')
-          .eq('manager_id', currentUser.id)
-          .eq('status', 'active');
-
-        if (links?.length) {
-          setRole('manager');
-          const celebrityIds = links.map(l => l.celebrity_id);
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, display_name, username, avatar_url')
-            .in('id', celebrityIds);
-          setManagedCelebrities(profiles as ManagedCelebrity[] || []);
-          // Only set default if no celebrity is currently selected
-          if (!managedCelebrityIdRef.current && profiles?.length) {
-            setManagedCelebrityId(profiles[0].id);
+      } else {
+        // Neither manager nor celebrity with agent - use profile account_type
+        determinedAccountType = (profile?.account_type as AccountType) || 'sender';
+        if (determinedAccountType === 'celebrity') {
+          determinedRole = 'celebrity';
+          // Fetch managed celebrities for this celebrity
+          const { data: celebrityManagerLinks } = await supabase
+            .from('manager_links')
+            .select('celebrity_id')
+            .eq('manager_id', currentUser.id)
+            .eq('status', 'active');
+          if (celebrityManagerLinks?.length) {
+            celebrityIds = celebrityManagerLinks.map(l => l.celebrity_id);
           }
         } else {
-          setRole('sender');
+          determinedRole = 'sender';
+        }
+      }
+
+      setAccountType(determinedAccountType);
+      setRole(determinedRole);
+
+      // 5. Fetch managed celebrity profiles if any
+      if (celebrityIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, display_name, username, avatar_url')
+          .in('id', celebrityIds);
+        const managed = (profiles as ManagedCelebrity[]) || [];
+        setManagedCelebrities(managed);
+        // Set active celebrity if not set
+        if (!managedCelebrityIdRef.current && managed.length > 0) {
+          setManagedCelebrityId(managed[0].id);
+        }
+      } else {
+        setManagedCelebrities([]);
+        if (!managedCelebrityIdRef.current) {
           setManagedCelebrityId(null);
-          setManagedCelebrities([]);
         }
       }
     } catch (error) {
       console.error('Error refreshing role:', error);
+      // On error, reset to safe defaults
+      setAccountType('sender');
+      setRole('sender');
+      setManagedCelebrities([]);
+      setManagedCelebrityId(null);
     } finally {
       setLoading(false);
     }
