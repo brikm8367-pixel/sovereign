@@ -55,13 +55,12 @@ export async function registerPushNotifications() {
     const p256dh = subJson.keys!.p256dh;
     const authKey = subJson.keys!.auth;
 
-    // Store subscription with profile id and endpoint
+    // Store subscription with user id and endpoint
     await supabase.from('push_subscriptions').upsert({
       user_id: auth.user.id,
       endpoint,
       p256dh,
       auth: authKey,
-      profile_id: auth.user.id, // Store current profile id
     }, { onConflict: 'user_id,endpoint' });
 
     console.log('Push notifications registered successfully');
