@@ -58,8 +58,15 @@ export const ComposePage = () => {
 
   // Determine mode:
   // - If celebrityId present → deal mode
-  // - Otherwise → selection screen
+  // - Otherwise → redirect to search
   const isDealMode = !!celebrityId;
+
+  // Redirect to search if no celebrityId (selection screen removed)
+  useEffect(() => {
+    if (!authLoading && !isDealMode && role !== 'manager') {
+      navigate('/search?type=deal', { replace: true });
+    }
+  }, [authLoading, isDealMode, role, navigate]);
 
   const handleSendDeal = async () => {
     // Validation des champs requis
@@ -365,40 +372,10 @@ export const ComposePage = () => {
     );
   }
 
-  // ===== ÉCRAN DE SÉLECTION (par défaut) =====
+  // Loading state while redirecting
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8" dir={isRTL ? 'rtl' : 'ltr'}>
-      <div className="max-w-4xl mx-auto">
-        <header className="mb-10 text-center">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-            {isRTL ? 'إنشاء عرض' : 'Create Offer'}
-          </h1>
-          <p className="mt-2 text-muted-foreground text-lg">
-            {isRTL ? 'أرسل عرضًا احترافيًا' : 'Send a professional offer'}
-          </p>
-        </header>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-md mx-auto">
-          <button
-            onClick={() => navigate('/search?type=deal')}
-            className="group flex flex-col items-center justify-center p-8 bg-card border border-border rounded-2xl shadow-sm hover:shadow-lg hover:border-primary/50 transition-all duration-300"
-          >
-            <div className="p-4 bg-primary/10 rounded-full text-primary mb-4 group-hover:bg-primary/20 transition-colors">
-              <Briefcase className="h-8 w-8" />
-            </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">
-              {isRTL ? 'بطاقة عرض' : 'Deal Card'}
-            </h2>
-            <p className="text-muted-foreground text-center">
-              {isRTL ? 'أرسل عرضًا احترافيًا' : 'Send a professional offer'}
-            </p>
-            <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
-              {isRTL ? 'إنشاء عرض' : 'Create offer'}
-              <ArrowRight className="h-4 w-4" />
-            </span>
-          </button>
-        </div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <svg className="animate-spin -ml-1 mr-2 h-8 w-8 text-primary" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
     </div>
   );
 };
