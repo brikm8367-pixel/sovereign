@@ -111,8 +111,15 @@ export default function ChatPage() {
     if (dealId) return;
     if (messages.length === 0) return;
 
+    const validUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
     const inferDeal = async () => {
-      const messageIds = messages.map(m => m.id);
+      const messageIds = messages.map(m => m.id).filter(validUuid);
+      if (messageIds.length === 0) {
+        setDeal(null);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('deal_cards')
         .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
