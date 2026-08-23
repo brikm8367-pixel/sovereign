@@ -1,6 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { WebPush } from "https://esm.sh/web-push@3.6.6";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { setVapidDetails, sendNotification } from "npm:web-push";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,19 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function base64UrlToArrayBuffer(base64Url: string): ArrayBuffer {
-  const padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
-  const base64 = (base64Url + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = atob(base64);
-  const buffer = new ArrayBuffer(rawData.length);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < rawData.length; ++i) {
-    view[i] = rawData.charCodeAt(i);
-  }
-  return buffer;
-}
-
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -85,8 +72,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const webPush = new WebPush();
-    webPush.setVapidDetails(
+    setVapidDetails(
       "mailto:support@sovereign.app",
       vapidPublicKey,
       vapidPrivateKey
@@ -109,7 +95,7 @@ serve(async (req: Request) => {
       data: notificationData,
       actions: [
         { action: "reply", title: "↩️ Reply" },
-        { action: "view", title: " View" },
+        { action: "view", title: "👁️ View" },
       ],
       requireInteraction: true,
       vibrate: [200, 100, 200, 100, 200],
@@ -126,7 +112,7 @@ serve(async (req: Request) => {
           },
         };
 
-        await webPush.sendNotification(pushSubscription, payload);
+        await sendNotification(pushSubscription, payload);
         sentCount++;
       } catch (err: any) {
         console.error("Failed to send to subscription:", err);
