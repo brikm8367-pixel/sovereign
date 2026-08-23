@@ -47,7 +47,6 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [activeCategory, setActiveCategory] = useState<MessageCategory>('work');
-  const [hasActiveManager, setHasActiveManager] = useState(false);
   const [pendingDeals, setPendingDeals] = useState<PendingDeal[]>([]);
   const [isLoadingDeals, setIsLoadingDeals] = useState(false);
   
@@ -58,24 +57,6 @@ export default function Dashboard() {
   useEffect(() => { 
     if (!loading && !user) navigate('/'); 
   }, [user, loading, navigate]);
-
-  // Check if celebrity has an active manager
-  useEffect(() => {
-    const checkActiveManager = async () => {
-      if (!user || accountType !== 'celebrity') {
-        setHasActiveManager(false);
-        return;
-      }
-      const { data } = await supabase
-        .from('manager_links')
-        .select('id')
-        .eq('celebrity_id', user.id)
-        .eq('status', 'active')
-        .limit(1);
-      setHasActiveManager(!!data && data.length > 0);
-    };
-    checkActiveManager();
-  }, [user, accountType]);
 
   // Fetch pending deals for manager
   const fetchPendingDeals = useCallback(async () => {
@@ -193,17 +174,6 @@ export default function Dashboard() {
 
       if (!cancelled && isMountedRef.current) {
         setMessages(messagesWithProfiles);
-
-        // For non-manager users, set activeCategory based on most recent message
-        if (role !== 'manager' && messagesWithProfiles.length > 0) {
-          const mostRecentCategory = messagesWithProfiles[0].category as MessageCategory;
-          if (['work', 'direct', 'audience'].includes(mostRecentCategory)) {
-            setActiveCategory(mostRecentCategory);
-          }
-        } else if (role !== 'manager' && messagesWithProfiles.length === 0) {
-          setActiveCategory('work');
-        }
-
         setIsLoadingMessages(false);
       }
     };
@@ -281,8 +251,6 @@ export default function Dashboard() {
       if (user) {
         // Trigger a re-fetch by updating a ref timestamp
         lastFetchRef.current = 0;
-        // The useEffect above will pick up the change on next render cycle
-        // We can force a re-render by using a state updater, but the debounce will handle it
       }
     };
     window.addEventListener('focus', handleFocus);
@@ -383,13 +351,6 @@ export default function Dashboard() {
 
   // Find active celebrity for manager badge
   const activeCelebrity = managedCelebrities.find(c => c.id === managedCelebrityId);
-
-  // Determine allowed categories
-  const allowedCategories: MessageCategory[] = role === 'manager'
-    ? ['work']
-    : hasActiveManager
-      ? ['direct', 'audience']
-      : ['work', 'direct', 'audience'];
 
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -668,7 +629,6 @@ export default function Dashboard() {
             onMessageClick={handleMessageClick}
             activeCategory={activeCategory}
             onCategoryChange={setActiveCategory}
-            allowedCategories={allowedCategories}
           />
         </div>
       </main>
