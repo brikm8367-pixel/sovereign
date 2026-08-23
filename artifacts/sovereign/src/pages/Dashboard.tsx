@@ -99,7 +99,7 @@ export default function Dashboard() {
     fetchPendingDeals();
   }, [fetchPendingDeals]);
 
-  // Fetch messages
+  // Fetch messages - only 'work' category for all roles
   const fetchMessages = useCallback(async () => {
     if (!user || !isMountedRef.current) return;
     
@@ -116,10 +116,10 @@ export default function Dashboard() {
 
       let query: any;
       if (role === 'manager' && managedCelebrityId) {
-        // Manager viewing messages for the selected celebrity
+        // Manager viewing messages for the selected celebrity - only 'work' category
         query = (supabase as any).from('messages').select('*').eq('celebrity_id', managedCelebrityId).eq('category', 'work').order('created_at', { ascending: false });
       } else if (role === 'manager') {
-        // Fallback for manager without selected celebrity
+        // Fallback for manager without selected celebrity - only 'work' category
         query = supabase
           .from('messages')
           .select('*')
@@ -127,11 +127,12 @@ export default function Dashboard() {
           .eq('category', 'work')
           .order('created_at', { ascending: false });
       } else {
-        // Current user logic: all messages (sent and received) without category filter
+        // Non-manager users: only 'work' category messages sent/received
         query = supabase
           .from('messages')
           .select('*')
           .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
+          .eq('category', 'work')
           .order('created_at', { ascending: false });
       }
 
@@ -212,12 +213,12 @@ export default function Dashboard() {
       channels.push(dealsChannel);
     }
 
-    // Subscribe to messages changes
+    // Subscribe to messages changes - only 'work' category
     let messagesFilter = '';
     if (role === 'manager' && managedCelebrityId) {
-      messagesFilter = `celebrity_id=eq.${managedCelebrityId}`;
+      messagesFilter = `celebrity_id=eq.${managedCelebrityId},category=eq.work`;
     } else {
-      messagesFilter = `or(receiver_id.eq.${user.id},sender_id.eq.${user.id})`;
+      messagesFilter = `or(receiver_id.eq.${user.id},sender_id.eq.${user.id}),category=eq.work`;
     }
 
     const messagesChannel = supabase
