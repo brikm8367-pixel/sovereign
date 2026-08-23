@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Send, Loader2, User, Mic, Image as ImageIcon, X, Search, AtSign, Shield } from 'lucide-react';
+import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import VoiceRecorder from './VoiceRecorder';
@@ -34,18 +33,10 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
   const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Username search state
-  const [usernameQuery, setUsernameQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Profile[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [recipient, setRecipient] = useState<Profile | null>(initialRecipient);
 
   useEffect(() => {
     setRecipient(initialRecipient);
-    if (initialRecipient) {
-      setUsernameQuery('');
-      setSearchResults([]);
-    }
   }, [initialRecipient]);
 
   useEffect(() => {
@@ -53,38 +44,8 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
       setContent('');
       setShowVoice(false);
       setMediaPreview(null);
-      if (!initialRecipient) {
-        setRecipient(null);
-        setUsernameQuery('');
-        setSearchResults([]);
-      }
     }
-  }, [isOpen, initialRecipient]);
-
-
-  // Username search with debounce
-  useEffect(() => {
-    if (usernameQuery.length < 2) { setSearchResults([]); return; }
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      const clean = usernameQuery.replace(/^@/, '').toLowerCase();
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, bio')
-        .ilike('username', `%${clean}%`)
-        .eq('is_public', true)
-        .limit(8);
-      setSearchResults(data || []);
-      setIsSearching(false);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [usernameQuery]);
-
-  const selectRecipient = (profile: Profile) => {
-    setRecipient(profile);
-    setUsernameQuery('');
-    setSearchResults([]);
-  };
+  }, [isOpen]);
 
   const uploadMedia = async (file: File): Promise<{ url: string; type: string } | null> => {
     const { data: auth } = await supabase.auth.getUser();
@@ -118,46 +79,16 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
         setMediaPreview(null);
       }
 
-      const { data: directAccess } = await supabase
-        .from('direct_access')
-        .select('id')
-        .eq('owner_id', recipient.id)
-        .eq('allowed_user_id', senderId)
-        .limit(1);
+      // Only 'work' category is allowed
+      const category = 'work';
 
-      let category: 'work' | 'audience' | 'direct' = 'audience';
-      if (directAccess && directAccess.length > 0) {
-        category = 'direct';
-      } else {
-        const { data: classData } = await supabase.functions.invoke('classify-message', {
-          body: { content: text || 'Voice message', senderId, receiverId: recipient.id },
-        });
-
-        // Sender transparency: blocked by recipient's filter or spam/toxicity
-        if (classData?.blocked) {
-          const reasonMsg = classData.message || (
-            classData.reason === 'filter'
-              ? (isRTL ? `لم تصل رسالتك — المستلم لا يستقبل رسائل من نوع: ${classData.filter_type}` : `Your message was not delivered — recipient doesn't accept ${classData.filter_type} messages.`)
-              : classData.reason === 'spam'
-                ? (isRTL ? 'لم تصل رسالتك — اعتُبرت سبام.' : 'Your message was not delivered — flagged as spam.')
-                : (isRTL ? 'لم تصل رسالتك — تحتوي محتوى غير مسموح.' : 'Your message was not delivered — contains disallowed content.')
-          );
-          toast.error(reasonMsg, { duration: 5000 });
-          setIsSending(false);
-          return;
-        }
-
-        category = classData?.category || 'audience';
-        if (category === 'direct') category = 'audience';
-      }
-
-      // Conversation root logic: find oldest root message (parent_id null) between the two users for this category
+      // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
       let parentId: string | null = null;
       const { data: rootMsg } = await supabase
         .from('messages')
         .select('id')
         .is('parent_id', null)
-        .eq('category', category)
+        .eq('category', 'work')
         .or(`and(sender_id.eq.${senderId},receiver_id.eq.${recipient.id}),and(sender_id.eq.${recipient.id},receiver_id.eq.${senderId})`)
         .order('created_at', { ascending: true })
         .limit(1)
@@ -188,19 +119,19 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
       }
 
       if (shouldDeductCredit) {
-        // Check recipient inbox mode (closed / limited)
+        // Check recipient inbox mode (closed / limited) for 'work' category
         const { data: limitRow } = await supabase
           .from('message_limits')
           .select('inbox_mode, max_messages')
           .eq('user_id', recipient.id)
-          .eq('category', category)
+          .eq('category', 'work')
           .maybeSingle();
 
         if (limitRow?.inbox_mode === 'closed' || limitRow?.max_messages === 0) {
           toast.error(
             isRTL
-              ? `لم تصل رسالتك — المستلم أغلق صندوق "${category === 'work' ? 'العمل' : category === 'direct' ? 'الخاص' : 'العلاقات'}".`
-              : `Your message was not delivered — recipient closed their ${category} inbox.`,
+              ? 'لم تصل رسالتك — المستلم أغلق صندوق العمل.'
+              : 'Your message was not delivered — recipient closed their work inbox.',
             { duration: 5000 }
           );
           setIsSending(false);
@@ -210,7 +141,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
         // Skip can_receive check if unlimited
         if (limitRow?.inbox_mode !== 'unlimited') {
           const { data: canReceive } = await supabase.rpc('can_receive_message', {
-            _user_id: recipient.id, _category: category,
+            _user_id: recipient.id, _category: 'work',
           });
           if (!canReceive) {
             toast.error(isRTL ? 'صندوق المستلم ممتلئ' : "Recipient's inbox is full. They need to increase their limit.");
@@ -244,7 +175,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
 
       // Push notification with conversationId
       const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', senderId).single();
-      const notificationType = voiceUrl ? 'voice' : mediaType ? mediaType : `${category}_message`;
+      const notificationType = voiceUrl ? 'voice' : mediaType ? mediaType : 'work_message';
       
       supabase.functions.invoke('send-push-notification', {
         body: {
@@ -279,162 +210,100 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
     setMediaPreview({ file, url: URL.createObjectURL(file) });
   };
 
+  // If no recipient is provided, show nothing (component should only be used with a recipient)
+  if (!recipient) {
+    return null;
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md rounded-3xl p-0 gap-0">
         <DialogHeader className="p-5 pb-3 border-b border-border">
           <DialogTitle className="text-lg font-bold">
-            {isRTL ? 'رسالة جديدة' : 'New Message'}
+            {isRTL ? 'رسالة عمل جديدة' : 'New Work Message'}
           </DialogTitle>
         </DialogHeader>
 
         <div className="p-5 space-y-4">
-          {/* Step 1: Select recipient via username */}
-          {!recipient ? (
-            <div className="space-y-3">
-              <div className="relative">
-                <AtSign className="absolute start-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  placeholder={isRTL ? 'أدخل @username...' : 'Enter @username...'}
-                  value={usernameQuery}
-                  onChange={(e) => setUsernameQuery(e.target.value.replace(/[^a-z0-9_@]/gi, ''))}
-                  className="ps-10 h-12 text-base rounded-xl border-2 focus:border-primary"
-                  autoFocus
-                />
-                {isSearching && <Loader2 className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />}
-              </div>
-
-              {searchResults.length > 0 && (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {searchResults.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => selectRecipient(p)}
-                      className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors text-start"
-                    >
-                      <Avatar className="h-10 w-10 ring-2 ring-primary/10">
-                        <AvatarImage src={p.avatar_url || undefined} />
-                        <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                          {p.display_name?.[0] || <User className="h-4 w-4" />}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{p.display_name || p.username}</p>
-                        <p className="text-xs text-muted-foreground">@{p.username}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {usernameQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  {isRTL ? 'لا نتائج' : 'No results found'}
-                </p>
-              )}
-
-              {usernameQuery.length < 2 && (
-                <div className="text-center py-8">
-                  <Search className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    {isRTL ? 'أدخل username المستلم' : 'Enter recipient username'}
-                  </p>
-                </div>
-              )}
+          {/* Recipient preview card */}
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-muted/50 relative">
+            <Avatar className="h-12 w-12 ring-2 ring-primary/10">
+              <AvatarImage src={recipient.avatar_url || undefined} />
+              <AvatarFallback className="bg-primary/10 text-primary text-lg">
+                {recipient.display_name?.[0] || <User className="h-5 w-5" />}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-base truncate">{recipient.display_name || recipient.username}</p>
+              {recipient.username && <p className="text-sm text-muted-foreground">@{recipient.username}</p>}
             </div>
+          </div>
+
+          {/* Message composition */}
+          {showVoice ? (
+            <VoiceRecorder
+              onRecordComplete={(url) => sendMessage('🎤', url)}
+              onCancel={() => setShowVoice(false)}
+            />
           ) : (
             <>
-              {/* Step 2: Recipient preview card */}
-              <div className="flex items-center gap-3 p-4 rounded-2xl bg-muted/50 relative">
-                <Avatar className="h-12 w-12 ring-2 ring-primary/10">
-                  <AvatarImage src={recipient.avatar_url || undefined} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-lg">
-                    {recipient.display_name?.[0] || <User className="h-5 w-5" />}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-base truncate">{recipient.display_name || recipient.username}</p>
-                  {recipient.username && <p className="text-sm text-muted-foreground">@{recipient.username}</p>}
-                </div>
-                {!initialRecipient && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full absolute top-2 end-2"
-                    onClick={() => { setRecipient(null); }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
+              <Textarea
+                placeholder={isRTL ? 'اكتب رسالتك...' : 'Write your message...'}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={4}
+                className="resize-none text-base rounded-xl border-2 focus:border-primary p-4"
+                autoFocus
+              />
 
-              {/* Step 3: Message composition */}
-              {showVoice ? (
-                <VoiceRecorder
-                  onRecordComplete={(url) => sendMessage('🎤', url)}
-                  onCancel={() => setShowVoice(false)}
-                />
-              ) : (
-                <>
-                  <Textarea
-                    placeholder={isRTL ? 'اكتب رسالتك...' : 'Write your message...'}
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    rows={4}
-                    className="resize-none text-base rounded-xl border-2 focus:border-primary p-4"
-                    autoFocus
-                  />
-
-                  {mediaPreview && (
-                    <div className="relative inline-block">
-                      {mediaPreview.file.type.startsWith('video/') ? (
-                        <video src={mediaPreview.url} className="h-24 rounded-xl" />
-                      ) : (
-                        <img src={mediaPreview.url} className="h-24 rounded-xl object-cover" alt="" />
-                      )}
-                      <Button size="icon" variant="destructive" className="absolute top-1 end-1 h-6 w-6 rounded-full" onClick={() => { URL.revokeObjectURL(mediaPreview.url); setMediaPreview(null); }}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
+              {mediaPreview && (
+                <div className="relative inline-block">
+                  {mediaPreview.file.type.startsWith('video/') ? (
+                    <video src={mediaPreview.url} className="h-24 rounded-xl" />
+                  ) : (
+                    <img src={mediaPreview.url} className="h-24 rounded-xl object-cover" alt="" />
                   )}
-
-                  <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
-
-                  <div className="flex gap-3">
-                    <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-13 w-13 rounded-xl touch-feedback">
-                      <ImageIcon className="h-5 w-5" />
-                    </Button>
-                    <Button variant="outline" size="icon" onClick={() => setShowVoice(true)} className="h-13 w-13 rounded-xl touch-feedback">
-                      <Mic className="h-5 w-5" />
-                    </Button>
-                    <Button variant="outline" onClick={onClose} className="flex-1 h-13 text-base rounded-xl touch-feedback">
-                      {isRTL ? 'إلغاء' : 'Cancel'}
-                    </Button>
-                    <Button
-                      onClick={() => sendMessage(content)}
-                      disabled={(!content.trim() && !mediaPreview) || isSending}
-                      className="flex-1 h-13 text-base rounded-xl touch-feedback"
-                    >
-                      {isSending ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <>
-                          <Send className="h-5 w-5 me-2" />
-                          {isRTL ? 'إرسال' : 'Send'}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </>
+                  <Button size="icon" variant="destructive" className="absolute top-1 end-1 h-6 w-6 rounded-full" onClick={() => { URL.revokeObjectURL(mediaPreview.url); setMediaPreview(null); }}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
               )}
 
-              {/* E2E badge */}
-              <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
-                <Shield className="h-3 w-3 text-emerald-500" />
-                {isRTL ? 'مشفّر من طرف إلى طرف' : 'End-to-end encrypted'}
-              </p>
+              <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
+
+              <div className="flex gap-3">
+                <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-13 w-13 rounded-xl touch-feedback">
+                  <ImageIcon className="h-5 w-5" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => setShowVoice(true)} className="h-13 w-13 rounded-xl touch-feedback">
+                  <Mic className="h-5 w-5" />
+                </Button>
+                <Button variant="outline" onClick={onClose} className="flex-1 h-13 text-base rounded-xl touch-feedback">
+                  {isRTL ? 'إلغاء' : 'Cancel'}
+                </Button>
+                <Button
+                  onClick={() => sendMessage(content)}
+                  disabled={(!content.trim() && !mediaPreview) || isSending}
+                  className="flex-1 h-13 text-base rounded-xl touch-feedback"
+                >
+                  {isSending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="h-5 w-5 me-2" />
+                      {isRTL ? 'إرسال' : 'Send'}
+                    </>
+                  )}
+                </Button>
+              </div>
             </>
           )}
+
+          {/* E2E badge */}
+          <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
+            <Shield className="h-3 w-3 text-emerald-500" />
+            {isRTL ? 'مشفّر من طرف إلى طرف' : 'End-to-end encrypted'}
+          </p>
         </div>
       </DialogContent>
     </Dialog>
