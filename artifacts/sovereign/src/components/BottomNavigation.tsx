@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
-import { Home, Search, Bell, User, Briefcase } from 'lucide-react';
+import { Home, Search, Bell, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,11 +64,11 @@ export function BottomNavigation() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 safe-area-inset-bottom">
       <div className="bg-card/95 backdrop-blur-lg border-t border-border">
         <div className="max-w-lg mx-auto flex items-center justify-between h-16 px-2 relative">
-          <div className="flex items-center justify-between w-full">
+          <div className="flex items-center justify-center gap-4 w-full">
             {navItems.map((item) => {
               const active = isActive(item.path);
               const Icon = item.icon;
-              const showBadge = item.id === 'home' && unreadCount > 0;
+              const showBadge = item.id === 'notifications' && unreadCount > 0;
               
               return (
                 <button
