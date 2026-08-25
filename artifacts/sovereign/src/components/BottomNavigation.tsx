@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
-import { Home, Search, Bell, User } from 'lucide-react';
+import { Home, Search, Briefcase, Bell, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'home', icon: Home, label: { ar: 'الرئيسية', en: 'Home', fr: 'Accueil', es: 'Inicio' }, path: '/home' },
   { id: 'search', icon: Search, label: { ar: 'بحث', en: 'Search', fr: 'Recherche', es: 'Buscar' }, path: '/home?tab=search' },
+  { id: 'offers', icon: Briefcase, label: { ar: 'العروض', en: 'Offers', fr: 'Offres', es: 'Ofertas' }, path: '/offers' },
   { id: 'notifications', icon: Bell, label: { ar: 'إشعارات', en: 'Alerts', fr: 'Alertes', es: 'Alertas' }, path: '/notifications' },
   { id: 'profile', icon: User, label: { ar: 'حسابي', en: 'Profile', fr: 'Profil', es: 'Perfil' }, path: '/profile' },
 ];
