@@ -101,35 +101,41 @@ export function BottomNavigation() {
     );
   };
 
+  // For managers: only show Home, Notifications, Profile
+  const managerLeftItems = leftNavItems.filter(item => item.id === 'home');
+  const managerRightItems = rightNavItems;
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 safe-area-inset-bottom">
       <div className="bg-card/95 backdrop-blur-lg border-t border-border">
         <div className="max-w-lg mx-auto flex items-center justify-between h-16 px-2 relative">
           {/* Left Group */}
           <div className="flex items-center justify-center gap-4 w-1/2">
-            {leftNavItems.map(renderNavItem)}
+            {(role === 'manager' ? managerLeftItems : leftNavItems).map(renderNavItem)}
           </div>
 
-          {/* Center Create Offer Button */}
-          <button
-            onClick={() => navigate('/search?type=deal')}
-            className={cn(
-              'flex flex-col items-center justify-center gap-1 transition-all touch-feedback z-10',
-              'relative'
-            )}
-            style={{ transform: 'translateY(-4px)' }}
-          >
-            <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-primary shadow-lg shadow-primary/30 ring-4 ring-card">
-              <Briefcase className="h-7 w-7 text-primary-foreground" />
-            </div>
-            <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
-              {isRTL ? 'إنشاء عرض' : 'Create Offer'}
-            </span>
-          </button>
+          {/* Center Create Offer Button - hidden for managers */}
+          {role !== 'manager' && (
+            <button
+              onClick={() => navigate('/search?type=deal')}
+              className={cn(
+                'flex flex-col items-center justify-center gap-1 transition-all touch-feedback z-10',
+                'relative'
+              )}
+              style={{ transform: 'translateY(-4px)' }}
+            >
+              <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-primary shadow-lg shadow-primary/30 ring-4 ring-card">
+                <Briefcase className="h-7 w-7 text-primary-foreground" />
+              </div>
+              <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+                {isRTL ? 'إنشاء عرض' : 'Create Offer'}
+              </span>
+            </button>
+          )}
 
           {/* Right Group */}
           <div className="flex items-center justify-center gap-4 w-1/2">
-            {rightNavItems.map(renderNavItem)}
+            {role === 'manager' ? managerRightItems : rightNavItems}.map(renderNavItem)}
           </div>
         </div>
       </div>
