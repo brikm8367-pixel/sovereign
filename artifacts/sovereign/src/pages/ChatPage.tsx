@@ -245,26 +245,50 @@ export default function ChatPage() {
         foundDeal = deal;
       }
     } else {
-      // 2. If dealId is NOT in the URL, query for an accepted deal between the two users
-      // where status = 'accepted' AND message_id is not null AND the deal involves both users
-      // For managers: also check if deal has sender_id = userId (company) and celebrity_id = managedCelebrityId
-      const managedCelebId = managedCelebrityId || '00000000-0000-0000-0000-000000000000';
-      
-      const { data: acceptedDeal } = await supabase
-        .from('deal_cards')
-        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
-        .eq('status', 'accepted')
-        .not('message_id', 'is', null)
-        .or(`and(sender_id.eq.${user.id},celebrity_id.eq.${userId}),and(sender_id.eq.${userId},celebrity_id.eq.${user.id}),and(sender_id.eq.${userId},celebrity_id.eq.${managedCelebId})`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // 2. If dealId is NOT in the URL, first check if any message in THIS conversation
+      // has a related accepted deal via deal_cards.message_id
+      const validMessageIds = messages
+        .map(m => m.id)
+        .filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
 
-      if (acceptedDeal) {
-        hasDeal = true;
-        foundDeal = acceptedDeal as unknown as Deal;
-        // Update local deal state so pinned card displays
-        setDeal(foundDeal);
+      if (validMessageIds.length > 0) {
+        const { data: dealFromMessage } = await supabase
+          .from('deal_cards')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+          .in('message_id', validMessageIds)
+          .eq('status', 'accepted')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (dealFromMessage) {
+          hasDeal = true;
+          foundDeal = dealFromMessage as unknown as Deal;
+          setDeal(foundDeal);
+        }
+      }
+
+      // 3. If not found via message_id, directly search for an accepted deal where the current user
+      // is either the sender (company) OR the celebrity, and the deal involves the other participant
+      if (!hasDeal) {
+        const managedCelebId = managedCelebrityId || '00000000-0000-0000-0000-000000000000';
+        
+        const { data: acceptedDeal } = await supabase
+          .from('deal_cards')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+          .eq('status', 'accepted')
+          .not('message_id', 'is', null)
+          .or(`and(sender_id.eq.${user.id},celebrity_id.eq.${userId}),and(sender_id.eq.${userId},celebrity_id.eq.${user.id}),and(sender_id.eq.${userId},celebrity_id.eq.${managedCelebId})`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (acceptedDeal) {
+          hasDeal = true;
+          foundDeal = acceptedDeal as unknown as Deal;
+          // Update local deal state so pinned card displays
+          setDeal(foundDeal);
+        }
       }
     }
 
