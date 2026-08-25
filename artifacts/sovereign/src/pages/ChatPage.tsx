@@ -223,18 +223,38 @@ export default function ChatPage() {
 
     // Check if there's a dealId or existing accepted deal between the two users
     let hasDeal = !!dealId;
+    let foundDeal: Deal | null = null;
     
     if (!hasDeal) {
-      // Check for accepted deal between these two users
+      // Query for accepted deal between these two users where message_id is not null
+      // This ensures the deal was accepted and a conversation was started
       const { data: acceptedDeal } = await supabase
         .from('deal_cards')
-        .select('id')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
         .eq('status', 'accepted')
+        .not('message_id', 'is', null)
         .or(`and(sender_id.eq.${user.id},celebrity_id.eq.${userId}),and(sender_id.eq.${userId},celebrity_id.eq.${user.id})`)
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       
-      hasDeal = !!acceptedDeal;
+      if (acceptedDeal) {
+        hasDeal = true;
+        foundDeal = acceptedDeal as unknown as Deal;
+        // Update local deal state so pinned card shows
+        setDeal(foundDeal);
+      }
+    } else if (dealId && !deal) {
+      // If dealId in URL but deal not loaded yet, fetch it
+      const { data: dealData } = await supabase
+        .from('deal_cards')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+        .eq('id', dealId)
+        .single();
+      if (dealData) {
+        foundDeal = dealData as unknown as Deal;
+        setDeal(foundDeal);
+      }
     }
 
     if (!hasDeal) {
@@ -306,7 +326,7 @@ export default function ChatPage() {
         media_type: mediaType,
         category,
         parent_id: parentId,
-        celebrity_id: deal?.celebrity_id || null,
+        celebrity_id: (foundDeal || deal)?.celebrity_id || null,
       } as any);
       if (error) throw error;
 
