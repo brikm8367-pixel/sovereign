@@ -221,13 +221,30 @@ export default function ChatPage() {
     
     setIsSending(true);
 
-    // Check if there's a dealId or existing accepted deal between the two users
-    let hasDeal = !!dealId;
+    // GUARD: User can only send a work message if they have an accepted Deal Card with the other participant
+    let hasDeal = false;
     let foundDeal: Deal | null = null;
-    
-    if (!hasDeal) {
-      // Query for accepted deal between these two users where message_id is not null
-      // This ensures the deal was accepted and a conversation was started
+
+    if (dealId) {
+      // 1. If dealId is in the URL, allow sending
+      hasDeal = true;
+      if (!deal) {
+        // Fetch deal details for pinned card display
+        const { data: dealData } = await supabase
+          .from('deal_cards')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+          .eq('id', dealId)
+          .single();
+        if (dealData) {
+          foundDeal = dealData as unknown as Deal;
+          setDeal(foundDeal);
+        }
+      } else {
+        foundDeal = deal;
+      }
+    } else {
+      // 2. If dealId is NOT in the URL, query for an accepted deal between the two users
+      // where status = 'accepted' AND message_id is not null AND the deal involves both users
       const { data: acceptedDeal } = await supabase
         .from('deal_cards')
         .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
@@ -237,22 +254,11 @@ export default function ChatPage() {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      
+
       if (acceptedDeal) {
         hasDeal = true;
         foundDeal = acceptedDeal as unknown as Deal;
-        // Update local deal state so pinned card shows
-        setDeal(foundDeal);
-      }
-    } else if (dealId && !deal) {
-      // If dealId in URL but deal not loaded yet, fetch it
-      const { data: dealData } = await supabase
-        .from('deal_cards')
-        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
-        .eq('id', dealId)
-        .single();
-      if (dealData) {
-        foundDeal = dealData as unknown as Deal;
+        // Update local deal state so pinned card displays
         setDeal(foundDeal);
       }
     }
@@ -317,6 +323,7 @@ export default function ChatPage() {
         console.warn('Encryption failed, sending unencrypted');
       }
 
+      // Insert message with category 'work' and parent_id pointing to conversation root
       const { error } = await supabase.from('messages').insert({
         sender_id: user.id,
         receiver_id: userId,
