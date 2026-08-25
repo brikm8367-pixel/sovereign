@@ -135,10 +135,10 @@ export default function Security() {
   const content = {
     ar: {
       title: 'الأمان والخصوصية',
-      subtitle: 'بُني من الأساس لحماية خصوصيتك',
-      heroText: 'رسائلك مشفرة من طرف إلى طرف. لا نقرأها، لا نخزنها، ولا نبيعها. أنت وحدك من يملك مفاتيح محادثاتك.',
+      subtitle: 'مصمم لحماية محادثات العمل والعروض التجارية',
+      heroText: 'رسائلك وبطاقات العروض مشفرة من طرف إلى طرف. لا نقرأ محتوى محادثاتك، ولا نبيع بياناتك، ولا نستخدمها للإعلانات. مفاتيح التشفير تبقى على جهازك فقط.',
       twoFA: 'المصادقة الثنائية (2FA)',
-      twoFADesc: 'حماية إضافية لحسابك عبر رمز بريد إلكتروني',
+      twoFADesc: 'حماية إضافية لحسابك عبر رمز التحقق المرسل للبريد الإلكتروني',
       enable2FA: 'تفعيل 2FA',
       disable2FA: 'إلغاء 2FA',
       devices: 'الأجهزة المتصلة',
@@ -146,24 +146,24 @@ export default function Security() {
       currentDevice: 'هذا الجهاز',
       sendCode: 'إرسال رمز التحقق',
       verifyCode: 'تحقق',
-      enterCode: 'أدخل الرمز المرسل إلى بريدك',
-      ageNotice: 'يجب أن يكون عمرك 13 سنة أو أكثر لاستخدام Sovereign.',
+      enterCode: 'أدخل الرمز المرسل إلى بريدك الإلكتروني',
+      ageNotice: 'يجب أن يكون عمرك 18 سنة أو أكثر لاستخدام Sovereign.',
       sections: [
-        { icon: <Lock className="h-5 w-5 text-primary" />, title: 'تشفير من طرف إلى طرف', description: 'كل رسالة مشفرة باستخدام AES-256-GCM مع مفاتيح ECDH فريدة.', badge: 'AES-256' },
-        { icon: <KeyRound className="h-5 w-5 text-primary" />, title: 'مفاتيح تشفير خاصة بك', description: 'يتم إنشاء زوج مفاتيح ECDH (P-256) فريد لكل مستخدم. المفتاح الخاص لا يغادر جهازك أبداً.' },
-        { icon: <EyeOff className="h-5 w-5 text-primary" />, title: 'بدون تتبع أو إعلانات', description: 'لا نتتبع نشاطك، لا نبيع بياناتك، ولا نعرض إعلانات.', badge: 'ZERO ADS' },
-        { icon: <Globe className="h-5 w-5 text-primary" />, title: 'متوافق مع GDPR', description: 'نلتزم بأعلى معايير حماية البيانات الأوروبية والدولية.', badge: 'GDPR' },
-        { icon: <Server className="h-5 w-5 text-primary" />, title: 'بنية تحتية آمنة', description: 'بيانات مشفرة أثناء النقل عبر TLS 1.3 وأثناء التخزين. سياسات RLS صارمة.' },
-        { icon: <Fingerprint className="h-5 w-5 text-primary" />, title: 'مصادقة متعددة الطبقات', description: 'تسجيل دخول آمن مع التحقق من البريد الإلكتروني و 2FA.' },
-        { icon: <Database className="h-5 w-5 text-primary" />, title: 'حذف البيانات بالكامل', description: 'يمكنك حذف حسابك وجميع بياناتك بشكل نهائي في أي وقت.' },
-        { icon: <Ban className="h-5 w-5 text-primary" />, title: 'حماية من الرسائل المزعجة', description: 'نظام حدود ذكي لكل صندوق يمنع الفيضان ويحمي تركيزك.' },
+        { icon: <Lock className="h-5 w-5 text-primary" />, title: 'تشفير من طرف إلى طرف', description: 'كل رسالة وبطاقة عرض مشفرة باستخدام AES-256-GCM مع مفاتيح ECDH فريدة لكل محادثة.', badge: 'AES-256' },
+        { icon: <KeyRound className="h-5 w-5 text-primary" />, title: 'مفاتيحك، جهازك', description: 'يتم إنشاء زوج مفاتيح ECDH (P-256) فريد لكل مستخدم. المفتاح الخاص لا يغادر جهازك أبداً ويمكنك تصديره للنسخ الاحتياطي.', badge: 'ECDH P-256' },
+        { icon: <EyeOff className="h-5 w-5 text-primary" />, title: 'بدون تتبع أو إعلانات', description: 'لا نتتبع نشاطك، لا نبيع بياناتك للشركات الإعلانية، ولا نعرض إعلانات داخل التطبيق.', badge: 'ZERO ADS' },
+        { icon: <Globe className="h-5 w-5 text-primary" />, title: 'متوافق مع GDPR', description: 'نلتزم بمعايير حماية البيانات الأوروبية. يمكنك طلب تصدير أو حذف بياناتك في أي وقت.', badge: 'GDPR' },
+        { icon: <Server className="h-5 w-5 text-primary" />, title: 'بنية تحتية آمنة', description: 'بيانات مشفرة أثناء النقل عبر TLS 1.3 وأثناء التخزين. سياسات RLS صارمة على كل جداول قاعدة البيانات.', badge: 'TLS 1.3 + RLS' },
+        { icon: <Fingerprint className="h-5 w-5 text-primary" />, title: 'مصادقة متعددة الطبقات', description: 'تسجيل دخول آمن مع التحقق من البريد الإلكتروني، 2FA اختياري، وحماية من الحسابات المزيفة.', badge: 'Email + 2FA' },
+        { icon: <Database className="h-5 w-5 text-primary" />, title: 'حذف البيانات بالكامل', description: 'يمكنك حذف حسابك وجميع بياناتك (الرسائل، بطاقات العروض، روابط الوكالة) بشكل نهائي.', badge: 'Permanent' },
+        { icon: <Ban className="h-5 w-5 text-primary" />, title: 'حماية من الرسائل المزعجة', description: 'نظام حدود ذكي لصندوق العمل يمنع الفيضان ويحمي تركيز المشاهير والوكلاء.', badge: 'Rate Limited' },
       ],
       comparison: 'كيف يقارن Sovereign؟',
     },
     en: {
       title: 'Security & Privacy',
-      subtitle: 'Built from the ground up to protect your privacy',
-      heroText: 'Your messages are end-to-end encrypted. We can\'t read them, we don\'t store them, and we never sell them. Only you hold the keys to your conversations.',
+      subtitle: 'Built to protect business conversations and deal negotiations',
+      heroText: 'Your messages and Deal Cards are end-to-end encrypted. We can\'t read your conversations, we don\'t sell your data, and we never use it for ads. Encryption keys stay on your device.',
       twoFA: 'Two-Factor Authentication (2FA)',
       twoFADesc: 'Extra protection for your account via email verification code',
       enable2FA: 'Enable 2FA',
@@ -174,16 +174,16 @@ export default function Security() {
       sendCode: 'Send verification code',
       verifyCode: 'Verify',
       enterCode: 'Enter the code sent to your email',
-      ageNotice: 'You must be 13 years or older to use Sovereign.',
+      ageNotice: 'You must be 18 years or older to use Sovereign.',
       sections: [
-        { icon: <Lock className="h-5 w-5 text-primary" />, title: 'End-to-End Encryption', description: 'Every message is encrypted using AES-256-GCM with unique ECDH keys.', badge: 'AES-256' },
-        { icon: <KeyRound className="h-5 w-5 text-primary" />, title: 'Your Keys, Your Device', description: 'A unique ECDH (P-256) key pair is generated for each user. Your private key never leaves your device.' },
-        { icon: <EyeOff className="h-5 w-5 text-primary" />, title: 'No Tracking · No Ads', description: 'We don\'t track your activity, sell your data, or show ads.', badge: 'ZERO ADS' },
-        { icon: <Globe className="h-5 w-5 text-primary" />, title: 'GDPR Compliant', description: 'We comply with the highest European and international data protection standards.', badge: 'GDPR' },
-        { icon: <Server className="h-5 w-5 text-primary" />, title: 'Secure Infrastructure', description: 'Data encrypted in transit via TLS 1.3 and at rest. Strict RLS policies on every table.' },
-        { icon: <Fingerprint className="h-5 w-5 text-primary" />, title: 'Multi-Layer Authentication', description: 'Secure sign-in with email verification, 2FA, and protection against fake accounts.' },
-        { icon: <Database className="h-5 w-5 text-primary" />, title: 'Full Data Deletion', description: 'Delete your account and all data permanently at any time. We retain nothing.' },
-        { icon: <Ban className="h-5 w-5 text-primary" />, title: 'Spam Protection', description: 'Smart per-inbox limits prevent flooding and protect your focus.' },
+        { icon: <Lock className="h-5 w-5 text-primary" />, title: 'End-to-End Encryption', description: 'Every message and Deal Card is encrypted using AES-256-GCM with unique ECDH keys per conversation.', badge: 'AES-256' },
+        { icon: <KeyRound className="h-5 w-5 text-primary" />, title: 'Your Keys, Your Device', description: 'A unique ECDH (P-256) key pair is generated for each user. Your private key never leaves your device and can be exported for backup.', badge: 'ECDH P-256' },
+        { icon: <EyeOff className="h-5 w-5 text-primary" />, title: 'No Tracking · No Ads', description: 'We don\'t track your activity, sell your data to advertisers, or show ads in the app.', badge: 'ZERO ADS' },
+        { icon: <Globe className="h-5 w-5 text-primary" />, title: 'GDPR Compliant', description: 'We comply with European data protection standards. You can request data export or deletion at any time.', badge: 'GDPR' },
+        { icon: <Server className="h-5 w-5 text-primary" />, title: 'Secure Infrastructure', description: 'Data encrypted in transit via TLS 1.3 and at rest. Strict Row Level Security policies on every database table.', badge: 'TLS 1.3 + RLS' },
+        { icon: <Fingerprint className="h-5 w-5 text-primary" />, title: 'Multi-Layer Authentication', description: 'Secure sign-in with email verification, optional 2FA, and protection against fake accounts.', badge: 'Email + 2FA' },
+        { icon: <Database className="h-5 w-5 text-primary" />, title: 'Full Data Deletion', description: 'Delete your account and all data (messages, Deal Cards, agency links) permanently at any time.', badge: 'Permanent' },
+        { icon: <Ban className="h-5 w-5 text-primary" />, title: 'Spam Protection', description: 'Smart per-inbox limits for Work inbox prevent flooding and protect celebrity/agent focus.', badge: 'Rate Limited' },
       ],
       comparison: 'How does Sovereign compare?',
     },
@@ -194,8 +194,8 @@ export default function Security() {
   const comparisonFeatures = [
     { feature: isRTL ? 'تشفير E2E' : 'E2E Encryption', directly: true, whatsapp: true, telegram: '⚡', signal: true },
     { feature: isRTL ? 'بدون إعلانات' : 'No Ads', directly: true, whatsapp: false, telegram: true, signal: true },
-    { feature: isRTL ? 'تحكم بالوصول' : 'Access Control', directly: true, whatsapp: false, telegram: false, signal: false },
-    { feature: isRTL ? 'صناديق مصنفة' : 'Sorted Inboxes', directly: true, whatsapp: false, telegram: false, signal: false },
+    { feature: isRTL ? 'مفاتيح على الجهاز' : 'On-Device Keys', directly: true, whatsapp: false, telegram: false, signal: true },
+    { feature: isRTL ? 'صندوق عمل محمي' : 'Protected Work Inbox', directly: true, whatsapp: false, telegram: false, signal: false },
     { feature: isRTL ? '2FA' : '2FA', directly: true, whatsapp: true, telegram: true, signal: true },
     { feature: isRTL ? 'حذف كامل للبيانات' : 'Full Data Delete', directly: true, whatsapp: false, telegram: true, signal: true },
     { feature: isRTL ? 'متوافق GDPR' : 'GDPR Compliant', directly: true, whatsapp: true, telegram: false, signal: true },
@@ -350,8 +350,8 @@ export default function Security() {
 
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }} className="text-center text-xs text-muted-foreground mt-4 leading-relaxed">
           {isRTL 
-            ? 'Sovereign مبني على بنية تحتية مفتوحة المصدر مع التزام كامل بمعايير الأمان العالمية.'
-            : 'Sovereign is built on open-source infrastructure with full commitment to global security standards.'}
+            ? 'Sovereign مبني على بنية تحتية آمنة مع التزام كامل بحماية محادثات العمل والعروض التجارية.'
+            : 'Sovereign is built on secure infrastructure with full commitment to protecting business conversations and deal negotiations.'}
         </motion.p>
       </main>
 
