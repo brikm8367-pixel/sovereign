@@ -35,9 +35,13 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   // Use refs to store latest values for use in callbacks without triggering re-renders
   const managedCelebrityIdRef = useRef(managedCelebrityId);
   const userRef = useRef(user);
+  const roleRef = useRef(role);
+  const accountTypeRef = useRef(accountType);
   
   managedCelebrityIdRef.current = managedCelebrityId;
   userRef.current = user;
+  roleRef.current = role;
+  accountTypeRef.current = accountType;
 
   const refresh = useCallback(async () => {
     const currentUser = userRef.current;
@@ -50,9 +54,23 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Guard: if we already have correct manager state, don't overwrite it
+    // unless we need to refresh managed celebrities list
+    const isAlreadyManager = roleRef.current === 'manager' && accountTypeRef.current === 'sender';
+    const hasManagedCelebrityId = !!managedCelebrityIdRef.current;
+
     setLoading(true);
     try {
-      // 1. First, check if user is a MANAGER (has active manager_links where manager_id = user.id)
+      // 1. First, fetch profile account_type
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_type')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      const profileAccountType = (profile?.account_type as AccountType) || 'sender';
+
+      // 2. Check manager_links where manager_id = user.id and status = 'active'
       const { data: managerLinks } = await supabase
         .from('manager_links')
         .select('celebrity_id')
@@ -61,7 +79,35 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
       const isManager = !!managerLinks && managerLinks.length > 0;
 
-      // 2. Check if user is a CELEBRITY (has active manager link where celebrity_id = user.id)
+      // 3. If active manager links exist → role = 'manager', accountType = 'sender'
+      if (isManager) {
+        const celebrityIds = managerLinks.map(l => l.celebrity_id);
+        
+        // Fetch managed celebrity profiles
+        let managed: ManagedCelebrity[] = [];
+        if (celebrityIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, display_name, username, avatar_url')
+            .in('id', celebrityIds);
+          managed = (profiles as ManagedCelebrity[]) || [];
+        }
+
+        setAccountType('sender');
+        setRole('manager');
+        setManagedCelebrities(managed);
+        
+        // Set managedCelebrityId if not already set
+        if (!managedCelebrityIdRef.current && managed.length > 0) {
+          setManagedCelebrityId(managed[0].id);
+        }
+        
+        setLoading(false);
+        return;
+      }
+
+      // 4. Only if no active manager links exist, set role based on account_type
+      // Check if user is a celebrity with active manager
       const { data: activeManagerLink } = await supabase
         .from('manager_links')
         .select('id')
@@ -71,27 +117,11 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
       const isCelebrity = !!activeManagerLink && activeManagerLink.length > 0;
 
-      // 3. Fetch profile for account_type (used as fallback)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('account_type')
-        .eq('id', currentUser.id)
-        .maybeSingle();
-
-      // 4. Determine role and accountType based on priority:
-      //    - If manager_links exist as manager → role = 'manager'
-      //    - Else if active manager link as celebrity → accountType = 'celebrity', role = 'celebrity'
-      //    - Else use profile.account_type (sender or celebrity)
       let determinedAccountType: AccountType = 'sender';
       let determinedRole: UserRole = 'sender';
       let celebrityIds: string[] = [];
 
-      if (isManager) {
-        // User is a manager - highest priority for role determination
-        determinedRole = 'manager';
-        determinedAccountType = 'sender'; // Managers are senders by account type
-        celebrityIds = managerLinks.map(l => l.celebrity_id);
-      } else if (isCelebrity) {
+      if (isCelebrity) {
         // User is a celebrity with an active manager
         determinedAccountType = 'celebrity';
         determinedRole = 'celebrity';
@@ -105,8 +135,8 @@ export function RoleProvider({ children }: { children: ReactNode }) {
           celebrityIds = celebrityManagerLinks.map(l => l.celebrity_id);
         }
       } else {
-        // Neither manager nor celebrity with agent - use profile account_type
-        determinedAccountType = (profile?.account_type as AccountType) || 'sender';
+        // Use profile account_type
+        determinedAccountType = profileAccountType;
         if (determinedAccountType === 'celebrity') {
           determinedRole = 'celebrity';
           // Fetch managed celebrities for this celebrity
