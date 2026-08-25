@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useRole } from '@/hooks/useRole.tsx';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -59,6 +60,7 @@ export default function ChatPage() {
   const [searchParams] = useSearchParams();
   const dealId = searchParams.get('dealId');
   const { user } = useAuth();
+  const { role, managedCelebrityId } = useRole();
   const { isRTL } = useLanguage();
   const navigate = useNavigate();
 
@@ -245,12 +247,15 @@ export default function ChatPage() {
     } else {
       // 2. If dealId is NOT in the URL, query for an accepted deal between the two users
       // where status = 'accepted' AND message_id is not null AND the deal involves both users
+      // For managers: also check if deal has sender_id = userId (company) and celebrity_id = managedCelebrityId
+      const managedCelebId = managedCelebrityId || '00000000-0000-0000-0000-000000000000';
+      
       const { data: acceptedDeal } = await supabase
         .from('deal_cards')
         .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
         .eq('status', 'accepted')
         .not('message_id', 'is', null)
-        .or(`and(sender_id.eq.${user.id},celebrity_id.eq.${userId}),and(sender_id.eq.${userId},celebrity_id.eq.${user.id})`)
+        .or(`and(sender_id.eq.${user.id},celebrity_id.eq.${userId}),and(sender_id.eq.${userId},celebrity_id.eq.${user.id}),and(sender_id.eq.${userId},celebrity_id.eq.${managedCelebId})`)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
