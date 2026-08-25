@@ -139,7 +139,7 @@ export default function ChatPage() {
     inferDeal();
   }, [messages, dealId]);
 
-  // Fetch messages between current user and recipient
+  // Fetch all messages between current user and recipient (full thread)
   const loadMessages = useCallback(async () => {
     if (!user || !userId) return;
     setIsLoading(true);

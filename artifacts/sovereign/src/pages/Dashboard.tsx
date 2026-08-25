@@ -9,7 +9,7 @@ import { Loader2, User, Check, Crown, Briefcase, DollarSign, Calendar, Building2
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { BottomNavigation } from '@/components/BottomNavigation';
-import InboxSection, { MessageCategory, Message } from '@/components/messaging/InboxSection';
+import InboxSection, { ConversationSummary } from '@/components/messaging/InboxSection';
 import { CelebritySwitcher } from '@/components/manager/CelebritySwitcher';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -38,6 +38,28 @@ interface PendingDeal {
   status: string;
 }
 
+interface Message {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  sender_profile?: {
+    id: string;
+    display_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+  };
+  subject: string | null;
+  content: string;
+  is_important: boolean;
+  is_read: boolean;
+  created_at: string;
+  category: string;
+  parent_id: string | null;
+  voice_url?: string | null;
+  media_url?: string | null;
+  media_type?: string | null;
+}
+
 export default function Dashboard() {
   const { user, loading } = useAuth();
   const { role, accountType, managedCelebrityId, managedCelebrities, switchCelebrity, refresh: refreshRole } = useRole();
@@ -45,8 +67,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
-  const [activeCategory, setActiveCategory] = useState<MessageCategory>('work');
+  const [activeCategory, setActiveCategory] = useState<'work'>('work');
   const [pendingDeals, setPendingDeals] = useState<PendingDeal[]>([]);
   const [isLoadingDeals, setIsLoadingDeals] = useState(false);
   
@@ -58,6 +81,77 @@ export default function Dashboard() {
   useEffect(() => { 
     if (!loading && !user) navigate('/'); 
   }, [user, loading, navigate]);
+
+  // Group messages into conversation summaries
+  const buildConversations = useCallback((msgs: Message[]) => {
+    if (!user) return [];
+    
+    const conversationMap = new Map<string, {
+      rootId: string;
+      messages: Message[];
+      otherParticipantId: string;
+      otherParticipantProfile: Message['sender_profile'];
+    }>();
+
+    msgs.forEach(msg => {
+      // Determine conversation root ID
+      const rootId = msg.parent_id || msg.id;
+      
+      // Determine other participant
+      const otherParticipantId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
+      const otherProfile = msg.sender_id === user.id ? null : msg.sender_profile;
+
+      if (!conversationMap.has(rootId)) {
+        conversationMap.set(rootId, {
+          rootId,
+          messages: [],
+          otherParticipantId,
+          otherParticipantProfile: otherProfile,
+        });
+      }
+      
+      const conv = conversationMap.get(rootId)!;
+      conv.messages.push(msg);
+      
+      // Update other participant profile if we have it from a message they sent
+      if (msg.sender_id === otherParticipantId && msg.sender_profile) {
+        conv.otherParticipantProfile = msg.sender_profile;
+      }
+    });
+
+    // Build conversation summaries
+    const summaries: ConversationSummary[] = Array.from(conversationMap.values()).map(conv => {
+      // Sort messages by created_at descending to get latest
+      const sortedMessages = [...conv.messages].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      
+      const latestMessage = sortedMessages[0];
+      const unreadCount = conv.messages.filter(m => 
+        m.receiver_id === user.id && !m.is_read
+      ).length;
+
+      return {
+        rootId: conv.rootId,
+        otherParticipantId: conv.otherParticipantId,
+        otherParticipantProfile: conv.otherParticipantProfile || {
+          id: conv.otherParticipantId,
+          display_name: null,
+          username: null,
+          avatar_url: null,
+        },
+        latestMessageContent: latestMessage?.content || '',
+        latestMessageTime: latestMessage?.created_at || new Date().toISOString(),
+        unreadCount,
+        hasUnread: unreadCount > 0,
+      };
+    });
+
+    // Sort conversations by latest message time descending
+    return summaries.sort((a, b) => 
+      new Date(b.latestMessageTime).getTime() - new Date(a.latestMessageTime).getTime()
+    );
+  }, [user]);
 
   // Fetch pending deals for manager
   const fetchPendingDeals = useCallback(async () => {
@@ -176,13 +270,14 @@ export default function Dashboard() {
 
       if (!cancelled && isMountedRef.current) {
         setMessages(messagesWithProfiles);
+        setConversations(buildConversations(messagesWithProfiles));
         setIsLoadingMessages(false);
       }
     };
 
     doFetch();
     return () => { cancelled = true; };
-  }, [user, role, managedCelebrityId]);
+  }, [user, role, managedCelebrityId, buildConversations]);
 
   useEffect(() => {
     fetchMessages();
@@ -349,11 +444,10 @@ export default function Dashboard() {
     }
   };
 
-  // Handle message click - navigate to chat page
-  const handleMessageClick = useCallback((message: Message) => {
-    const otherParticipantId = message.sender_id === user?.id ? message.receiver_id : message.sender_id;
-    navigate(`/chat/${otherParticipantId}`);
-  }, [navigate, user?.id]);
+  // Handle conversation click - navigate to chat page
+  const handleConversationClick = useCallback((conversation: ConversationSummary) => {
+    navigate(`/chat/${conversation.otherParticipantId}`);
+  }, [navigate]);
 
   if (loading) {
     return (
@@ -638,9 +732,9 @@ export default function Dashboard() {
         {/* Inbox Section */}
         <div className="mb-6">
           <InboxSection
-            messages={messages}
+            conversations={conversations}
             isLoading={isLoadingMessages}
-            onMessageClick={handleMessageClick}
+            onConversationClick={handleConversationClick}
             activeCategory={activeCategory}
             onCategoryChange={setActiveCategory}
           />
