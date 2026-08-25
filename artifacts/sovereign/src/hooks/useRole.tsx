@@ -242,7 +242,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, user]);
 
   return (
     <RoleContext.Provider value={{
