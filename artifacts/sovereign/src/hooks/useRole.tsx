@@ -54,43 +54,39 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Guard: if we already have correct manager state, don't overwrite it
-    // unless we need to refresh managed celebrities list
-    const isAlreadyManager = roleRef.current === 'manager' && accountTypeRef.current === 'sender';
-    const hasManagedCelebrityId = !!managedCelebrityIdRef.current;
-
     setLoading(true);
     try {
-      // 1. First, fetch profile account_type
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('account_type')
-        .eq('id', currentUser.id)
-        .maybeSingle();
-
-      const profileAccountType = (profile?.account_type as AccountType) || 'sender';
-
-      // 2. Check manager_links where manager_id = user.id and status = 'active'
-      const { data: managerLinks } = await supabase
+      // 1. FIRST: Check manager_links where manager_id = user.id and status = 'active'
+      // This must come BEFORE checking profile account_type to preserve manager role on reload
+      const { data: managerLinks, error: managerLinksError } = await supabase
         .from('manager_links')
         .select('celebrity_id')
         .eq('manager_id', currentUser.id)
         .eq('status', 'active');
 
+      if (managerLinksError) {
+        console.error('Error fetching manager links:', managerLinksError);
+      }
+
       const isManager = !!managerLinks && managerLinks.length > 0;
 
-      // 3. If active manager links exist → role = 'manager', accountType = 'sender'
+      // 2. If active manager links exist → role = 'manager', accountType = 'sender'
       if (isManager) {
         const celebrityIds = managerLinks.map(l => l.celebrity_id);
         
         // Fetch managed celebrity profiles
         let managed: ManagedCelebrity[] = [];
         if (celebrityIds.length > 0) {
-          const { data: profiles } = await supabase
+          const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('id, display_name, username, avatar_url')
             .in('id', celebrityIds);
-          managed = (profiles as ManagedCelebrity[]) || [];
+          
+          if (profilesError) {
+            console.error('Error fetching managed celebrity profiles:', profilesError);
+          } else {
+            managed = (profiles as ManagedCelebrity[]) || [];
+          }
         }
 
         setAccountType('sender');
@@ -106,14 +102,30 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // 4. Only if no active manager links exist, set role based on account_type
-      // Check if user is a celebrity with active manager
-      const { data: activeManagerLink } = await supabase
+      // 3. Only if no active manager links exist, check profile account_type
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('account_type')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      }
+
+      const profileAccountType = (profile?.account_type as AccountType) || 'sender';
+
+      // 4. Check if user is a celebrity with active manager
+      const { data: activeManagerLink, error: activeManagerError } = await supabase
         .from('manager_links')
         .select('id')
         .eq('celebrity_id', currentUser.id)
         .eq('status', 'active')
         .limit(1);
+
+      if (activeManagerError) {
+        console.error('Error checking active manager link:', activeManagerError);
+      }
 
       const isCelebrity = !!activeManagerLink && activeManagerLink.length > 0;
 
@@ -126,11 +138,16 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         determinedAccountType = 'celebrity';
         determinedRole = 'celebrity';
         // Fetch managed celebrities (where user is manager) - celebrities can also manage others
-        const { data: celebrityManagerLinks } = await supabase
+        const { data: celebrityManagerLinks, error: celebManagerError } = await supabase
           .from('manager_links')
           .select('celebrity_id')
           .eq('manager_id', currentUser.id)
           .eq('status', 'active');
+        
+        if (celebManagerError) {
+          console.error('Error fetching celebrity manager links:', celebManagerError);
+        }
+        
         if (celebrityManagerLinks?.length) {
           celebrityIds = celebrityManagerLinks.map(l => l.celebrity_id);
         }
@@ -140,11 +157,16 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         if (determinedAccountType === 'celebrity') {
           determinedRole = 'celebrity';
           // Fetch managed celebrities for this celebrity
-          const { data: celebrityManagerLinks } = await supabase
+          const { data: celebrityManagerLinks, error: celebManagerError } = await supabase
             .from('manager_links')
             .select('celebrity_id')
             .eq('manager_id', currentUser.id)
             .eq('status', 'active');
+          
+          if (celebManagerError) {
+            console.error('Error fetching celebrity manager links:', celebManagerError);
+          }
+          
           if (celebrityManagerLinks?.length) {
             celebrityIds = celebrityManagerLinks.map(l => l.celebrity_id);
           }
@@ -158,10 +180,15 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
       // 5. Fetch managed celebrity profiles if any
       if (celebrityIds.length > 0) {
-        const { data: profiles } = await supabase
+        const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
           .select('id, display_name, username, avatar_url')
           .in('id', celebrityIds);
+        
+        if (profilesError) {
+          console.error('Error fetching managed celebrity profiles:', profilesError);
+        }
+        
         const managed = (profiles as ManagedCelebrity[]) || [];
         setManagedCelebrities(managed);
         // Set active celebrity if not set
@@ -191,13 +218,18 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return;
     
     // Verify the celebrity is in the managed list
-    const { data: link } = await supabase
+    const { data: link, error } = await supabase
       .from('manager_links')
       .select('id')
       .eq('manager_id', currentUser.id)
       .eq('celebrity_id', celebrityId)
       .eq('status', 'active')
       .maybeSingle();
+    
+    if (error) {
+      console.error('Error verifying celebrity link:', error);
+      return;
+    }
     
     if (link) {
       // Update ref immediately so refresh() knows a celebrity is selected
