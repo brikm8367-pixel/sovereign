@@ -250,7 +250,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     const optimisticMsg: ThreadMessage = {
       id: tempId, sender_id: user.id, receiver_id: otherUserId!,
       content: text || (voiceUrl ? '🎤' : '📷'), created_at: new Date().toISOString(),
-      is_read: null, category: message.category, parent_id: getRootId(message),
+      is_read: null, category: message.category as MessageCategory, parent_id: getRootId(message),
       voice_url: voiceUrl || null, media_url: mediaPreview?.url || null,
       media_type: mediaPreview?.file.type.startsWith('video/') ? 'video' : mediaPreview ? 'image' : null,
     };
@@ -272,7 +272,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
 
       const shouldDeductCredit = isInactive;
       if (shouldDeductCredit) {
-        const { data: canReceive } = await supabase.rpc('can_receive_message', { _user_id: otherUserId!, _category: message.category });
+        const { data: canReceive } = await supabase.rpc('can_receive_message', { _user_id: otherUserId!, _category: message.category as any });
         if (!canReceive) {
           toast.error(isRTL ? 'صندوق المستلم ممتلئ' : "Recipient's inbox is full");
           setThread(prev => prev.filter(m => m.id !== tempId));
