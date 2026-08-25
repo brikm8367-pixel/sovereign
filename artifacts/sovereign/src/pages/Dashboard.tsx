@@ -53,6 +53,7 @@ export default function Dashboard() {
   // Refs for preventing unnecessary refreshes
   const isMountedRef = useRef(true);
   const lastFetchRef = useRef<number>(0);
+  const channelsRef = useRef<ReturnType<typeof supabase.channel>[]>([]);
 
   useEffect(() => { 
     if (!loading && !user) navigate('/'); 
@@ -191,7 +192,11 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
 
-    const channels: any[] = [];
+    // Cleanup existing channels
+    channelsRef.current.forEach(channel => {
+      void supabase.removeChannel(channel);
+    });
+    channelsRef.current = [];
 
     // Subscribe to pending deals changes for manager
     if (role === 'manager' && managedCelebrityId) {
@@ -210,7 +215,7 @@ export default function Dashboard() {
           }
         )
         .subscribe();
-      channels.push(dealsChannel);
+      channelsRef.current.push(dealsChannel);
     }
 
     // Subscribe to messages changes - only 'work' category
@@ -231,32 +236,40 @@ export default function Dashboard() {
           table: 'messages',
           filter: messagesFilter,
         },
-        () => {
-          fetchMessages();
+        (payload) => {
+          // Only refetch on INSERT, UPDATE, DELETE (not on TRUNCATE etc.)
+          if (['INSERT', 'UPDATE', 'DELETE'].includes(payload.eventType)) {
+            fetchMessages();
+          }
         }
       )
       .subscribe();
-    channels.push(messagesChannel);
+    channelsRef.current.push(messagesChannel);
 
     // Cleanup
     return () => {
-      channels.forEach(channel => {
+      channelsRef.current.forEach(channel => {
         void supabase.removeChannel(channel);
       });
+      channelsRef.current = [];
     };
   }, [user, role, managedCelebrityId, fetchPendingDeals, fetchMessages]);
 
-  // Refetch messages on window focus (debounced)
+  // Window focus listener to refresh data
   useEffect(() => {
     const handleFocus = () => {
       if (user) {
         // Trigger a re-fetch by updating a ref timestamp
         lastFetchRef.current = 0;
+        fetchMessages();
+        if (role === 'manager' && managedCelebrityId) {
+          fetchPendingDeals();
+        }
       }
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [user]);
+  }, [user, role, managedCelebrityId, fetchMessages, fetchPendingDeals]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -601,7 +614,7 @@ export default function Dashboard() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 h-10 text-sm rounded-xl touch-feedback border-red-500 text-red-500 hover:bg-red-500/10"
+                      className="flex-1 h-10 text-sm rounded-xl touch-feedback border-red-500 text-red-500 hover:bg-red-505/10"
                       onClick={() => handleReject(deal)}
                     >
                       <X className="h-4 w-4 me-1" />
