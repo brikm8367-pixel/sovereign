@@ -3,6 +3,30 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Briefcase, Loader2, User, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+export type MessageCategory = 'work';
+
+export interface Message {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  sender_profile?: {
+    id: string;
+    display_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+  };
+  subject: string | null;
+  content: string;
+  is_important: boolean;
+  is_read: boolean;
+  created_at: string;
+  category: string;
+  parent_id: string | null;
+  voice_url?: string | null;
+  media_url?: string | null;
+  media_type?: string | null;
+}
+
 export interface ConversationSummary {
   rootId: string;
   otherParticipantId: string;
