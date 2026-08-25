@@ -246,23 +246,21 @@ export default function ChatPage() {
     // Always use 'work' category
     const category = 'work';
 
-    // For deal messages, keep parent_id null until manager accepts
+    // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
+    // This ensures each pair of users has exactly ONE work conversation
     let parentId: string | null = null;
-    if (!deal) {
-      // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
-      const { data: rootMsg } = await supabase
-        .from('messages')
-        .select('id')
-        .is('parent_id', null)
-        .eq('category', 'work')
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
+    const { data: rootMsg } = await supabase
+      .from('messages')
+      .select('id')
+      .is('parent_id', null)
+      .eq('category', 'work')
+      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-      if (rootMsg) {
-        parentId = rootMsg.id;
-      }
+    if (rootMsg) {
+      parentId = rootMsg.id;
     }
 
     const tempId = `temp-${Date.now()}`;

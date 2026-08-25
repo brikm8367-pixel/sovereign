@@ -83,6 +83,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
       const category = 'work';
 
       // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
+      // This ensures each pair of users has exactly ONE work conversation
       let parentId: string | null = null;
       const { data: rootMsg } = await supabase
         .from('messages')
