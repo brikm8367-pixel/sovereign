@@ -5,7 +5,7 @@ import { useRole } from '@/hooks/useRole.tsx';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, User, Check, Crown, Briefcase, DollarSign, Calendar, Building2, X, Heart, RotateCcw, FileText, Shield, UserCheck, Globe } from 'lucide-react';
+import { Loader2, User, Check, Crown, Briefcase, DollarSign, Calendar, Building2, X, Heart, RotateCcw, FileText, Shield, UserCheck, Globe, MessageSquare, Send } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { BottomNavigation } from '@/components/BottomNavigation';
@@ -13,6 +13,8 @@ import InboxSection, { ConversationSummary } from '@/components/messaging/InboxS
 import { CelebritySwitcher } from '@/components/manager/CelebritySwitcher';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 interface Profile {
   id: string;
@@ -73,6 +75,12 @@ export default function Dashboard() {
   const [pendingDeals, setPendingDeals] = useState<PendingDeal[]>([]);
   const [isLoadingDeals, setIsLoadingDeals] = useState(false);
   
+  // Ask Talent dialog state
+  const [askTalentOpen, setAskTalentOpen] = useState(false);
+  const [askTalentDeal, setAskTalentDeal] = useState<PendingDeal | null>(null);
+  const [askTalentQuestion, setAskTalentQuestion] = useState('');
+  const [isSubmittingQuestion, setIsSubmittingQuestion] = useState(false);
+
   // Refs for preventing unnecessary refreshes
   const isMountedRef = useRef(true);
   const lastFetchRef = useRef<number>(0);
@@ -402,7 +410,7 @@ export default function Dashboard() {
     }
   };
 
-  // Handle interested
+  // Handle interested (accept in principle)
   const handleInterested = async (deal: PendingDeal) => {
     if (!user) return;
     try {
@@ -444,6 +452,50 @@ export default function Dashboard() {
     }
   };
 
+  // Handle Ask Talent - open dialog
+  const handleAskTalent = (deal: PendingDeal) => {
+    setAskTalentDeal(deal);
+    setAskTalentQuestion('');
+    setAskTalentOpen(true);
+  };
+
+  // Handle Ask Talent submit
+  const handleAskTalentSubmit = async () => {
+    if (!user || !askTalentDeal || !askTalentQuestion.trim()) return;
+    
+    setIsSubmittingQuestion(true);
+    try {
+      // Insert message to the celebrity (talent) asking the question
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          sender_id: user.id,
+          receiver_id: askTalentDeal.celebrity_id,
+          celebrity_id: askTalentDeal.celebrity_id,
+          subject: askTalentDeal.deal_type ? `Re: ${askTalentDeal.deal_type}` : null,
+          content: askTalentQuestion.trim(),
+          category: 'work',
+        } as any);
+
+      if (error) throw error;
+
+      // Close dialog and reset
+      setAskTalentOpen(false);
+      setAskTalentDeal(null);
+      setAskTalentQuestion('');
+      
+      toast.success(isRTL ? 'تم إرسال السؤال للموهبة' : 'Question sent to talent');
+      
+      // Refresh messages to show the new message
+      fetchMessages();
+    } catch (error) {
+      console.error('Error sending question:', error);
+      toast.error(isRTL ? 'فشل إرسال السؤال' : 'Failed to send question');
+    } finally {
+      setIsSubmittingQuestion(false);
+    }
+  };
+
   // Handle conversation click - navigate to chat page
   const handleConversationClick = useCallback((conversation: ConversationSummary) => {
     navigate(`/chat/${conversation.otherParticipantId}`);
@@ -459,6 +511,8 @@ export default function Dashboard() {
 
   // Find active celebrity for manager badge
   const activeCelebrity = managedCelebrities.find(c => c.id === managedCelebrityId);
+
+  const t = useCallback((ar: string, en: string) => (isRTL ? ar : en), [isRTL]);
 
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -715,6 +769,15 @@ export default function Dashboard() {
                       {isRTL ? 'غير مناسب' : 'Not a fit'}
                     </Button>
                     <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-10 text-sm rounded-xl touch-feedback border-primary text-primary hover:bg-primary/10"
+                      onClick={() => handleAskTalent(deal)}
+                    >
+                      <MessageSquare className="h-4 w-4 me-1" />
+                      {isRTL ? 'اسأل الموهبة' : 'Ask Talent'}
+                    </Button>
+                    <Button
                       size="sm"
                       className="flex-1 h-10 text-sm rounded-xl touch-feedback bg-primary text-primary-foreground hover:bg-primary/90"
                       onClick={() => handleInterested(deal)}
@@ -740,6 +803,64 @@ export default function Dashboard() {
           />
         </div>
       </main>
+
+      {/* Ask Talent Dialog */}
+      {askTalentOpen && askTalentDeal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => { setAskTalentOpen(false); setAskTalentDeal(null); setAskTalentQuestion(''); }}>
+          <div className="w-full max-w-md bg-card rounded-2xl border border-border p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">{t('اسأل الموهبة', 'Ask Talent')}</h3>
+              <Button variant="ghost" size="icon" onClick={() => { setAskTalentOpen(false); setAskTalentDeal(null); setAskTalentQuestion(''); }} className="h-8 w-8 rounded-xl">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="mb-4 p-3 bg-muted/50 rounded-xl">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{t('العرض', 'Deal')}</p>
+              <p className="font-medium text-foreground truncate">{askTalentDeal.deal_type || t('عرض غير محدد', 'Untitled Offer')}</p>
+              {askTalentDeal.company_name && (
+                <p className="text-sm text-muted-foreground truncate mt-0.5 flex items-center gap-1">
+                  <Building2 className="h-3.5 w-3.5" />
+                  {askTalentDeal.company_name}
+                </p>
+              )}
+            </div>
+
+            <Textarea
+              placeholder={t('اكتب سؤالك للموهبة حول هذا العرض...', 'Type your question for the talent about this offer...')}
+              value={askTalentQuestion}
+              onChange={(e) => setAskTalentQuestion(e.target.value)}
+              rows={4}
+              className="mb-4 resize-none"
+              maxLength={1000}
+            />
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 h-11 rounded-xl"
+                onClick={() => { setAskTalentOpen(false); setAskTalentDeal(null); setAskTalentQuestion(''); }}
+              >
+                {t('إلغاء', 'Cancel')}
+              </Button>
+              <Button
+                className="flex-1 h-11 rounded-xl"
+                onClick={handleAskTalentSubmit}
+                disabled={isSubmittingQuestion || !askTalentQuestion.trim()}
+              >
+                {isSubmittingQuestion ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 me-2" />
+                    {t('إرسال', 'Send')}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNavigation />
     </div>
