@@ -76,6 +76,7 @@ export default function ChatPage() {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [showDealDetails, setShowDealDetails] = useState(false);
   const [celebrityProfile, setCelebrityProfile] = useState<Profile | null>(null);
+  const [dealCache, setDealCache] = useState<Map<string, Deal>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -128,7 +129,7 @@ export default function ChatPage() {
     fetchCelebrity();
   }, [dealId, deal, user]);
 
-  // Fetch deal if dealId present
+  // Fetch deal if dealId present (for URL-based deal)
   useEffect(() => {
     if (!dealId) return;
     const fetchDeal = async () => {
@@ -144,7 +145,32 @@ export default function ChatPage() {
     fetchDeal();
   }, [dealId]);
 
-  // Infer deal from messages when no dealId in URL
+  // Fetch deal details for a given deal_id and cache it
+  const fetchDealForMessage = useCallback(async (dealId: string): Promise<Deal | null> => {
+    // Check cache first
+    if (dealCache.has(dealId)) {
+      return dealCache.get(dealId) || null;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('deal_cards')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+        .eq('id', dealId)
+        .single();
+
+      if (!error && data) {
+        const dealData = data as unknown as Deal;
+        setDealCache(prev => new Map(prev).set(dealId, dealData));
+        return dealData;
+      }
+    } catch (error) {
+      console.error('Error fetching deal for message:', error);
+    }
+    return null;
+  }, [dealCache]);
+
+  // Infer deal from messages when no dealId in URL (for backward compatibility)
   useEffect(() => {
     if (dealId) return;
     if (messages.length === 0) return;
@@ -515,16 +541,15 @@ export default function ChatPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {/* Deal Card as inline element - appears before first message or as first item if no messages */}
-            {(deal && messages.length === 0) && (
-              <DealCardInline deal={deal} isRTL={isRTL} onToggleDetails={() => setShowDealDetails(!showDealDetails)} showDetails={showDealDetails} />
-            )}
-
             {messages.map((msg, i) => {
               const isMine = msg.sender_id === user.id;
               const showDateSep = i === 0 || formatDate(msg.created_at) !== formatDate(messages[i - 1]?.created_at);
-              const isFirstMessage = i === 0;
-              const showDealCardAfterFirst = deal && isFirstMessage && messages.length > 0;
+              
+              // Check if this message has a deal_id and it's the first message with this deal_id
+              const hasDealId = !!msg.deal_id;
+              const isFirstInDealGroup = hasDealId && (
+                i === 0 || messages[i - 1]?.deal_id !== msg.deal_id
+              );
 
               return (
                 <div key={msg.id}>
@@ -536,9 +561,15 @@ export default function ChatPage() {
                     </div>
                   )}
                   
-                  {/* Deal Card inline after first message */}
-                  {showDealCardAfterFirst && (
-                    <DealCardInline deal={deal} isRTL={isRTL} onToggleDetails={() => setShowDealDetails(!showDealDetails)} showDetails={showDealDetails} />
+                  {/* Deal Card inline above first message of each deal_id group */}
+                  {isFirstInDealGroup && msg.deal_id && (
+                    <DealCardInline 
+                      dealId={msg.deal_id} 
+                      fetchDeal={fetchDealForMessage} 
+                      isRTL={isRTL} 
+                      onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
+                      showDetails={showDealDetails} 
+                    />
                   )}
 
                   <div className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
@@ -585,11 +616,6 @@ export default function ChatPage() {
                 </div>
               );
             })}
-
-            {/* Deal Card at end if no messages yet but deal exists (handled above) or if we want to show after last message in some cases */}
-            {deal && messages.length === 0 && (
-              <DealCardInline deal={deal} isRTL={isRTL} onToggleDetails={() => setShowDealDetails(!showDealDetails)} showDetails={showDealDetails} />
-            )}
 
             {messages.length === 0 && !deal && (
               <div className="flex flex-col items-center justify-center h-64 text-center">
@@ -659,8 +685,53 @@ export default function ChatPage() {
 }
 
 // Inline Deal Card Component - Apple Messages Style
-function DealCardInline({ deal, isRTL, onToggleDetails, showDetails }: { deal: Deal; isRTL: boolean; onToggleDetails: () => void; showDetails: boolean }) {
+// Fetches deal data on demand and renders inline with messages
+function DealCardInline({ 
+  dealId, 
+  fetchDeal, 
+  isRTL, 
+  onToggleDetails, 
+  showDetails 
+}: { 
+  dealId: string; 
+  fetchDeal: (dealId: string) => Promise<Deal | null>;
+  isRTL: boolean; 
+  onToggleDetails: () => void; 
+  showDetails: boolean 
+}) {
+  const [deal, setDeal] = useState<Deal | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const t = (ar: string, en: string) => (isRTL ? ar : en);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadDeal = async () => {
+      setIsLoading(true);
+      const dealData = await fetchDeal(dealId);
+      if (!cancelled) {
+        setDeal(dealData);
+        setIsLoading(false);
+      }
+    };
+    loadDeal();
+    return () => { cancelled = true; };
+  }, [dealId, fetchDeal]);
+
+  if (isLoading || !deal) {
+    return (
+      <div className="mb-4 border border-border/50 rounded-2xl bg-card p-4 shadow-sm animate-pulse">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-primary/10 rounded-xl shrink-0">
+            <Briefcase className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="h-4 w-3/4 bg-muted rounded" />
+            <div className="h-3 w-1/2 bg-muted rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-4 border border-border/50 rounded-2xl bg-card p-4 shadow-sm">
