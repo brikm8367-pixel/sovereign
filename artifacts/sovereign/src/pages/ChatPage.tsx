@@ -186,7 +186,7 @@ export default function ChatPage() {
 
       // If dealId is present, filter by deal_id
       if (dealId) {
-        query = query.eq('deal_id', dealId);
+        query = (query as any).eq('deal_id', dealId);
       }
 
       const { data, error } = await query.order('created_at', { ascending: true });
@@ -355,7 +355,7 @@ export default function ChatPage() {
       .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
 
     if (dealId) {
-      rootQuery = rootQuery.eq('deal_id', dealId);
+      rootQuery = (rootQuery as any).eq('deal_id', dealId);
     }
 
     const { data: rootMsg } = await rootQuery
