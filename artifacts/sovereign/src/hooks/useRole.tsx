@@ -87,14 +87,24 @@ export function RoleProvider({ children }: { children: ReactNode }) {
           } else {
             managed = (profiles as ManagedCelebrity[]) || [];
           }
+        } else {
+          // Manager links exist but no celebrity IDs - clear managedCelebrityId
+          managedCelebrityIdRef.current = null;
+          setManagedCelebrityId(null);
         }
 
         setAccountType('sender');
         setRole('manager');
         setManagedCelebrities(managed);
         
-        // Set managedCelebrityId if not already set
-        if (!managedCelebrityIdRef.current && managed.length > 0) {
+        // Validate managedCelebrityId against fetched managed list
+        if (managedCelebrityIdRef.current && !managed.some(c => c.id === managedCelebrityIdRef.current)) {
+          const newId = managed[0]?.id || null;
+          managedCelebrityIdRef.current = newId;
+          setManagedCelebrityId(newId);
+        } else if (!managedCelebrityIdRef.current && managed.length > 0) {
+          // Set managedCelebrityId if not already set
+          managedCelebrityIdRef.current = managed[0].id;
           setManagedCelebrityId(managed[0].id);
         }
         
@@ -191,8 +201,15 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         
         const managed = (profiles as ManagedCelebrity[]) || [];
         setManagedCelebrities(managed);
-        // Set active celebrity if not set
-        if (!managedCelebrityIdRef.current && managed.length > 0) {
+        
+        // Validate managedCelebrityId against fetched managed list
+        if (managedCelebrityIdRef.current && !managed.some(c => c.id === managedCelebrityIdRef.current)) {
+          const newId = managed[0]?.id || null;
+          managedCelebrityIdRef.current = newId;
+          setManagedCelebrityId(newId);
+        } else if (!managedCelebrityIdRef.current && managed.length > 0) {
+          // Set active celebrity if not set
+          managedCelebrityIdRef.current = managed[0].id;
           setManagedCelebrityId(managed[0].id);
         }
       } else {
