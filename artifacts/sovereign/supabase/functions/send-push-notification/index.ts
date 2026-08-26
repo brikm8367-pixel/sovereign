@@ -25,7 +25,7 @@ Deno.serve(async (req: Request) => {
     const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
     const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
 
-    // Check VAPID keys early
+    // Check VAPID keys early - return 200 if not configured
     if (!vapidPublicKey || !vapidPrivateKey) {
       return jsonResponse({ sent: 0, message: "VAPID not configured" }, 200);
     }
@@ -109,6 +109,7 @@ Deno.serve(async (req: Request) => {
         sentCount++;
       } catch (err: any) {
         console.error("Failed to send to subscription:", err);
+        // Clean up invalid subscriptions (410 Gone, 404 Not Found)
         if (err.statusCode === 410 || err.statusCode === 404) {
           try {
             await supabase
@@ -119,6 +120,7 @@ Deno.serve(async (req: Request) => {
             console.error("Failed to cleanup invalid subscription:", cleanupErr);
           }
         }
+        // Continue on failure - don't throw, just log
       }
     });
 
