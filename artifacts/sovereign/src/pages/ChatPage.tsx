@@ -213,6 +213,9 @@ export default function ChatPage() {
       // If dealId is present, filter by deal_id
       if (dealId) {
         query = (query as any).eq('deal_id', dealId);
+      } else if (deal) {
+        // If no dealId in URL but we have an inferred deal, filter by its id
+        query = (query as any).eq('deal_id', deal.id);
       }
 
       const { data, error } = await query.order('created_at', { ascending: true });
@@ -241,7 +244,7 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, userId, dealId, t]);
+  }, [user?.id, userId, dealId, deal, t]);
 
   useEffect(() => {
     loadMessages();
@@ -257,6 +260,8 @@ export default function ChatPage() {
         if (msg && ((msg.sender_id === user.id && msg.receiver_id === userId) || (msg.sender_id === userId && msg.receiver_id === user.id))) {
           // If dealId is present, only reload if message matches deal_id
           if (dealId && msg.deal_id !== dealId) return;
+          // If no dealId but we have an inferred deal, only reload if message matches that deal_id
+          if (!dealId && deal && msg.deal_id !== deal.id) return;
           await loadMessages();
         }
       })
@@ -265,7 +270,7 @@ export default function ChatPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [user?.id, userId, dealId, loadMessages]);
+  }, [user?.id, userId, dealId, deal, loadMessages]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -371,7 +376,7 @@ export default function ChatPage() {
     const category = 'work';
 
     // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
-    // This ensures each pair of users has exactly ONE work conversation
+    // This ensures each pair of users has exactly ONE work conversation per deal
     let parentId: string | null = null;
     let rootQuery = supabase
       .from('messages')
@@ -380,8 +385,10 @@ export default function ChatPage() {
       .eq('category', 'work')
       .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
 
-    if (dealId) {
-      rootQuery = (rootQuery as any).eq('deal_id', dealId);
+    // Scope root message to the deal: use dealId from URL, or foundDeal.id if inferred
+    const effectiveDealId = dealId || foundDeal?.id;
+    if (effectiveDealId) {
+      rootQuery = (rootQuery as any).eq('deal_id', effectiveDealId);
     }
 
     const { data: rootMsg } = await rootQuery
