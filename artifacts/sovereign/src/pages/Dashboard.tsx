@@ -224,8 +224,14 @@ export default function Dashboard() {
 
       let query: any;
       if (role === 'manager' && managedCelebrityId) {
-        // Manager viewing messages for the selected celebrity - only 'work' category
-        query = (supabase as any).from('messages').select('*').eq('celebrity_id', managedCelebrityId).eq('category', 'work').order('created_at', { ascending: false });
+        // Manager: include messages where user is sender/receiver with deal_id, OR messages for the managed celebrity
+        const userId = user.id;
+        const celebId = managedCelebrityId;
+        query = (supabase as any)
+          .from('messages')
+          .select('*')
+          .or(`and(sender_id.eq.${userId},category.eq.work,deal_id.not.is.null),and(receiver_id.eq.${userId},category.eq.work,deal_id.not.is.null),and(celebrity_id.eq.${celebId},category.eq.work)`)
+          .order('created_at', { ascending: false });
       } else if (role === 'manager') {
         // Fallback for manager without selected celebrity - only 'work' category
         query = supabase
