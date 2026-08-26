@@ -7,6 +7,13 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function jsonResponse(payload: unknown, status: number) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -15,19 +22,17 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY")!;
-    const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY")!;
+    const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+    const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
 
+    // Check VAPID keys early
     if (!vapidPublicKey || !vapidPrivateKey) {
-      throw new Error("VAPID keys not configured");
+      return jsonResponse({ sent: 0, message: "VAPID not configured" }, 200);
     }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing Authorization header" }, 401);
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -36,20 +41,14 @@ Deno.serve(async (req: Request) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Invalid token" }, 401);
     }
 
     const body = await req.json();
     const { receiverId, senderName, messageType, content, conversationId, dealId } = body;
 
     if (!receiverId || !senderName || !content) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing required fields" }, 400);
     }
 
     const { data: subscriptions, error: subError } = await supabase
@@ -59,17 +58,11 @@ Deno.serve(async (req: Request) => {
 
     if (subError) {
       console.error("Error fetching subscriptions:", subError);
-      return new Response(JSON.stringify({ error: "Failed to fetch subscriptions" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Failed to fetch subscriptions" }, 500);
     }
 
     if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, message: "No subscriptions found" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ sent: 0, message: "No subscriptions found" }, 200);
     }
 
     setVapidDetails(
@@ -117,25 +110,23 @@ Deno.serve(async (req: Request) => {
       } catch (err: any) {
         console.error("Failed to send to subscription:", err);
         if (err.statusCode === 410 || err.statusCode === 404) {
-          await supabase
-            .from("push_subscriptions")
-            .delete()
-            .eq("endpoint", sub.endpoint);
+          try {
+            await supabase
+              .from("push_subscriptions")
+              .delete()
+              .eq("endpoint", sub.endpoint);
+          } catch (cleanupErr) {
+            console.error("Failed to cleanup invalid subscription:", cleanupErr);
+          }
         }
       }
     });
 
     await Promise.all(sendPromises);
 
-    return new Response(JSON.stringify({ sent: sentCount }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ sent: sentCount }, 200);
   } catch (error: any) {
     console.error("Edge function error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: error.message }, 500);
   }
 });
