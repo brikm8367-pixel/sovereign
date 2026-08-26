@@ -25,6 +25,7 @@ export interface Message {
   voice_url?: string | null;
   media_url?: string | null;
   media_type?: string | null;
+  deal_id?: string | null;
 }
 
 export interface ConversationSummary {

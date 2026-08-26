@@ -60,6 +60,7 @@ interface Message {
   voice_url?: string | null;
   media_url?: string | null;
   media_type?: string | null;
+  deal_id?: string | null;
 }
 
 export default function Dashboard() {
@@ -90,35 +91,39 @@ export default function Dashboard() {
     if (!loading && !user) navigate('/'); 
   }, [user, loading, navigate]);
 
-  // Group messages into conversation summaries
+  // Group messages into conversation summaries by deal_id first, then by parent_id
   const buildConversations = useCallback((msgs: Message[]) => {
     if (!user) return [];
     
+    // Map to group conversations: key is deal_id or parent_id (or message id if no parent)
     const conversationMap = new Map<string, {
-      rootId: string;
+      groupKey: string;
       messages: Message[];
       otherParticipantId: string;
       otherParticipantProfile: Message['sender_profile'];
+      hasDealId: boolean;
     }>();
 
     msgs.forEach(msg => {
-      // Determine conversation root ID
-      const rootId = msg.parent_id || msg.id;
+      // Determine conversation group key: deal_id takes precedence, then parent_id, then message id
+      const groupKey = msg.deal_id || msg.parent_id || msg.id;
+      const hasDealId = !!msg.deal_id;
       
       // Determine other participant
       const otherParticipantId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
       const otherProfile = msg.sender_id === user.id ? null : msg.sender_profile;
 
-      if (!conversationMap.has(rootId)) {
-        conversationMap.set(rootId, {
-          rootId,
+      if (!conversationMap.has(groupKey)) {
+        conversationMap.set(groupKey, {
+          groupKey,
           messages: [],
           otherParticipantId,
           otherParticipantProfile: otherProfile,
+          hasDealId,
         });
       }
       
-      const conv = conversationMap.get(rootId)!;
+      const conv = conversationMap.get(groupKey)!;
       conv.messages.push(msg);
       
       // Update other participant profile if we have it from a message they sent
@@ -140,7 +145,7 @@ export default function Dashboard() {
       ).length;
 
       return {
-        rootId: conv.rootId,
+        rootId: conv.groupKey,
         otherParticipantId: conv.otherParticipantId,
         otherParticipantProfile: conv.otherParticipantProfile || {
           id: conv.otherParticipantId,
