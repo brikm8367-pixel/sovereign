@@ -6,7 +6,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -37,6 +37,7 @@ interface Message {
   is_edited?: boolean | null;
   edited_at?: string | null;
   expires_at?: string | null;
+  deal_id?: string | null;
 }
 
 interface Deal {
@@ -53,6 +54,7 @@ interface Deal {
   why_them: string | null;
   status: string;
   celebrity_id: string | null;
+  sender_id: string | null;
 }
 
 export default function ChatPage() {
@@ -73,11 +75,26 @@ export default function ChatPage() {
   const [recipient, setRecipient] = useState<Profile | null>(null);
   const [deal, setDeal] = useState<Deal | null>(null);
   const [showDealDetails, setShowDealDetails] = useState(false);
+  const [celebrityProfile, setCelebrityProfile] = useState<Profile | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const t = useCallback((ar: string, en: string) => (isRTL ? ar : en), [isRTL]);
+
+  // Determine display profile based on role and deal context
+  const getDisplayProfile = useCallback((): Profile | null => {
+    if (!dealId || !deal) return recipient;
+    
+    // If current user is the deal sender (company), show celebrity profile
+    if (user && deal.sender_id === user.id) {
+      return celebrityProfile;
+    }
+    
+    // Agent side: show company profile (recipient)
+    // Celebrity side (Ask Talent): show agent profile (recipient)
+    return recipient;
+  }, [dealId, deal, user, recipient, celebrityProfile]);
 
   // Fetch recipient profile
   useEffect(() => {
@@ -93,13 +110,31 @@ export default function ChatPage() {
     fetchRecipient();
   }, [userId]);
 
+  // Fetch celebrity profile when dealId is present and user is company
+  useEffect(() => {
+    if (!dealId || !deal || !user || deal.sender_id !== user.id) {
+      setCelebrityProfile(null);
+      return;
+    }
+    
+    const fetchCelebrity = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', deal.celebrity_id)
+        .single();
+      if (data) setCelebrityProfile(data as Profile);
+    };
+    fetchCelebrity();
+  }, [dealId, deal, user]);
+
   // Fetch deal if dealId present
   useEffect(() => {
     if (!dealId) return;
     const fetchDeal = async () => {
       const { data, error } = await supabase
         .from('deal_cards')
-        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
         .eq('id', dealId)
         .single();
       if (!error && data) {
@@ -125,7 +160,7 @@ export default function ChatPage() {
 
       const { data, error } = await supabase
         .from('deal_cards')
-        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
         .in('message_id', messageIds)
         .eq('status', 'accepted')
         .order('created_at', { ascending: false })
@@ -144,11 +179,17 @@ export default function ChatPage() {
     if (!user || !userId) return;
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('messages')
         .select('*')
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`)
-        .order('created_at', { ascending: true });
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
+
+      // If dealId is present, filter by deal_id
+      if (dealId) {
+        query = query.eq('deal_id', dealId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: true });
 
       if (error) throw error;
 
@@ -174,7 +215,7 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, userId, t]);
+  }, [user?.id, userId, dealId, t]);
 
   useEffect(() => {
     loadMessages();
@@ -184,10 +225,12 @@ export default function ChatPage() {
   useEffect(() => {
     if (!user || !userId) return;
     const channel = supabase
-      .channel(`chat-${user.id}-${userId}`)
+      .channel(`chat-${user.id}-${userId}-${dealId || 'all'}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async (payload) => {
         const msg = payload.new as any;
         if (msg && ((msg.sender_id === user.id && msg.receiver_id === userId) || (msg.sender_id === userId && msg.receiver_id === user.id))) {
+          // If dealId is present, only reload if message matches deal_id
+          if (dealId && msg.deal_id !== dealId) return;
           await loadMessages();
         }
       })
@@ -196,7 +239,7 @@ export default function ChatPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [user?.id, userId, loadMessages]);
+  }, [user?.id, userId, dealId, loadMessages]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -234,7 +277,7 @@ export default function ChatPage() {
         // Fetch deal details for pinned card display
         const { data: dealData } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
           .eq('id', dealId)
           .single();
         if (dealData) {
@@ -254,7 +297,7 @@ export default function ChatPage() {
       if (validMessageIds.length > 0) {
         const { data: dealFromMessage } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
           .in('message_id', validMessageIds)
           .eq('status', 'accepted')
           .order('created_at', { ascending: false })
@@ -275,7 +318,7 @@ export default function ChatPage() {
         
         const { data: acceptedDeal } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
           .eq('status', 'accepted')
           .not('message_id', 'is', null)
           .or(`and(sender_id.eq.${user.id},celebrity_id.eq.${userId}),and(sender_id.eq.${userId},celebrity_id.eq.${user.id}),and(sender_id.eq.${userId},celebrity_id.eq.${managedCelebId})`)
@@ -304,12 +347,18 @@ export default function ChatPage() {
     // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
     // This ensures each pair of users has exactly ONE work conversation
     let parentId: string | null = null;
-    const { data: rootMsg } = await supabase
+    let rootQuery = supabase
       .from('messages')
       .select('id')
       .is('parent_id', null)
       .eq('category', 'work')
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`)
+      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
+
+    if (dealId) {
+      rootQuery = rootQuery.eq('deal_id', dealId);
+    }
+
+    const { data: rootMsg } = await rootQuery
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -331,6 +380,7 @@ export default function ChatPage() {
       voice_url: voiceUrl || null,
       media_url: mediaPreview?.url || null,
       media_type: mediaPreview?.file.type.startsWith('video/') ? 'video' : mediaPreview ? 'image' : null,
+      deal_id: dealId || foundDeal?.id || null,
     };
     setMessages(prev => [...prev, optimisticMsg]);
 
@@ -363,6 +413,7 @@ export default function ChatPage() {
         category,
         parent_id: parentId,
         celebrity_id: (foundDeal || deal)?.celebrity_id || null,
+        deal_id: dealId || foundDeal?.id || null,
       } as any);
       if (error) throw error;
 
@@ -409,209 +460,94 @@ export default function ChatPage() {
     return new Intl.DateTimeFormat(isRTL ? 'ar' : 'en', { dateStyle: 'medium' }).format(new Date(dateStr));
   };
 
+  const displayProfile = getDisplayProfile();
+
   if (!user) return null;
 
   return (
     <div className="min-h-screen bg-background flex flex-col" dir={isRTL ? 'rtl' : 'ltr'}>
-      {/* Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
+      {/* Minimal Header - Apple Messages Style */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50 safe-area-inset-top">
         <div className="max-w-lg mx-auto flex h-16 items-center justify-between px-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate('/home')}
             className="h-10 w-10 rounded-xl touch-feedback shrink-0"
+            aria-label={t('العودة', 'Back')}
           >
             {isRTL ? <ArrowRight className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
           </Button>
-          <button className="flex items-center gap-3 flex-1 min-w-0">
+          <button className="flex items-center gap-3 flex-1 min-w-0" onClick={() => setShowDealDetails(!showDealDetails)}>
             <Avatar className="h-10 w-10 ring-2 ring-primary/10">
-              <AvatarImage src={recipient?.avatar_url || undefined} />
+              <AvatarImage src={displayProfile?.avatar_url || undefined} />
               <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                {recipient?.display_name?.[0] || <User className="h-4 w-4" />}
+                {displayProfile?.display_name?.[0] || <User className="h-4 w-4" />}
               </AvatarFallback>
             </Avatar>
             <div className="text-start min-w-0">
               <p className="font-semibold text-base truncate">
-                {recipient?.display_name || recipient?.username || t('جاري التحميل...', 'Loading...')}
+                {displayProfile?.display_name || displayProfile?.username || t('جاري التحميل...', 'Loading...')}
               </p>
               <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                {recipient?.username && `@${recipient.username}`}
+                {displayProfile?.username && `@${displayProfile.username}`}
                 <Shield className="h-3 w-3 text-emerald-500 inline" />
                 <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
               </p>
             </div>
           </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 rounded-xl touch-feedback shrink-0"
+            aria-label={t('المزيد', 'More')}
+          >
+            <MoreHorizontal className="h-5 w-5" />
+          </Button>
         </div>
       </header>
 
       {/* Messages Area */}
       <main className="flex-1 overflow-y-auto pt-16 pb-20 px-4 max-w-lg mx-auto w-full" ref={scrollRef}>
-        {/* Pinned Deal Card */}
-        {deal && (
-          <div className="mb-4 border border-border rounded-2xl bg-card p-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <div className="p-2 bg-primary/10 rounded-xl shrink-0">
-                  <Briefcase className="h-5 w-5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-sm text-foreground truncate">
-                    {deal.deal_type || (isRTL ? 'عرض غير محدد' : 'Untitled Offer')}
-                  </p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
-                    {deal.company_name && (
-                      <>
-                        <Building2 className="h-3 w-3" />
-                        {deal.company_name}
-                      </>
-                    )}
-                    {deal.budget_range && (
-                      <>
-                        <span className="text-muted-foreground">·</span>
-                        <DollarSign className="h-3 w-3" />
-                        {deal.budget_range}
-                      </>
-                    )}
-                    {deal.timeline && (
-                      <>
-                        <span className="text-muted-foreground">·</span>
-                        <Calendar className="h-3 w-3" />
-                        {deal.timeline}
-                      </>
-                    )}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-xl shrink-0"
-                onClick={() => setShowDealDetails(!showDealDetails)}
-              >
-                {showDealDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </div>
-
-            {showDealDetails && (
-              <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
-                {deal.website_url && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="p-1.5 bg-cyan-100 dark:bg-cyan-900/30 rounded-full">
-                      <Globe className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {isRTL ? 'الموقع الإلكتروني' : 'Website'}
-                      </p>
-                      <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary truncate hover:underline">
-                        {deal.website_url}
-                      </a>
-                    </div>
-                  </div>
-                )}
-                {deal.budget_cycle && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                      <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {isRTL ? 'دورة الميزانية' : 'Budget Cycle'}
-                      </p>
-                      <p className="font-medium text-foreground truncate">{deal.budget_cycle}</p>
-                    </div>
-                  </div>
-                )}
-                {deal.exclusivity && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="p-1.5 bg-orange-100 dark:bg-orange-900/30 rounded-full">
-                      <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {isRTL ? 'الحصرية' : 'Exclusivity'}
-                      </p>
-                      <p className="font-medium text-foreground truncate">{deal.exclusivity}</p>
-                    </div>
-                  </div>
-                )}
-                {deal.deliverables && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
-                      <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {isRTL ? 'المخرجات' : 'Deliverables'}
-                      </p>
-                      <p className="font-medium text-foreground truncate">{deal.deliverables}</p>
-                    </div>
-                  </div>
-                )}
-                {deal.why_them && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="p-1.5 bg-teal-100 dark:bg-teal-900/30 rounded-full">
-                      <UserCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {isRTL ? 'لماذا هم' : 'Why Them'}
-                      </p>
-                      <p className="font-medium text-foreground truncate">{deal.why_them}</p>
-                    </div>
-                  </div>
-                )}
-                {deal.details && (
-                  <div className="flex items-start gap-2 text-sm">
-                    <div className="p-1.5 bg-gray-100 dark:bg-gray-800 rounded-full mt-0.5">
-                      <FileText className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {isRTL ? 'التفاصيل' : 'Details'}
-                      </p>
-                      <p className="font-medium text-foreground whitespace-pre-wrap">{deal.details}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <Send className="h-8 w-8 text-primary" />
-            </div>
-            <p className="text-muted-foreground">{t('لا توجد رسائل بعد', 'No messages yet')}</p>
-            <p className="text-sm text-muted-foreground/70 mt-1">{t('ابدأ المحادثة', 'Start the conversation')}</p>
-          </div>
         ) : (
           <div className="space-y-3">
+            {/* Deal Card as inline element - appears before first message or as first item if no messages */}
+            {(deal && messages.length === 0) && (
+              <DealCardInline deal={deal} isRTL={isRTL} onToggleDetails={() => setShowDealDetails(!showDealDetails)} showDetails={showDealDetails} />
+            )}
+
             {messages.map((msg, i) => {
               const isMine = msg.sender_id === user.id;
-              const showDateSep = i === 0 || formatDate(msg.created_at) !== formatDate(messages[i - 1].created_at);
+              const showDateSep = i === 0 || formatDate(msg.created_at) !== formatDate(messages[i - 1]?.created_at);
+              const isFirstMessage = i === 0;
+              const showDealCardAfterFirst = deal && isFirstMessage && messages.length > 0;
 
               return (
                 <div key={msg.id}>
                   {showDateSep && (
                     <div className="text-center my-4">
-                      <span className="text-[11px] text-muted-foreground bg-card/80 backdrop-blur-sm px-3 py-1 rounded-full font-medium">
+                      <span className="text-[11px] text-muted-foreground bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full font-medium">
                         {formatDate(msg.created_at)}
                       </span>
                     </div>
                   )}
+                  
+                  {/* Deal Card inline after first message */}
+                  {showDealCardAfterFirst && (
+                    <DealCardInline deal={deal} isRTL={isRTL} onToggleDetails={() => setShowDealDetails(!showDealDetails)} showDetails={showDealDetails} />
+                  )}
+
                   <div className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
                     <div className="max-w-[75%]">
                       <div className={cn(
-                        'px-4 py-2 rounded-2xl text-[15px] leading-relaxed',
-                        isMine ? 'bg-primary text-primary-foreground rounded-es-sm' : 'bg-card border border-border rounded-ee-sm'
+                        'px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm',
+                        isMine 
+                          ? 'bg-primary text-primary-foreground rounded-es-sm shadow-[0_1px_2px_rgba(0,0,0,0.05)]' 
+                          : 'bg-card border border-border/50 rounded-ee-sm shadow-[0_1px_2px_rgba(0,0,0,0.03)]'
                       )}>
                         {msg.media_url && msg.media_type === 'image' && (
                           <img src={msg.media_url} alt="" className="rounded-xl max-w-full mb-1.5 cursor-pointer" onClick={() => window.open(msg.media_url!, '_blank')} />
@@ -628,7 +564,7 @@ export default function ChatPage() {
                             </span>
                           ) : msg.content}</p>
                         ) : null}
-                        <div className={cn('flex items-center gap-1 mt-1', isMine ? 'justify-end' : '')}>
+                        <div className={cn('flex items-center gap-1.5 mt-1.5', isMine ? 'justify-end' : '')}>
                           {msg.is_edited && (
                             <span className={cn('text-[10px] italic', isMine ? 'text-primary-foreground/50' : 'text-muted-foreground')}>
                               {t('معدّلة', 'Edited')}
@@ -649,6 +585,21 @@ export default function ChatPage() {
                 </div>
               );
             })}
+
+            {/* Deal Card at end if no messages yet but deal exists (handled above) or if we want to show after last message in some cases */}
+            {deal && messages.length === 0 && (
+              <DealCardInline deal={deal} isRTL={isRTL} onToggleDetails={() => setShowDealDetails(!showDealDetails)} showDetails={showDealDetails} />
+            )}
+
+            {messages.length === 0 && !deal && (
+              <div className="flex flex-col items-center justify-center h-64 text-center">
+                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <Send className="h-8 w-8 text-primary" />
+                </div>
+                <p className="text-muted-foreground">{t('لا توجد رسائل بعد', 'No messages yet')}</p>
+                <p className="text-sm text-muted-foreground/70 mt-1">{t('ابدأ المحادثة', 'Start the conversation')}</p>
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -667,8 +618,8 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Fixed Bottom Input */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-t border-border safe-area-inset-bottom px-4 pb-4 max-w-lg mx-auto">
+      {/* Fixed Bottom Input - Apple Messages Style */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border/50 safe-area-inset-bottom px-4 pb-4 max-w-lg mx-auto">
         <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
         {showVoice ? (
           <VoiceRecorder
@@ -677,7 +628,7 @@ export default function ChatPage() {
           />
         ) : (
           <div className="flex items-end gap-2">
-            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-full shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-full shrink-0" aria-label={t('إرفاق وسائط', 'Attach media')}>
               <ImageIcon className="h-5 w-5 text-muted-foreground" />
             </Button>
             <div className="flex-1 relative">
@@ -687,22 +638,160 @@ export default function ChatPage() {
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 rows={1}
-                className="w-full resize-none text-[15px] rounded-2xl border border-border bg-muted/30 px-4 py-3 min-h-[48px] max-h-32 focus:outline-none focus:border-primary transition-colors"
+                className="w-full resize-none text-[15px] rounded-2xl border border-border/50 bg-card px-4 py-3 min-h-[48px] max-h-32 focus:outline-none focus:border-primary/50 transition-colors"
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(replyContent); } }}
               />
             </div>
             {replyContent.trim() || mediaPreview ? (
-              <Button onClick={() => handleSend(replyContent)} disabled={isSending} size="icon" className="h-12 w-12 rounded-full shrink-0 touch-feedback">
+              <Button onClick={() => handleSend(replyContent)} disabled={isSending} size="icon" className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t('إرسال', 'Send')}>
                 {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
               </Button>
             ) : (
-              <Button variant="ghost" size="icon" onClick={() => setShowVoice(true)} className="h-12 w-12 rounded-full shrink-0 touch-feedback">
+              <Button variant="ghost" size="icon" onClick={() => setShowVoice(true)} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t('رسالة صوتية', 'Voice message')}>
                 <Mic className="h-5 w-5 text-muted-foreground" />
               </Button>
             )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Inline Deal Card Component - Apple Messages Style
+function DealCardInline({ deal, isRTL, onToggleDetails, showDetails }: { deal: Deal; isRTL: boolean; onToggleDetails: () => void; showDetails: boolean }) {
+  const t = (ar: string, en: string) => (isRTL ? ar : en);
+
+  return (
+    <div className="mb-4 border border-border/50 rounded-2xl bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="p-2 bg-primary/10 rounded-xl shrink-0">
+            <Briefcase className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm text-foreground truncate">
+              {deal.deal_type || t('عرض غير محدد', 'Untitled Offer')}
+            </p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+              {deal.company_name && (
+                <>
+                  <Building2 className="h-3 w-3" />
+                  {deal.company_name}
+                </>
+              )}
+              {deal.budget_range && (
+                <>
+                  <span className="text-muted-foreground">·</span>
+                  <DollarSign className="h-3 w-3" />
+                  {deal.budget_range}
+                </>
+              )}
+              {deal.timeline && (
+                <>
+                  <span className="text-muted-foreground">·</span>
+                  <Calendar className="h-3 w-3" />
+                  {deal.timeline}
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 rounded-xl shrink-0"
+          onClick={onToggleDetails}
+          aria-label={showDetails ? t('إخفاء التفاصيل', 'Hide details') : t('إظهار التفاصيل', 'Show details')}
+        >
+          {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      {showDetails && (
+        <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+          {deal.website_url && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-cyan-100 dark:bg-cyan-900/30 rounded-full">
+                <Globe className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t('الموقع الإلكتروني', 'Website')}
+                </p>
+                <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary truncate hover:underline">
+                  {deal.website_url}
+                </a>
+              </div>
+            </div>
+          )}
+          {deal.budget_cycle && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t('دورة الميزانية', 'Budget Cycle')}
+                </p>
+                <p className="font-medium text-foreground truncate">{deal.budget_cycle}</p>
+              </div>
+            </div>
+          )}
+          {deal.exclusivity && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-orange-100 dark:bg-orange-900/30 rounded-full">
+                <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t('الحصرية', 'Exclusivity')}
+                </p>
+                <p className="font-medium text-foreground truncate">{deal.exclusivity}</p>
+              </div>
+            </div>
+          )}
+          {deal.deliverables && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t('المخرجات', 'Deliverables')}
+                </p>
+                <p className="font-medium text-foreground truncate">{deal.deliverables}</p>
+              </div>
+            </div>
+          )}
+          {deal.why_them && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-teal-100 dark:bg-teal-900/30 rounded-full">
+                <UserCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t('لماذا هم', 'Why Them')}
+                </p>
+                <p className="font-medium text-foreground truncate">{deal.why_them}</p>
+              </div>
+            </div>
+          )}
+          {deal.details && (
+            <div className="flex items-start gap-2 text-sm">
+              <div className="p-1.5 bg-gray-100 dark:bg-gray-800 rounded-full mt-0.5">
+                <FileText className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t('التفاصيل', 'Details')}
+                </p>
+                <p className="font-medium text-foreground whitespace-pre-wrap">{deal.details}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
