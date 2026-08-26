@@ -419,6 +419,20 @@ export default function Dashboard() {
   const handleInterested = async (deal: PendingDeal) => {
     if (!user) return;
     try {
+      // Query for existing root message between user and deal.sender_id with this deal_id
+      const { data: rootMessage } = await supabase
+        .from('messages')
+        .select('id')
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${deal.sender_id}),and(sender_id.eq.${deal.sender_id},receiver_id.eq.${user.id})`)
+        .eq('deal_id', deal.id)
+        .eq('category', 'work')
+        .is('parent_id', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      const parentId = rootMessage?.id || null;
+
       // 1. Insert message to sender
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
@@ -429,6 +443,8 @@ export default function Dashboard() {
           subject: deal.deal_type ? `Re: ${deal.deal_type}` : null,
           content: isRTL ? 'مهتم بعرضك' : 'Interested in your offer',
           category: 'work',
+          deal_id: deal.id,
+          parent_id: parentId,
         } as any)
         .select('id')
         .single();
