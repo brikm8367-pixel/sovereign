@@ -420,10 +420,11 @@ export default function Dashboard() {
     if (!user) return;
     try {
       // Query for existing root message between user and deal.sender_id with this deal_id
-      const { data: rootMessage } = await supabase
+      const query = supabase
         .from('messages')
         .select('id')
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${deal.sender_id}),and(sender_id.eq.${deal.sender_id},receiver_id.eq.${user.id})`)
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${deal.sender_id}),and(sender_id.eq.${deal.sender_id},receiver_id.eq.${user.id})`);
+      const { data: rootMessage } = await (query as any)
         .eq('deal_id', deal.id)
         .eq('category', 'work')
         .is('parent_id', null)
