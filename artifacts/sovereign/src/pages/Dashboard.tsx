@@ -475,6 +475,7 @@ export default function Dashboard() {
           subject: askTalentDeal.deal_type ? `Re: ${askTalentDeal.deal_type}` : null,
           content: askTalentQuestion.trim(),
           category: 'work',
+          deal_id: askTalentDeal.id,
         } as any);
 
       if (error) throw error;
