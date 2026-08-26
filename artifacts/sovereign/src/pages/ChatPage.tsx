@@ -425,7 +425,7 @@ export default function ChatPage() {
       const enc = await encryptForRecipient(contentToSend, userId);
       const finalContent = enc.success ? enc.payload : contentToSend;
       if (!enc.success) {
-        console.warn('Encryption failed, sending unencrypted');
+        console.debug('Encryption failed, sending unencrypted');
       }
 
       // Insert message with category 'work' and parent_id pointing to conversation root
