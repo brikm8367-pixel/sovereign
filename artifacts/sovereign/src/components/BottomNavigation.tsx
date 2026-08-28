@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
-import { Home, Briefcase, Bell, User } from 'lucide-react';
+import { Home, Briefcase, Bell, User, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -73,27 +73,26 @@ export function BottomNavigation() {
         key={item.id}
         onClick={() => navigate(item.path)}
         className={cn(
-          'flex flex-col items-center justify-center flex-1 h-full px-2 transition-all touch-feedback',
+          'flex flex-col items-center justify-center flex-1 h-full px-1 transition-all touch-feedback',
           active && 'text-primary'
         )}
+        style={{ minWidth: 0 }}
       >
         <div className={cn(
-          'relative flex items-center justify-center w-10 h-10 rounded-xl transition-all',
+          'relative flex items-center justify-center w-10 h-10 rounded-xl transition-all mx-auto',
           active && 'bg-primary/10'
         )}>
           <Icon className={cn(
-            'h-6 w-6 transition-all',
+            'h-5 w-5 transition-all',
             active ? 'text-primary' : 'text-muted-foreground'
           )} />
           {showBadge && (
-            <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
+            <span className="absolute -top-0.5 -end-0.5 w-2 h-2 rounded-full bg-primary shrink-0" />
           )}
         </div>
         <span className={cn(
-          'text-xs mt-0.5 font-medium transition-all',
-          active ? 'text-primary' : 'text-muted-foreground'
+          'text-[10px] mt-1 font-medium transition-all truncate max-w-[60px]',
+          active ? 'text-foreground font-semibold' : 'text-muted-foreground'
         )}>
           {item.label[language] || item.label.en}
         </span>
@@ -106,11 +105,11 @@ export function BottomNavigation() {
   const managerRightItems = rightNavItems;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-area-inset-bottom">
-      <div className="bg-card/95 backdrop-blur-lg border-t border-border">
-        <div className="max-w-lg mx-auto flex items-center justify-between h-16 px-2 relative">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-area-inset-bottom" dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className="bg-background/80 backdrop-blur-xl border-t border-border/30">
+        <div className="max-w-lg mx-auto flex items-center justify-between h-16 px-3 relative">
           {/* Left Group */}
-          <div className="flex items-center justify-center gap-4 w-1/2">
+          <div className="flex items-center justify-center gap-1 w-1/2">
             {(role === 'manager' ? managerLeftItems : leftNavItems).map(renderNavItem)}
           </div>
 
@@ -122,10 +121,10 @@ export function BottomNavigation() {
                 'flex flex-col items-center justify-center gap-1 transition-all touch-feedback z-10',
                 'relative'
               )}
-              style={{ transform: 'translateY(-4px)' }}
+              style={{ transform: 'translateY(-6px)' }}
             >
-              <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-primary shadow-lg shadow-primary/30 ring-4 ring-card">
-                <Briefcase className="h-7 w-7 text-primary-foreground" />
+              <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-primary shadow-[0_8px_24px_rgba(0,0,0,0.12)] ring-1 ring-primary/20">
+                <Plus className="h-7 w-7 text-primary-foreground" />
               </div>
               <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
                 {isRTL ? 'إنشاء عرض' : 'Create Offer'}
@@ -134,7 +133,7 @@ export function BottomNavigation() {
           )}
 
           {/* Right Group */}
-          <div className="flex items-center justify-center gap-4 w-1/2">
+          <div className="flex items-center justify-center gap-1 w-1/2">
             {(role === 'manager' ? managerRightItems : rightNavItems).map(renderNavItem)}
           </div>
         </div>
