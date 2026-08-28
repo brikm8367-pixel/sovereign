@@ -6,3 +6,8 @@ without
 .agents/*.pub
 attached_assets/
 SOVEREIGN_TECH_REPORT*.md
+.aider*
+.env
+.env
+.env
+node_modules/

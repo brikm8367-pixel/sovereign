@@ -123,7 +123,7 @@ export function MessageViewer({
         receiver_id: message.sender_id,
         subject: message.subject ? `Re: ${message.subject}` : null,
         content: replyContent,
-        category: message.category,
+        category: message.category as any,
         parent_id: message.id,
       });
 

@@ -11,13 +11,12 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BottomNavigation } from '@/components/BottomNavigation';
 import { toast } from 'sonner';
-import { Camera, User, Loader2, Check, Mail, AtSign, FileText, Shield, LogOut, Trash2, Share2, ShieldCheck, Copy, KeyRound, Link, ExternalLink, Heart, ShieldOff } from 'lucide-react';
+import { Camera, User, Loader2, Check, Mail, AtSign, FileText, Shield, LogOut, Trash2, Share2, ShieldCheck, Copy, KeyRound, Link, ExternalLink, ShieldOff } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { InviteManagerDialog } from '@/components/profile/InviteManagerDialog';
-import DirectAccessManager from '@/components/messaging/DirectAccessManager';
 import { buildShareLink } from '@/lib/appUrl';
 
 interface Profile {
@@ -41,7 +40,6 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showInviteManager, setShowInviteManager] = useState(false);
-  const [showDirectAccess, setShowDirectAccess] = useState(false);
   const [revokingAgent, setRevokingAgent] = useState(false);
   const [hasActiveAgent, setHasActiveAgent] = useState(false);
 
@@ -475,26 +473,6 @@ export default function ProfilePage() {
             )}
 
             <InviteManagerDialog open={showInviteManager} onOpenChange={setShowInviteManager} />
-          </>
-        )}
-
-        {/* Private Circle - for non-manager users (celebrities and senders) */}
-        {role !== 'manager' && (
-          <>
-            <div className="mt-4 p-4 rounded-2xl bg-card border border-border">
-              <button
-                onClick={() => setShowDirectAccess(true)}
-                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors touch-feedback"
-              >
-                <span className="text-sm font-medium flex items-center gap-2">
-                  <Heart className="h-4 w-4 text-rose-500" />
-                  {isRTL ? 'الدائرة الخاصة' : 'Private Circle'}
-                </span>
-                <span className="text-xs text-muted-foreground">→</span>
-              </button>
-            </div>
-
-            <DirectAccessManager isOpen={showDirectAccess} onClose={() => setShowDirectAccess(false)} />
           </>
         )}
 
