@@ -210,12 +210,9 @@ export default function ChatPage() {
         .select('*')
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
 
-      // If dealId is present, filter by deal_id
+      // Only apply deal_id filter when dealId exists in the URL
       if (dealId) {
         query = (query as any).eq('deal_id', dealId);
-      } else if (deal) {
-        // If no dealId in URL but we have an inferred deal, filter by its id
-        query = (query as any).eq('deal_id', deal.id);
       }
 
       const { data, error } = await query.order('created_at', { ascending: true });
@@ -244,7 +241,7 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, userId, dealId, deal, t]);
+  }, [user?.id, userId, dealId, t]);
 
   useEffect(() => {
     loadMessages();
