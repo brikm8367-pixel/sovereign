@@ -543,10 +543,11 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
-      <header className="fixed top-0 right-0 left-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50 safe-area-inset-top">
+      {/* Header - Light, centered, small */}
+      <header className="fixed top-0 right-0 left-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/30 safe-area-inset-top">
         <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <p className="text-xs font-medium text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground tracking-wide">
               {isRTL ? 'كل شيء في مكانه — تلقائيًا' : 'Everything in its place — automatically'}
             </p>
           </div>
@@ -557,11 +558,11 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-lg mx-auto pt-16 pb-28 px-4 space-y-8">
-        {/* Celebrity Switcher for Managers - Horizontal Scroll of Avatars */}
+      <main className="max-w-lg mx-auto pt-16 pb-28 px-4 space-y-10">
+        {/* Celebrity Switcher for Managers - Soft horizontal scroll of circular avatars */}
         {role === 'manager' && managedCelebrities.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
+          <section className="space-y-5">
+            <div className="flex items-center justify-between px-1">
               <h2 className="text-sm font-semibold text-foreground">
                 {t('تدير حالياً', 'Currently managing')}
               </h2>
@@ -569,8 +570,8 @@ export default function Dashboard() {
                 {t('وكيل', 'Manager')}
               </span>
             </div>
-            <div className="overflow-x-auto scrollbar-hide pb-2">
-              <div className="flex items-center gap-2 min-w-max">
+            <div className="overflow-x-auto scrollbar-hide pb-3">
+              <div className="flex items-center gap-2.5 min-w-max">
                 {managedCelebrities.map((c) => {
                   const isActive = c.id === managedCelebrityId;
                   return (
@@ -578,15 +579,15 @@ export default function Dashboard() {
                       key={c.id}
                       onClick={() => switchCelebrity(c.id)}
                       className={cn(
-                        'flex flex-col items-center gap-1.5 px-3 py-2 rounded-2xl transition-all shrink-0',
+                        'flex flex-col items-center gap-2 px-3 py-2.5 rounded-2xl transition-all shrink-0 relative',
                         isActive
                           ? 'bg-primary/5 ring-2 ring-primary/20'
                           : 'bg-muted/30 hover:bg-muted/50'
                       )}
                     >
-                      <Avatar className={cn('h-12 w-12 ring-2 transition-all', isActive ? 'ring-primary' : 'ring-transparent')}>
+                      <Avatar className={cn('h-14 w-14 ring-2 transition-all', isActive ? 'ring-primary' : 'ring-transparent')}>
                         <AvatarImage src={c.avatar_url || undefined} />
-                        <AvatarFallback className="bg-primary/10 text-primary text-base">
+                        <AvatarFallback className="bg-primary/10 text-primary text-lg">
                           {(c.display_name || c.username || '?')[0].toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -603,31 +604,31 @@ export default function Dashboard() {
                 })}
               </div>
             </div>
-          </div>
+          </section>
         )}
 
         {/* Pending Deals Section for Manager */}
         {role === 'manager' && pendingDeals.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between px-2">
+          <section className="space-y-6">
+            <div className="flex items-center justify-between px-1">
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <Briefcase className="h-5 w-5 text-primary" />
                 {t('عروض العمل', 'Work Offers')}
               </h2>
-              <span className="px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
+              <span className="px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
                 {pendingDeals.length}
               </span>
             </div>
             {isLoadingDeals ? (
-              <div className="flex justify-center py-4">
+              <div className="flex justify-center py-6">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {pendingDeals.map((deal) => (
                   <div
                     key={deal.id}
-                    className="rounded-2xl bg-card border border-border/50 shadow-sm p-5 transition-shadow hover:shadow-md"
+                    className="rounded-2xl bg-card border border-border/40 shadow-sm p-5 transition-shadow hover:shadow-md"
                   >
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
@@ -635,7 +636,7 @@ export default function Dashboard() {
                           {deal.deal_type || t('عرض غير محدد', 'Untitled Offer')}
                         </h3>
                         {deal.company_name && (
-                          <p className="text-sm text-muted-foreground truncate mt-1 flex items-center gap-1">
+                          <p className="text-sm text-muted-foreground truncate mt-1 flex items-center gap-1.5">
                             <Building2 className="h-3.5 w-3.5" />
                             {deal.company_name}
                           </p>
@@ -648,7 +649,7 @@ export default function Dashboard() {
 
                     <div className="grid grid-cols-2 gap-3 mb-4">
                       {deal.budget_range && (
-                        <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-xl">
+                        <div className="flex items-center gap-2.5 p-3 bg-muted/50 rounded-xl">
                           <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-full">
                             <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
                           </div>
@@ -663,7 +664,7 @@ export default function Dashboard() {
                         </div>
                       )}
                       {deal.timeline && (
-                        <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-xl">
+                        <div className="flex items-center gap-2.5 p-3 bg-muted/50 rounded-xl">
                           <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full">
                             <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           </div>
@@ -681,9 +682,9 @@ export default function Dashboard() {
 
                     {/* Additional Details Section */}
                     {(deal.website_url || deal.budget_cycle || deal.deliverables || deal.exclusivity || deal.why_them || deal.details) && (
-                      <div className="space-y-2 mb-4 pt-3 border-t border-border/50">
+                      <div className="space-y-2.5 mb-4 pt-3 border-t border-border/40">
                         {deal.website_url && (
-                          <div className="flex items-center gap-2 text-sm">
+                          <div className="flex items-center gap-2.5 text-sm">
                             <div className="p-1.5 bg-cyan-100 dark:bg-cyan-900/30 rounded-full">
                               <Globe className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
                             </div>
@@ -698,7 +699,7 @@ export default function Dashboard() {
                           </div>
                         )}
                         {deal.budget_cycle && (
-                          <div className="flex items-center gap-2 text-sm">
+                          <div className="flex items-center gap-2.5 text-sm">
                             <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-full">
                               <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                             </div>
@@ -711,7 +712,7 @@ export default function Dashboard() {
                           </div>
                         )}
                         {deal.exclusivity && (
-                          <div className="flex items-center gap-2 text-sm">
+                          <div className="flex items-center gap-2.5 text-sm">
                             <div className="p-1.5 bg-orange-100 dark:bg-orange-900/30 rounded-full">
                               <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                             </div>
@@ -724,7 +725,7 @@ export default function Dashboard() {
                           </div>
                         )}
                         {deal.deliverables && (
-                          <div className="flex items-center gap-2 text-sm">
+                          <div className="flex items-center gap-2.5 text-sm">
                             <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
                               <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                             </div>
@@ -737,7 +738,7 @@ export default function Dashboard() {
                           </div>
                         )}
                         {deal.why_them && (
-                          <div className="flex items-center gap-2 text-sm">
+                          <div className="flex items-center gap-2.5 text-sm">
                             <div className="p-1.5 bg-teal-100 dark:bg-teal-900/30 rounded-full">
                               <UserCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                             </div>
@@ -750,7 +751,7 @@ export default function Dashboard() {
                           </div>
                         )}
                         {deal.details && (
-                          <div className="flex items-start gap-2 text-sm">
+                          <div className="flex items-start gap-2.5 text-sm">
                             <div className="p-1.5 bg-gray-100 dark:bg-gray-800 rounded-full mt-0.5">
                               <FileText className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                             </div>
@@ -800,8 +801,8 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* Inbox Section */}
-        <section className="space-y-4">
+        {/* Inbox Section - Clean conversation rows */}
+        <section className="space-y-5">
           <InboxSection
             conversations={conversations}
             isLoading={isLoadingMessages}
