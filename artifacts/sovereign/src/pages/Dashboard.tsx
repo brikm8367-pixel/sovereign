@@ -89,6 +89,7 @@ export default function Dashboard() {
   const isMountedRef = useRef(true);
   const lastFetchRef = useRef<number>(0);
   const channelsRef = useRef<ReturnType<typeof supabase.channel>[]>([]);
+  const prevManagedCelebrityIdRef = useRef<string | null>(null);
 
   useEffect(() => { 
     if (!loading && !user) navigate('/'); 
@@ -214,9 +215,19 @@ export default function Dashboard() {
   const fetchMessages = useCallback(async () => {
     if (!user || !isMountedRef.current) return;
     
-    // Debounce: prevent fetching more than once per 2 seconds
+    // Detect manager celebrity switch
+    const isManagerWithCelebrity = role === 'manager' && managedCelebrityId;
+    const celebrityChanged = isManagerWithCelebrity && managedCelebrityId !== prevManagedCelebrityIdRef.current;
+
+    if (celebrityChanged) {
+      prevManagedCelebrityIdRef.current = managedCelebrityId;
+      setMessages([]);
+      setConversations([]);
+    }
+
+    // Debounce: prevent fetching more than once per 2 seconds, unless celebrity changed
     const now = Date.now();
-    if (now - lastFetchRef.current < 2000) {
+    if (!celebrityChanged && now - lastFetchRef.current < 2000) {
       return;
     }
     lastFetchRef.current = now;
