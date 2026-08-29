@@ -100,6 +100,7 @@ export function InviteManagerDialog({ open, onOpenChange }: Props) {
 
   const handleShare = async () => {
     if (!invite) return;
+    // inviteLink is already properly encoded by buildShareLink
     const shareText = isRTL 
       ? `دعوة لإدارة صندوق العمل. الرابط: ${inviteLink} الكود: ${invite.code}` 
       : `Manager invitation. Link: ${inviteLink} Code: ${invite.code}`;
