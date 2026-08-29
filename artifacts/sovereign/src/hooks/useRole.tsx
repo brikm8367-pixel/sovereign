@@ -98,15 +98,18 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         setManagedCelebrities(managed);
         
         // Validate managedCelebrityId against fetched managed list
+        // If current managedCelebrityId is not in the managed list, reset to first managed celebrity
+        // If managedCelebrityId is null but managed list is not empty, set to first managed celebrity
         if (managedCelebrityIdRef.current && !managed.some(c => c.id === managedCelebrityIdRef.current)) {
           const newId = managed[0]?.id || null;
           managedCelebrityIdRef.current = newId;
           setManagedCelebrityId(newId);
         } else if (!managedCelebrityIdRef.current && managed.length > 0) {
-          // Set managedCelebrityId if not already set
+          // Set managedCelebrityId to first managed celebrity if not already set
           managedCelebrityIdRef.current = managed[0].id;
           setManagedCelebrityId(managed[0].id);
         }
+        // If managedCelebrityIdRef.current is valid and exists in managed list, keep it (do not clear)
         
         setLoading(false);
         return;
@@ -212,6 +215,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
           managedCelebrityIdRef.current = managed[0].id;
           setManagedCelebrityId(managed[0].id);
         }
+        // If managedCelebrityIdRef.current is valid and exists in managed list, keep it (do not clear)
       } else {
         setManagedCelebrities([]);
         if (!managedCelebrityIdRef.current) {
