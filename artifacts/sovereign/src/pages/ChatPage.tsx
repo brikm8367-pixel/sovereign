@@ -397,23 +397,6 @@ export default function ChatPage() {
       parentId = rootMsg.id;
     }
 
-    const tempId = `temp-${Date.now()}`;
-    const optimisticMsg: Message = {
-      id: tempId,
-      sender_id: user.id,
-      receiver_id: userId,
-      content: text || (voiceUrl ? '🎤' : '📷'),
-      created_at: new Date().toISOString(),
-      is_read: null,
-      category,
-      parent_id: parentId,
-      voice_url: voiceUrl || null,
-      media_url: mediaPreview?.url || null,
-      media_type: mediaPreview?.file.type.startsWith('video/') ? 'video' : mediaPreview ? 'image' : null,
-      deal_id: dealId || foundDeal?.id || null,
-    };
-    setMessages(prev => [...prev, optimisticMsg]);
-
     try {
       let mediaUrl: string | null = null;
       let mediaType: string | null = null;
@@ -445,6 +428,7 @@ export default function ChatPage() {
         celebrity_id: (foundDeal || deal)?.celebrity_id || null,
         deal_id: dealId || foundDeal?.id || null,
       } as any);
+      
       if (error) throw error;
 
       // Push notification
@@ -458,13 +442,14 @@ export default function ChatPage() {
         },
       }).catch(() => {});
 
+      // Only clear input and reset state AFTER successful insert
       setReplyContent('');
       setShowVoice(false);
       await loadMessages();
     } catch (error) {
       console.error('Send error:', error);
       toast.error(t('فشل الإرسال', 'Send failed'));
-      setMessages(prev => prev.filter(m => m.id !== tempId));
+      // Keep message in input - do not clear replyContent
     } finally {
       setIsSending(false);
     }
