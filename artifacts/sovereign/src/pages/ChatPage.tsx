@@ -511,7 +511,7 @@ export default function ChatPage() {
                 <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
               </p>
             </div>
-          </Button>
+          </button>
           <Button
             variant="ghost"
             size="icon"
