@@ -172,6 +172,7 @@ export default function Dashboard() {
 
   // Fetch pending deals for manager
   const fetchPendingDeals = useCallback(async () => {
+    // Guard: only fetch if manager with a selected celebrity
     if (role !== 'manager' || !managedCelebrityId || !user) {
       setPendingDeals([]);
       return;
@@ -223,6 +224,16 @@ export default function Dashboard() {
       prevManagedCelebrityIdRef.current = managedCelebrityId;
       setMessages([]);
       setConversations([]);
+    }
+
+    // Guard: if manager but no celebrity selected, don't fetch
+    if (role === 'manager' && !managedCelebrityId) {
+      if (isMountedRef.current) {
+        setMessages([]);
+        setConversations([]);
+        setIsLoadingMessages(false);
+      }
+      return;
     }
 
     // Debounce: prevent fetching more than once per 2 seconds, unless celebrity changed
@@ -452,7 +463,7 @@ export default function Dashboard() {
 
       const parentId = rootMessage?.id || null;
 
-      // 1. Insert message to sender
+      // 1. Insert message to sender using deal.celebrity_id
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert({
@@ -505,7 +516,7 @@ export default function Dashboard() {
     
     setIsSubmittingQuestion(true);
     try {
-      // Insert message to the celebrity (talent) asking the question
+      // Insert message to the celebrity (talent) asking the question using deal.celebrity_id
       const { error } = await supabase
         .from('messages')
         .insert({
@@ -635,22 +646,41 @@ export default function Dashboard() {
         )}
 
         {/* Pending Deals Section for Manager - Redesigned Apple-style */}
-        {role === 'manager' && pendingDeals.length > 0 && (
+        {role === 'manager' && (
           <section className="space-y-6">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <Briefcase className="h-5 w-5 text-primary" />
                 {t('عروض العمل', 'Work Offers')}
               </h2>
-              <span className="px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
-                {pendingDeals.length}
-              </span>
+              {managedCelebrityId ? (
+                <span className="px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
+                  {pendingDeals.length}
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground rounded-full">
+                  {t('اختر موهبة', 'Select talent')}
+                </span>
+              )}
             </div>
-            {isLoadingDeals ? (
+            
+            {/* Show loading state when manager has no celebrity selected */}
+            {!managedCelebrityId && managedCelebrities.length > 0 && (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary/30 border-t-primary mb-4" />
+                <p className="text-muted-foreground text-sm">
+                  {t('جاري تحميل العروض...', 'Loading offers...')}
+                </p>
+              </div>
+            )}
+
+            {managedCelebrityId && isLoadingDeals && (
               <div className="flex justify-center py-6">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : (
+            )}
+
+            {managedCelebrityId && !isLoadingDeals && pendingDeals.length > 0 && (
               <div className="space-y-5">
                 {pendingDeals.map((deal) => {
                   const isExpanded = expandedDealIds.has(deal.id);
@@ -832,39 +862,50 @@ export default function Dashboard() {
                           </div>
                         )}
 
-                        {/* Action Buttons */}
-                        <div className="flex items-center gap-2 pt-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-10 text-sm rounded-xl touch-feedback border-red-500 text-red-500 hover:bg-red-50/10"
-                            onClick={() => handleReject(deal)}
-                          >
-                            <X className="h-4 w-4 me-1" />
-                            {t('غير مناسب', 'Decline')}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-10 text-sm rounded-xl touch-feedback border-primary text-primary hover:bg-primary/10"
-                            onClick={() => handleAskTalent(deal)}
-                          >
-                            <MessageSquare className="h-4 w-4 me-1" />
-                            {t('اسأل الموهبة', 'Ask Talent')}
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="flex-1 h-10 text-sm rounded-xl touch-feedback bg-primary text-primary-foreground hover:bg-primary/90"
-                            onClick={() => handleInterested(deal)}
-                          >
-                            <Heart className="h-4 w-4 me-1" />
-                            {t('قبول مبدئي', 'Accept')}
-                          </Button>
-                        </div>
+                        {/* Action Buttons - Only render when managedCelebrityId is set */}
+                        {managedCelebrityId && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 h-10 text-sm rounded-xl touch-feedback border-red-500 text-red-500 hover:bg-red-50/10"
+                              onClick={() => handleReject(deal)}
+                            >
+                              <X className="h-4 w-4 me-1" />
+                              {t('غير مناسب', 'Decline')}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 h-10 text-sm rounded-xl touch-feedback border-primary text-primary hover:bg-primary/10"
+                              onClick={() => handleAskTalent(deal)}
+                            >
+                              <MessageSquare className="h-4 w-4 me-1" />
+                              {t('اسأل الموهبة', 'Ask Talent')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="flex-1 h-10 text-sm rounded-xl touch-feedback bg-primary text-primary-foreground hover:bg-primary/90"
+                              onClick={() => handleInterested(deal)}
+                            >
+                              <Heart className="h-4 w-4 me-1" />
+                              {t('قبول مبدئي', 'Accept')}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {managedCelebrityId && !isLoadingDeals && pendingDeals.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <Briefcase className="h-12 w-12 text-muted-foreground/30 mb-3" />
+                <p className="text-muted-foreground text-sm">
+                  {t('لا توجد عروض معلقة', 'No pending offers')}
+                </p>
               </div>
             )}
           </section>
