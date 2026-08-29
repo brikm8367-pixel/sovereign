@@ -416,6 +416,7 @@ export default function ChatPage() {
       }
 
       // Insert message with category 'work' and parent_id pointing to conversation root
+      // Include deal_id and celebrity_id from the deal
       const { error } = await supabase.from('messages').insert({
         sender_id: user.id,
         receiver_id: userId,
@@ -510,7 +511,7 @@ export default function ChatPage() {
                 <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
               </p>
             </div>
-          </button>
+          </Button>
           <Button
             variant="ghost"
             size="icon"

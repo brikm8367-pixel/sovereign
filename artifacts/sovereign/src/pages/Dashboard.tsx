@@ -222,8 +222,10 @@ export default function Dashboard() {
 
     if (celebrityChanged) {
       prevManagedCelebrityIdRef.current = managedCelebrityId;
+      // Clear all data before fetching new data for the new celebrity
       setMessages([]);
       setConversations([]);
+      setPendingDeals([]);
     }
 
     // Guard: if manager but no celebrity selected, don't fetch
@@ -250,6 +252,7 @@ export default function Dashboard() {
       let query: any;
       if (role === 'manager' && managedCelebrityId) {
         // Manager: only fetch messages for the managed celebrity with category='work'
+        // Use celebrity_id filter instead of sender_id/receiver_id
         query = (supabase as any)
           .from('messages')
           .select('*')
@@ -862,8 +865,8 @@ export default function Dashboard() {
                           </div>
                         )}
 
-                        {/* Action Buttons - Only render when managedCelebrityId is set */}
-                        {managedCelebrityId && (
+                        {/* Action Buttons - Only render when managedCelebrityId is set and not loading */}
+                        {!isLoadingDeals && managedCelebrityId && (
                           <div className="flex items-center gap-2 pt-1">
                             <Button
                               variant="outline"
