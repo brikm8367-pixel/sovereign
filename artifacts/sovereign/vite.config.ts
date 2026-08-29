@@ -28,8 +28,6 @@ export default defineConfig({
         // Do not generate a navigation fallback; we handle it in sw.ts with NetworkFirst
         // to avoid caching index.html aggressively and to keep auth state fresh.
         // This also prevents interference with Vercel rewrites.
-        navigateFallback: null,
-        navigateFallbackAllowlist: [],
       },
       manifest: {
         name: "Sovereign",
