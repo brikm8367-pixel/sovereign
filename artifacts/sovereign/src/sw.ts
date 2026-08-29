@@ -21,15 +21,14 @@ import { CacheableResponsePlugin } from "workbox-cacheable-response";
 
 declare let self: ServiceWorkerGlobalScope;
 
-// ---- Precaching (injected by vite-plugin-pwa at build time) ----
-cleanupOutdatedCaches();
-precacheAndRoute(self.__WB_MANIFEST);
-
-// SPA navigation fallback — serve the app shell for any non-API navigation
-// that isn't already precached, so deep links work offline/first-load.
+// ---- Navigation fallback (NetworkFirst) — MUST be registered BEFORE precacheAndRoute
+// so that navigation requests (including "/") hit the network first and never serve
+// a stale index.html from the precache. This keeps authenticated users logged in
+// and ensures fresh HTML on every navigation.
 registerRoute(
   ({ request, url }) => {
     if (request.mode !== "navigate") return false;
+    // Exclude API and Supabase paths from navigation handling
     if (url.pathname.startsWith("/api")) return false;
     if (url.pathname.startsWith("/supabase")) return false;
     return true;
@@ -41,6 +40,11 @@ registerRoute(
   }),
 );
 
+// ---- Precaching (injected by vite-plugin-pwa at build time) ----
+cleanupOutdatedCaches();
+precacheAndRoute(self.__WB_MANIFEST);
+
+// Static asset caching (fonts, images, etc.) — CacheFirst is fine for versioned assets
 registerRoute(
   ({ url }) => url.origin === "https://fonts.googleapis.com",
   new CacheFirst({
