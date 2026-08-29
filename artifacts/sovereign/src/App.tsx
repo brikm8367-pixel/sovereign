@@ -12,6 +12,8 @@ import { SplashScreen } from "./components/SplashScreen";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { UpdatePrompt } from "./components/UpdatePrompt";
+import { useAuth } from "./hooks/useAuth";
+import { useRegisterSW } from 'virtual:pwa-register/react';
 
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
@@ -52,6 +54,43 @@ const PageLoader = () => (
   </div>
 );
 
+const AppRoutes = () => {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return <PageLoader />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/" element={<Auth />} />
+        <Route path="/home" element={<Dashboard />} />
+        <Route path="/welcome" element={<Index />} />
+        <Route path="/install" element={<Install />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/admin" element={<AdminStats />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/launch" element={<Launch />} />
+        <Route path="/security" element={<Security />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/subscribe" element={<Subscribe />} />
+        <Route path="/security/bounty" element={<BugBounty />} />
+        <Route path="/compose" element={<ComposePage />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/offers" element={<Offers />} />
+        <Route path="/join-manager/:celebrityId" element={<Navigate to="/home" replace />} />
+        <Route path="/m/:token" element={<RedeemManagerInvite />} />
+        <Route path="/s/:slug" element={<SlugRedirect />} />
+        <Route path="/chat/:userId" element={<ChatPage />} />
+        <Route path="/:username" element={<PublicProfile />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
+  );
+};
 
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -66,6 +105,17 @@ const App = () => {
       setShowSplash(false);
     }
   }, []);
+
+  const { needRefresh, updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(swUrl, r) {
+      // Check for updates when user returns to the app
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && r) {
+          r.update();
+        }
+      });
+    },
+  });
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -85,34 +135,24 @@ const App = () => {
                 )}
                 
                 <BrowserRouter>
-                  <Suspense fallback={<PageLoader />}>
-                    <Routes>
-                      <Route path="/" element={<Auth />} />
-                      <Route path="/home" element={<Dashboard />} />
-                      <Route path="/welcome" element={<Index />} />
-                      <Route path="/install" element={<Install />} />
-                      <Route path="/profile" element={<Profile />} />
-                      <Route path="/notifications" element={<Notifications />} />
-                      <Route path="/admin" element={<AdminStats />} />
-                      <Route path="/privacy" element={<PrivacyPolicy />} />
-                      <Route path="/terms" element={<TermsOfService />} />
-                      <Route path="/launch" element={<Launch />} />
-                      <Route path="/security" element={<Security />} />
-                      <Route path="/reset-password" element={<ResetPassword />} />
-                      <Route path="/subscribe" element={<Subscribe />} />
-                      <Route path="/security/bounty" element={<BugBounty />} />
-                      <Route path="/compose" element={<ComposePage />} />
-                      <Route path="/search" element={<SearchPage />} />
-                      <Route path="/offers" element={<Offers />} />
-                      <Route path="/join-manager/:celebrityId" element={<Navigate to="/home" replace />} />
-                      <Route path="/m/:token" element={<RedeemManagerInvite />} />
-                      <Route path="/s/:slug" element={<SlugRedirect />} />
-                      <Route path="/chat/:userId" element={<ChatPage />} />
-                      <Route path="/:username" element={<PublicProfile />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </Suspense>
+                  <AppRoutes />
                 </BrowserRouter>
+                
+                {needRefresh && (
+                  <div className="fixed bottom-0 left-0 right-0 z-50 p-4 safe-area-inset-bottom">
+                    <div className="max-w-lg mx-auto bg-card border border-border rounded-2xl shadow-xl p-4 flex flex-col gap-3">
+                      <p className="text-center text-sm font-medium text-foreground">
+                        يوجد تحديث جديد للتطبيق
+                      </p>
+                      <button
+                        onClick={() => updateServiceWorker(true)}
+                        className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-medium touch-feedback active:scale-[0.98] transition-transform"
+                      >
+                        تحديث الآن
+                      </button>
+                    </div>
+                  </div>
+                )}
               </TooltipProvider>
             </RoleProvider>
           </AuthProvider>

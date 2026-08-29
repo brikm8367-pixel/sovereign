@@ -71,7 +71,12 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
-self.skipWaiting();
+// Install event: skip waiting to activate new SW immediately
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+// Activate event: claim clients immediately
 self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
