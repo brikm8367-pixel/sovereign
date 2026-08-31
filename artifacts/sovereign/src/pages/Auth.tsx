@@ -46,7 +46,15 @@ export default function Auth() {
     : '/home';
 
   useEffect(() => {
-    if (!loading && user) navigate(redirectTarget, { replace: true });
+    if (!loading && user) {
+      const storedToken = sessionStorage.getItem('manager_invite_token');
+      if (storedToken) {
+        sessionStorage.removeItem('manager_invite_token');
+        navigate(`/m/${storedToken}`, { replace: true });
+      } else {
+        navigate(redirectTarget, { replace: true });
+      }
+    }
   }, [user, loading, navigate, redirectTarget]);
 
   const handleSubmit = async (e: React.FormEvent) => {

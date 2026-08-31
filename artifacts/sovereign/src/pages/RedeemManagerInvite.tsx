@@ -42,8 +42,12 @@ export default function RedeemManagerInvite() {
     setTimeout(() => navigate('/home'), 1200);
   };
 
-  // If not authenticated, show sign-in card
+  // If not authenticated, save token and redirect to /auth
   if (!user) {
+    // Save the invite token in sessionStorage for after login
+    if (token) {
+      sessionStorage.setItem('manager_invite_token', token);
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-6" dir={isRTL ? 'rtl' : 'ltr'}>
         <div className="max-w-sm w-full text-center space-y-6">
@@ -57,7 +61,7 @@ export default function RedeemManagerInvite() {
             </p>
           </div>
           <Button
-            onClick={() => navigate(`/?redirect=/m/${token}`)}
+            onClick={() => navigate('/auth')}
             className="w-full h-12 rounded-2xl"
           >
             {isRTL ? 'تسجيل الدخول للمتابعة' : 'Sign in to continue'}
