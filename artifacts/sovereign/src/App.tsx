@@ -96,6 +96,7 @@ const App = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [isFirstVisit, setIsFirstVisit] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
 
   useEffect(() => {
     const visited = sessionStorage.getItem('directly_visited');
@@ -107,7 +108,7 @@ const App = () => {
     }
   }, []);
 
-  const { needRefresh, updateServiceWorker } = useRegisterSW({
+  const { updateServiceWorker } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
       // Check for updates when user returns to the app
       document.addEventListener('visibilitychange', () => {
@@ -116,7 +117,25 @@ const App = () => {
         }
       });
     },
+    onNeedRefresh() {
+      // Show the update prompt when a new version is detected
+      setShowUpdatePrompt(true);
+    },
+    onOfflineReady() {
+      // Hide the update prompt when the app is ready for offline use
+      setShowUpdatePrompt(false);
+    },
   });
+
+  const handleUpdate = () => {
+    setIsUpdating(true);
+    setShowUpdatePrompt(false); // Hide immediately to prevent double-clicks and reappearance after reload
+    updateServiceWorker(true);
+    // Fallback reload in case updateServiceWorker doesn't reload
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -139,20 +158,14 @@ const App = () => {
                   <AppRoutes />
                 </BrowserRouter>
                 
-                {needRefresh && (
+                {showUpdatePrompt && (
                   <div className="fixed bottom-0 left-0 right-0 z-50 p-4 safe-area-inset-bottom">
                     <div className="max-w-lg mx-auto bg-card border border-border rounded-2xl shadow-xl p-4 flex flex-col gap-3">
                       <p className="text-center text-sm font-medium text-foreground">
                         يوجد تحديث جديد للتطبيق
                       </p>
                       <button
-                        onClick={() => {
-                          setIsUpdating(true);
-                          updateServiceWorker(true);
-                          setTimeout(() => {
-                            window.location.reload();
-                          }, 500);
-                        }}
+                        onClick={handleUpdate}
                         disabled={isUpdating}
                         className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-medium touch-feedback active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                       >
