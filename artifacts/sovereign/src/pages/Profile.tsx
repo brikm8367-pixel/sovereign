@@ -199,45 +199,60 @@ export default function ProfilePage() {
     }
   };
 
+  // ✅ دالة نسخ رابط العرض (المضافة)
+  const handleCopyDealLink = async () => {
+    if (!dealLink) {
+      toast.error(isRTL ? 'لا يوجد رابط لعرضه' : 'No link to copy');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(dealLink);
+      toast.success(isRTL ? 'تم نسخ رابط العرض!' : 'Deal link copied!');
+    } catch {
+      toast.error(isRTL ? 'فشل نسخ الرابط' : 'Failed to copy link');
+    }
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
   };
 
+  // ✅ دالة حذف الحساب (المعدلة والمفردة)
   const handleDeleteAccount = async () => {
     if (!user) return;
-    
+
     const confirmed = window.confirm(
-      isRTL 
+      isRTL
         ? '⚠️ تحذير: سيؤدي هذا إلى حذف حسابك نهائياً!\n\nسيتم حذف جميع بياناتك، رسائلك، عروضك، ومعلوماتك الشخصية بشكل لا يمكن التراجع عنه.\n\nهل أنت متأكد تماماً من رغبتك في المتابعة؟'
         : '⚠️ Warning: This will permanently delete your account!\n\nAll your data, messages, deals, and personal information will be deleted irreversibly.\n\nAre you absolutely sure you want to proceed?'
     );
-    
+
     if (!confirmed) return;
 
     setIsDeletingAccount(true);
     try {
-      // Call the delete-account edge function with user's id
+      // ✅ استخدم user_id (كما تتوقعه الدالة الخلفية)
       const { data, error } = await supabase.functions.invoke('delete-account', {
-        body: { userId: user.id },
+        body: { user_id: user.id },
       });
 
       if (error) {
         console.error('Delete account function error:', error);
         throw new Error(error.message || 'Function invocation failed');
       }
-      
-      if (data?.error) {
-        console.error('Delete account returned error:', data.error);
-        throw new Error(data.error);
+
+      // ✅ تحقق من نجاح الدالة
+      if (!data?.success) {
+        throw new Error(data?.error || (isRTL ? 'فشل حذف الحساب' : 'Failed to delete account'));
       }
 
       toast.success(isRTL ? 'تم حذف حسابك بالكامل' : 'Your account has been deleted');
-      
-      // Sign out the user
+
+      // تسجيل الخروج
       await supabase.auth.signOut();
-      
-      // Redirect to home
+
+      // التوجيه إلى الصفحة الرئيسية
       navigate('/');
     } catch (error: any) {
       console.error('Delete account error:', error);
