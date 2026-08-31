@@ -8,7 +8,6 @@ import {
 } from '@/components/ui/dialog';
 import { Loader2, Copy, Check, Link2, ShieldCheck, Clock, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
-import { buildShareLink } from '@/lib/appUrl';
 
 interface Props {
   open: boolean;
@@ -21,6 +20,9 @@ interface Invite {
   expires_at: string;
 }
 
+// Production domain for invite links
+const PRODUCTION_DOMAIN = 'https://sovereign-sovereign-green.vercel.app';
+
 export function InviteManagerDialog({ open, onOpenChange }: Props) {
   const { isRTL } = useLanguage();
   const [password, setPassword] = useState('');
@@ -31,8 +33,10 @@ export function InviteManagerDialog({ open, onOpenChange }: Props) {
   const [remaining, setRemaining] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
-  // Encode the token for URL safety, especially for non-ASCII characters
-  const inviteLink = invite ? buildShareLink(`/m/${encodeURIComponent(invite.token)}?code=${invite.code}`) : '';
+  // Build invite link using production domain
+  const inviteLink = invite 
+    ? `${PRODUCTION_DOMAIN}/m/${encodeURIComponent(invite.token)}?code=${invite.code}`
+    : '';
 
   // Countdown to expiry.
   useEffect(() => {
@@ -101,7 +105,6 @@ export function InviteManagerDialog({ open, onOpenChange }: Props) {
 
   const handleShare = async () => {
     if (!invite) return;
-    // inviteLink is already properly encoded by buildShareLink and encodeURIComponent
     const shareText = isRTL 
       ? `دعوة لإدارة صندوق العمل. الرابط: ${inviteLink} الكود: ${invite.code}` 
       : `Manager invitation. Link: ${inviteLink} Code: ${invite.code}`;

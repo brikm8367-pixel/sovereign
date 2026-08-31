@@ -48,15 +48,14 @@ export default function Auth() {
 
   useEffect(() => {
     if (!loading && user) {
-      // Check for redirect in location.state (from RedeemManagerInvite) or sessionStorage
-      const stateRedirect = (location.state as { redirect?: string })?.redirect;
-      const storedToken = sessionStorage.getItem('manager_invite_token');
-      
-      if (stateRedirect) {
-        navigate(stateRedirect, { replace: true });
-      } else if (storedToken) {
-        sessionStorage.removeItem('manager_invite_token');
-        navigate(`/m/${storedToken}`, { replace: true });
+      // Check for redirect in sessionStorage (from RedeemManagerInvite)
+      const storedRedirect = sessionStorage.getItem('redirectAfterAuth');
+      if (storedRedirect) {
+        sessionStorage.removeItem('redirectAfterAuth');
+        navigate(storedRedirect, { replace: true });
+      } else if (location.state?.redirect) {
+        // Fallback to location.state if set
+        navigate(location.state.redirect, { replace: true });
       } else {
         navigate(redirectTarget, { replace: true });
       }
