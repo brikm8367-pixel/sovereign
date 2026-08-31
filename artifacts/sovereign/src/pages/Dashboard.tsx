@@ -447,11 +447,11 @@ export default function Dashboard() {
       // Update deal status to 'rejected'
       await updateDealStatus(deal.id, 'rejected');
       
-      // Send rejection message from the managed celebrity
+      // Send rejection message from the authenticated manager (user.id) with celebrity_id for tracking
       const { error: messageError } = await supabase
         .from('messages')
         .insert({
-          sender_id: managedCelebrityId,
+          sender_id: user.id,
           receiver_id: deal.sender_id,
           celebrity_id: managedCelebrityId,
           subject: deal.deal_type ? `Re: ${deal.deal_type}` : null,
@@ -473,7 +473,7 @@ export default function Dashboard() {
     }
   };
 
-  // Handle interested (accept in principle) - update deal to 'accepted' and send message from managed celebrity
+  // Handle interested (accept in principle) - update deal to 'accepted' and send message from authenticated manager
   const handleInterested = async (deal: PendingDeal) => {
     // Guard: manager must have a managed celebrity
     if (role === 'manager' && !managedCelebrityId) {
@@ -481,9 +481,9 @@ export default function Dashboard() {
       return;
     }
     
-    // Use managedCelebrityId as the sender (this is the celebrity being managed)
-    const senderId = managedCelebrityId;
-    const celebrityId = deal.celebrity_id || managedCelebrityId;
+    // Use user.id as sender (authenticated manager) and celebrity_id for tracking
+    const senderId = user.id;
+    const celebrityId = managedCelebrityId;
     
     console.log('[handleInterested] Starting with:', { 
       dealId: deal.id, 
@@ -494,7 +494,7 @@ export default function Dashboard() {
     });
     
     try {
-      // 1. Insert message to sender using managedCelebrityId as sender (celebrity)
+      // 1. Insert message to sender using user.id as sender (authenticated manager) with celebrity_id for tracking
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert({
@@ -570,7 +570,7 @@ export default function Dashboard() {
     setAskTalentOpen(true);
   };
 
-  // Handle Ask Talent submit - send message from managed celebrity
+  // Handle Ask Talent submit - send message from authenticated manager
   const handleAskTalentSubmit = async () => {
     // Guard: manager must have a managed celebrity
     if (role === 'manager' && !managedCelebrityId) {
@@ -580,9 +580,9 @@ export default function Dashboard() {
     
     if (!user || !askTalentDeal || !askTalentQuestion.trim()) return;
     
-    // Use managedCelebrityId as the sender (this is the celebrity being managed)
-    const senderId = managedCelebrityId;
-    const celebrityId = askTalentDeal.celebrity_id || managedCelebrityId;
+    // Use user.id as sender (authenticated manager) and celebrity_id for tracking
+    const senderId = user.id;
+    const celebrityId = managedCelebrityId;
     
     console.log('[handleAskTalentSubmit] Starting with:', { 
       dealId: askTalentDeal.id, 
@@ -595,7 +595,7 @@ export default function Dashboard() {
     
     setIsSubmittingQuestion(true);
     try {
-      // Insert message to the company (sender) asking the question using managedCelebrityId as sender (celebrity)
+      // Insert message to the company (sender) asking the question using user.id as sender (authenticated manager) with celebrity_id for tracking
       const { data: messageData, error } = await supabase
         .from('messages')
         .insert({
