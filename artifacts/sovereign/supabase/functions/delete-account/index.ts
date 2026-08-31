@@ -1,14 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// 🔥 رؤوس CORS الثابتة
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+};
+
 serve(async (req) => {
+  // 🔥 التعامل مع طلب OPTIONS (ما قبل CORS)
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "No authorization header" }), { status: 401 });
+      return new Response(JSON.stringify({ error: "No authorization header" }), {
+        status: 401,
+        headers: corsHeaders,
+      });
     }
 
-    // استخدام Service Role Key للحصول على صلاحيات admin
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -32,7 +46,10 @@ serve(async (req) => {
 
     const { user_id } = await req.json();
     if (!user_id) {
-      return new Response(JSON.stringify({ error: "Missing user_id" }), { status: 400 });
+      return new Response(JSON.stringify({ error: "Missing user_id" }), {
+        status: 400,
+        headers: corsHeaders,
+      });
     }
 
     // 1. حذف الرسائل
@@ -63,18 +80,24 @@ serve(async (req) => {
       .eq("id", user_id);
     if (profileError) console.error("Profile delete error:", profileError);
 
-    // 5. حذف المستخدم نفسه (باستخدام صلاحيات admin)
+    // 5. حذف المستخدم
     const { error: userError } = await supabaseAdmin.auth.admin.deleteUser(user_id);
     if (userError) throw userError;
 
     return new Response(
       JSON.stringify({ success: true, message: "Account deleted successfully" }),
-      { status: 200 }
+      {
+        status: 200,
+        headers: corsHeaders,
+      }
     );
   } catch (error: any) {
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500 }
+      {
+        status: 500,
+        headers: corsHeaders,
+      }
     );
   }
 });

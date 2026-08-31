@@ -49,12 +49,10 @@ export default function ProfilePage() {
   const [bio, setBio] = useState('');
   const [isPublic, setIsPublic] = useState(true);
 
-  // Computed deal username: for managers, use the active managed celebrity's username
   const dealUsername = (role === 'manager' && managedCelebrityId)
     ? managedCelebrities.find(c => c.id === managedCelebrityId)?.username || username
     : username;
 
-  // Computed deal link
   const dealLink = dealUsername ? buildShareLink(`/@${dealUsername}?action=deal`) : '';
 
   useEffect(() => {
@@ -82,7 +80,6 @@ export default function ProfilePage() {
     if (user) fetchProfile();
   }, [user]);
 
-  // Check for active agent (manager link)
   useEffect(() => {
     const checkActiveAgent = async () => {
       if (!user || role === 'manager') {
@@ -118,7 +115,6 @@ export default function ProfilePage() {
       const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-      // Upload directly to bucket root (bucket name is 'avatars')
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, file, { 
@@ -142,7 +138,6 @@ export default function ProfilePage() {
       toast.error(isRTL ? 'فشل رفع الصورة: ' + (error.message || '') : 'Upload failed: ' + (error.message || ''));
     } finally {
       setIsUploading(false);
-      // Reset input so same file can be selected again
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -189,7 +184,6 @@ export default function ProfilePage() {
         toast.success(isRTL ? 'تم نسخ الرابط!' : 'Link copied!');
       }
     } catch {
-      // Fallback
       try {
         await navigator.clipboard.writeText(link);
         toast.success(isRTL ? 'تم نسخ الرابط!' : 'Link copied!');
@@ -199,7 +193,6 @@ export default function ProfilePage() {
     }
   };
 
-  // ✅ دالة نسخ رابط العرض (المضافة)
   const handleCopyDealLink = async () => {
     if (!dealLink) {
       toast.error(isRTL ? 'لا يوجد رابط لعرضه' : 'No link to copy');
@@ -218,21 +211,19 @@ export default function ProfilePage() {
     navigate('/');
   };
 
-  // ✅ دالة حذف الحساب (المعدلة لإرسال التوكن)
+  // ✅ دالة حذف الحساب الجديدة باستخدام fetch مباشر
   const handleDeleteAccount = async () => {
     if (!user) return;
 
     const confirmed = window.confirm(
       isRTL
-        ? '⚠️ تحذير: سيؤدي هذا إلى حذف حسابك نهائياً!\n\nسيتم حذف جميع بياناتك، رسائلك، عروضك، ومعلوماتك الشخصية بشكل لا يمكن التراجع عنه.\n\nهل أنت متأكد تماماً من رغبتك في المتابعة؟'
-        : '⚠️ Warning: This will permanently delete your account!\n\nAll your data, messages, deals, and personal information will be deleted irreversibly.\n\nAre you absolutely sure you want to proceed?'
+        ? '⚠️ تحذير: سيؤدي هذا إلى حذف حسابك نهائياً!'
+        : '⚠️ Warning: This will permanently delete your account!'
     );
-
     if (!confirmed) return;
 
     setIsDeletingAccount(true);
     try {
-      // 1. الحصول على التوكن الحالي
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
 
@@ -240,17 +231,22 @@ export default function ProfilePage() {
         throw new Error(isRTL ? 'لا يوجد توكن صالح' : 'No valid token');
       }
 
-      // 2. استدعاء الدالة مع التوكن في الـ headers
-      const { data, error } = await supabase.functions.invoke('delete-account', {
-        body: { user_id: user.id },
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(
+        'https://qgrfzukbxmwtavhhcgdi.supabase.co/functions/v1/delete-account',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ user_id: user.id }),
+        }
+      );
 
-      if (error) {
-        console.error('Delete account function error:', error);
-        throw new Error(error.message || 'Function invocation failed');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete account');
       }
 
       if (!data?.success) {
@@ -258,14 +254,11 @@ export default function ProfilePage() {
       }
 
       toast.success(isRTL ? 'تم حذف حسابك بالكامل' : 'Your account has been deleted');
-
-      // تسجيل الخروج
       await supabase.auth.signOut();
       navigate('/');
     } catch (error: any) {
       console.error('Delete account error:', error);
-      const errorMessage = error.message || (isRTL ? 'فشل حذف الحساب' : 'Failed to delete account');
-      toast.error(isRTL ? `فشل حذف الحساب: ${errorMessage}` : `Failed to delete account: ${errorMessage}`);
+      toast.error(isRTL ? `فشل حذف الحساب: ${error.message}` : `Failed to delete account: ${error.message}`);
     } finally {
       setIsDeletingAccount(false);
     }
@@ -300,7 +293,6 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
-      {/* Header */}
       <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
         <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
           <h1 className="font-bold text-lg">{isRTL ? 'الملف الشخصي' : 'Profile'}</h1>
@@ -317,7 +309,6 @@ export default function ProfilePage() {
       </header>
 
       <main className="max-w-lg mx-auto pt-16 pb-24 px-4">
-        {/* Avatar */}
         <div className="flex flex-col items-center mb-6 mt-2">
           <div className="relative">
             <Avatar className="h-24 w-24 ring-3 ring-primary/20">
@@ -338,7 +329,6 @@ export default function ProfilePage() {
           <p className="text-xs text-muted-foreground mt-2">{isRTL ? 'اضغط لتغيير الصورة' : 'Tap to change photo'}</p>
         </div>
 
-        {/* Share Username Card */}
         {username && (
           <div className="mb-5 p-4 rounded-2xl bg-card border border-border">
             <div className="flex items-center justify-between">
@@ -382,7 +372,6 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Deal Link Card - Prominent section for receiving offers */}
         {dealUsername && (
           <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20">
             <div className="flex items-center gap-2 mb-3">
@@ -417,7 +406,6 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Form */}
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label className="flex items-center gap-2 text-sm">
@@ -444,7 +432,6 @@ export default function ProfilePage() {
             <Input value={user?.email || ''} disabled className="h-12 text-base rounded-xl bg-muted/50" />
           </div>
 
-          {/* About you - hidden for managers */}
           {role !== 'manager' && (
             <div className="space-y-1.5">
               <Label className="flex items-center gap-2 text-sm">
@@ -456,7 +443,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Privacy toggle */}
           <div className="p-4 rounded-2xl bg-card border border-border">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -478,12 +464,10 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Save */}
         <Button onClick={handleSave} disabled={isSaving} className="w-full h-13 mt-6 text-base font-semibold rounded-2xl glow-gold">
           {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : isRTL ? 'حفظ التغييرات' : 'Save Changes'}
         </Button>
 
-        {/* Delegate Agent / Invite Manager / Revoke Agent - for non-manager users */}
         {role !== 'manager' && (
           <>
             <div className="mt-6 p-4 rounded-2xl bg-card border border-border">
@@ -499,7 +483,6 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            {/* Revoke Agent Access - only show if has active agent */}
             {hasActiveAgent && (
               <div className="mt-4 p-4 rounded-2xl bg-card border border-border">
                 <button
@@ -520,7 +503,6 @@ export default function ProfilePage() {
           </>
         )}
 
-        {/* Links */}
         <div className="mt-6 p-4 rounded-2xl bg-card border border-border space-y-2">
           <a href="/security" className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors touch-feedback">
             <span className="text-sm font-medium flex items-center gap-2">
@@ -539,13 +521,11 @@ export default function ProfilePage() {
           </a>
         </div>
 
-        {/* Sign Out */}
         <Button variant="ghost" onClick={handleSignOut} className="w-full mt-3 h-12 text-destructive rounded-xl">
           <LogOut className="h-4 w-4 me-2" />
           {isRTL ? 'تسجيل الخروج' : 'Sign Out'}
         </Button>
 
-        {/* Delete Account */}
         <Button 
           variant="ghost" 
           onClick={handleDeleteAccount} 
