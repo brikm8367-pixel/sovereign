@@ -42,6 +42,7 @@ export default function ProfilePage() {
   const [showInviteManager, setShowInviteManager] = useState(false);
   const [revokingAgent, setRevokingAgent] = useState(false);
   const [hasActiveAgent, setHasActiveAgent] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -214,14 +215,22 @@ export default function ProfilePage() {
     
     if (!confirmed) return;
 
+    setIsDeletingAccount(true);
     try {
       // Call the delete-account edge function with user's id
       const { data, error } = await supabase.functions.invoke('delete-account', {
         body: { userId: user.id },
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        console.error('Delete account function error:', error);
+        throw new Error(error.message || 'Function invocation failed');
+      }
+      
+      if (data?.error) {
+        console.error('Delete account returned error:', data.error);
+        throw new Error(data.error);
+      }
 
       toast.success(isRTL ? 'تم حذف حسابك بالكامل' : 'Your account has been deleted');
       
@@ -232,7 +241,10 @@ export default function ProfilePage() {
       navigate('/');
     } catch (error: any) {
       console.error('Delete account error:', error);
-      toast.error(isRTL ? 'فشل حذف الحساب: ' + (error.message || '') : 'Failed to delete account: ' + (error.message || ''));
+      const errorMessage = error.message || (isRTL ? 'فشل حذف الحساب' : 'Failed to delete account');
+      toast.error(isRTL ? `فشل حذف الحساب: ${errorMessage}` : `Failed to delete account: ${errorMessage}`);
+    } finally {
+      setIsDeletingAccount(false);
     }
   };
 
@@ -514,10 +526,20 @@ export default function ProfilePage() {
         <Button 
           variant="ghost" 
           onClick={handleDeleteAccount} 
+          disabled={isDeletingAccount}
           className="w-full mt-1 h-12 text-destructive/60 rounded-xl text-xs"
         >
-          <Trash2 className="h-3.5 w-3.5 me-2" />
-          {isRTL ? 'حذف الحساب نهائياً' : 'Delete Account Permanently'}
+          {isDeletingAccount ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 me-2 animate-spin" />
+              {isRTL ? 'جاري الحذف...' : 'Deleting...'}
+            </>
+          ) : (
+            <>
+              <Trash2 className="h-3.5 w-3.5 me-2" />
+              {isRTL ? 'حذف الحساب نهائياً' : 'Delete Account Permanently'}
+            </>
+          )}
         </Button>
 
         <p className="text-center text-xs text-muted-foreground mt-4 mb-2">Sovereign v1.0 · © 2026</p>
