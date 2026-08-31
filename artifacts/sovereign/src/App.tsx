@@ -95,6 +95,7 @@ const AppRoutes = () => {
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [isFirstVisit, setIsFirstVisit] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     const visited = sessionStorage.getItem('directly_visited');
@@ -145,8 +146,15 @@ const App = () => {
                         يوجد تحديث جديد للتطبيق
                       </p>
                       <button
-                        onClick={() => updateServiceWorker(true)}
-                        className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-medium touch-feedback active:scale-[0.98] transition-transform"
+                        onClick={() => {
+                          setIsUpdating(true);
+                          updateServiceWorker(true);
+                          setTimeout(() => {
+                            window.location.reload();
+                          }, 500);
+                        }}
+                        disabled={isUpdating}
+                        className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-medium touch-feedback active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         تحديث الآن
                       </button>
