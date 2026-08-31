@@ -251,13 +251,16 @@ export default function Dashboard() {
 
       let query: any;
       if (role === 'manager' && managedCelebrityId) {
-        // Manager: only fetch messages for the managed celebrity with category='work'
-        // Use celebrity_id filter instead of sender_id/receiver_id
-        query = (supabase as any)
+        // Manager: fetch messages for the managed celebrity (celebrity_id) 
+        // OR messages sent by the manager (sender_id = user.id) 
+        // OR messages received by the manager (receiver_id = user.id)
+        // OR messages received by the celebrity (receiver_id = managedCelebrityId)
+        // All filtered by category='work'
+        query = supabase
           .from('messages')
           .select('*')
-          .eq('celebrity_id', managedCelebrityId)
           .eq('category', 'work')
+          .or(`celebrity_id.eq.${managedCelebrityId},sender_id.eq.${user.id},receiver_id.eq.${user.id},receiver_id.eq.${managedCelebrityId}`)
           .order('created_at', { ascending: false });
       } else if (role === 'manager') {
         // Fallback for manager without selected celebrity - only 'work' category, no user filter
