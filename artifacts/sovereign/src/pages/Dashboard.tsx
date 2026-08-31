@@ -481,14 +481,26 @@ export default function Dashboard() {
       return;
     }
     
+    // Use managedCelebrityId as the sender (this is the celebrity being managed)
+    const senderId = managedCelebrityId;
+    const celebrityId = deal.celebrity_id || managedCelebrityId;
+    
+    console.log('[handleInterested] Starting with:', { 
+      dealId: deal.id, 
+      senderId, 
+      celebrityId, 
+      receiverId: deal.sender_id,
+      dealType: deal.deal_type 
+    });
+    
     try {
       // 1. Insert message to sender using managedCelebrityId as sender (celebrity)
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert({
-          sender_id: managedCelebrityId,
+          sender_id: senderId,
           receiver_id: deal.sender_id,
-          celebrity_id: managedCelebrityId,
+          celebrity_id: celebrityId,
           subject: deal.deal_type ? `Re: ${deal.deal_type}` : null,
           content: isRTL ? 'مهتم بعرضك' : 'Interested in your offer',
           category: 'work',
@@ -498,9 +510,17 @@ export default function Dashboard() {
         .single();
 
       if (messageError) {
-        console.error('Error sending interested message:', messageError);
+        console.error('[handleInterested] Error sending interested message:', {
+          message: messageError.message,
+          details: messageError.details,
+          hint: messageError.hint,
+          code: messageError.code,
+          fullError: messageError
+        });
         throw messageError;
       }
+
+      console.log('[handleInterested] Message inserted successfully:', messageData);
 
       // 2. Update deal status to accepted and link message
       const { error: dealError } = await supabase
@@ -509,9 +529,17 @@ export default function Dashboard() {
         .eq('id', deal.id);
 
       if (dealError) {
-        console.error('Error updating deal status:', dealError);
+        console.error('[handleInterested] Error updating deal status:', {
+          message: dealError.message,
+          details: dealError.details,
+          hint: dealError.hint,
+          code: dealError.code,
+          fullError: dealError
+        });
         throw dealError;
       }
+
+      console.log('[handleInterested] Deal status updated to accepted');
 
       // 3. Remove from pending deals
       setPendingDeals(prev => prev.filter(d => d.id !== deal.id));
@@ -522,8 +550,15 @@ export default function Dashboard() {
 
       // 5. Navigate to chat with deal pinned
       navigate(`/chat/${deal.sender_id}?dealId=${deal.id}`);
-    } catch (error) {
-      console.error('Error accepting deal:', error);
+    } catch (error: any) {
+      console.error('[handleInterested] Full error:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        stack: error?.stack,
+        fullError: error
+      });
       toast.error(isRTL ? 'فشل قبول العرض' : 'Failed to accept offer');
     }
   };
@@ -545,25 +580,48 @@ export default function Dashboard() {
     
     if (!user || !askTalentDeal || !askTalentQuestion.trim()) return;
     
+    // Use managedCelebrityId as the sender (this is the celebrity being managed)
+    const senderId = managedCelebrityId;
+    const celebrityId = askTalentDeal.celebrity_id || managedCelebrityId;
+    
+    console.log('[handleAskTalentSubmit] Starting with:', { 
+      dealId: askTalentDeal.id, 
+      senderId, 
+      celebrityId, 
+      receiverId: askTalentDeal.sender_id,
+      dealType: askTalentDeal.deal_type,
+      questionLength: askTalentQuestion.trim().length
+    });
+    
     setIsSubmittingQuestion(true);
     try {
       // Insert message to the company (sender) asking the question using managedCelebrityId as sender (celebrity)
-      const { error } = await supabase
+      const { data: messageData, error } = await supabase
         .from('messages')
         .insert({
-          sender_id: managedCelebrityId,
+          sender_id: senderId,
           receiver_id: askTalentDeal.sender_id,
-          celebrity_id: managedCelebrityId,
+          celebrity_id: celebrityId,
           subject: askTalentDeal.deal_type ? `Re: ${askTalentDeal.deal_type}` : null,
           content: askTalentQuestion.trim(),
           category: 'work',
           deal_id: askTalentDeal.id,
-        } as any);
+        } as any)
+        .select('id')
+        .single();
 
       if (error) {
-        console.error('Error sending question:', error);
+        console.error('[handleAskTalentSubmit] Error sending question:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          fullError: error
+        });
         throw error;
       }
+
+      console.log('[handleAskTalentSubmit] Question sent successfully:', messageData);
 
       // Close dialog and reset
       setAskTalentOpen(false);
@@ -575,8 +633,15 @@ export default function Dashboard() {
       
       // Refresh messages to show the new message
       fetchMessages();
-    } catch (error) {
-      console.error('Error sending question:', error);
+    } catch (error: any) {
+      console.error('[handleAskTalentSubmit] Full error:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        stack: error?.stack,
+        fullError: error
+      });
       toast.error(isRTL ? 'فشل إرسال السؤال' : 'Failed to send question');
     } finally {
       setIsSubmittingQuestion(false);
