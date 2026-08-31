@@ -29,7 +29,7 @@ interface Profile {
 }
 
 export default function ProfilePage() {
-  const { user, loading, signOut, deleteAccount } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const { role, accountType, managedCelebrities, managedCelebrityId } = useRole();
   const { isRTL } = useLanguage();
   const navigate = useNavigate();
@@ -198,17 +198,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handleCopyDealLink = async () => {
-    if (!dealUsername) return;
-    const dealLink = buildShareLink(`/@${dealUsername}?action=deal`);
-    try {
-      await navigator.clipboard.writeText(dealLink);
-      toast.success(isRTL ? 'تم نسخ رابط العروض!' : 'Deal link copied!');
-    } catch {
-      toast.error(isRTL ? 'فشل النسخ' : 'Copy failed');
-    }
-  };
-
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
@@ -216,14 +205,34 @@ export default function ProfilePage() {
 
   const handleDeleteAccount = async () => {
     if (!user) return;
+    
+    const confirmed = window.confirm(
+      isRTL 
+        ? '⚠️ تحذير: سيؤدي هذا إلى حذف حسابك نهائياً!\n\nسيتم حذف جميع بياناتك، رسائلك، عروضك، ومعلوماتك الشخصية بشكل لا يمكن التراجع عنه.\n\nهل أنت متأكد تماماً من رغبتك في المتابعة؟'
+        : '⚠️ Warning: This will permanently delete your account!\n\nAll your data, messages, deals, and personal information will be deleted irreversibly.\n\nAre you absolutely sure you want to proceed?'
+    );
+    
+    if (!confirmed) return;
+
     try {
-      // Use deleteAccount from useAuth hook which invokes the edge function and signs out
-      const { error } = await deleteAccount();
+      // Call the delete-account edge function with user's id
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        body: { userId: user.id },
+      });
+
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
       toast.success(isRTL ? 'تم حذف حسابك بالكامل' : 'Your account has been deleted');
+      
+      // Sign out the user
+      await supabase.auth.signOut();
+      
+      // Redirect to home
       navigate('/');
-    } catch {
-      toast.error(isRTL ? 'فشل حذف الحساب' : 'Failed to delete account');
+    } catch (error: any) {
+      console.error('Delete account error:', error);
+      toast.error(isRTL ? 'فشل حذف الحساب: ' + (error.message || '') : 'Failed to delete account: ' + (error.message || ''));
     }
   };
 
@@ -502,30 +511,14 @@ export default function ProfilePage() {
         </Button>
 
         {/* Delete Account */}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="ghost" className="w-full mt-1 h-12 text-destructive/60 rounded-xl text-xs">
-              <Trash2 className="h-3.5 w-3.5 me-2" />
-              {isRTL ? 'حذف الحساب نهائياً' : 'Delete Account Permanently'}
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent className="rounded-2xl">
-            <AlertDialogHeader>
-              <AlertDialogTitle>{isRTL ? 'حذف الحساب؟' : 'Delete Account?'}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {isRTL
-                  ? 'سيتم حذف جميع بياناتك ورسائلك نهائياً. هذا الإجراء غير قابل للتراجع.'
-                  : 'All your data and messages will be permanently deleted. This action cannot be undone.'}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel className="rounded-xl">{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground rounded-xl">
-                {isRTL ? 'حذف نهائياً' : 'Delete Forever'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <Button 
+          variant="ghost" 
+          onClick={handleDeleteAccount} 
+          className="w-full mt-1 h-12 text-destructive/60 rounded-xl text-xs"
+        >
+          <Trash2 className="h-3.5 w-3.5 me-2" />
+          {isRTL ? 'حذف الحساب نهائياً' : 'Delete Account Permanently'}
+        </Button>
 
         <p className="text-center text-xs text-muted-foreground mt-4 mb-2">Sovereign v1.0 · © 2026</p>
       </main>
