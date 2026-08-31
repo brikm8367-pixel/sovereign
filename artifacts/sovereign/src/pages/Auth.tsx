@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -37,6 +37,7 @@ export default function Auth() {
   const { signIn, signUp, user, loading } = useAuth();
   const { isRTL } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   // Where to go after auth: honor a safe in-app ?redirect= path (e.g. manager invite links).
@@ -47,15 +48,20 @@ export default function Auth() {
 
   useEffect(() => {
     if (!loading && user) {
+      // Check for redirect in location.state (from RedeemManagerInvite) or sessionStorage
+      const stateRedirect = (location.state as { redirect?: string })?.redirect;
       const storedToken = sessionStorage.getItem('manager_invite_token');
-      if (storedToken) {
+      
+      if (stateRedirect) {
+        navigate(stateRedirect, { replace: true });
+      } else if (storedToken) {
         sessionStorage.removeItem('manager_invite_token');
         navigate(`/m/${storedToken}`, { replace: true });
       } else {
         navigate(redirectTarget, { replace: true });
       }
     }
-  }, [user, loading, navigate, redirectTarget]);
+  }, [user, loading, navigate, location.state, redirectTarget]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

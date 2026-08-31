@@ -31,7 +31,8 @@ export function InviteManagerDialog({ open, onOpenChange }: Props) {
   const [remaining, setRemaining] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
-  const inviteLink = invite ? buildShareLink(`/m/${invite.token}?code=${invite.code}`) : '';
+  // Encode the token for URL safety, especially for non-ASCII characters
+  const inviteLink = invite ? buildShareLink(`/m/${encodeURIComponent(invite.token)}?code=${invite.code}`) : '';
 
   // Countdown to expiry.
   useEffect(() => {
@@ -100,7 +101,7 @@ export function InviteManagerDialog({ open, onOpenChange }: Props) {
 
   const handleShare = async () => {
     if (!invite) return;
-    // inviteLink is already properly encoded by buildShareLink
+    // inviteLink is already properly encoded by buildShareLink and encodeURIComponent
     const shareText = isRTL 
       ? `دعوة لإدارة صندوق العمل. الرابط: ${inviteLink} الكود: ${invite.code}` 
       : `Manager invitation. Link: ${inviteLink} Code: ${invite.code}`;
