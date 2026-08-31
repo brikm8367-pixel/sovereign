@@ -218,7 +218,7 @@ export default function ProfilePage() {
     navigate('/');
   };
 
-  // ✅ دالة حذف الحساب (المعدلة والمفردة)
+  // ✅ دالة حذف الحساب (المعدلة لإرسال التوكن)
   const handleDeleteAccount = async () => {
     if (!user) return;
 
@@ -232,9 +232,20 @@ export default function ProfilePage() {
 
     setIsDeletingAccount(true);
     try {
-      // ✅ استخدم user_id (كما تتوقعه الدالة الخلفية)
+      // 1. الحصول على التوكن الحالي
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      if (!token) {
+        throw new Error(isRTL ? 'لا يوجد توكن صالح' : 'No valid token');
+      }
+
+      // 2. استدعاء الدالة مع التوكن في الـ headers
       const { data, error } = await supabase.functions.invoke('delete-account', {
         body: { user_id: user.id },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (error) {
@@ -242,7 +253,6 @@ export default function ProfilePage() {
         throw new Error(error.message || 'Function invocation failed');
       }
 
-      // ✅ تحقق من نجاح الدالة
       if (!data?.success) {
         throw new Error(data?.error || (isRTL ? 'فشل حذف الحساب' : 'Failed to delete account'));
       }
@@ -251,8 +261,6 @@ export default function ProfilePage() {
 
       // تسجيل الخروج
       await supabase.auth.signOut();
-
-      // التوجيه إلى الصفحة الرئيسية
       navigate('/');
     } catch (error: any) {
       console.error('Delete account error:', error);
