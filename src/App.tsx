@@ -13,6 +13,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { useAuth } from "./hooks/useAuth";
+import { useRegisterSW } from 'virtual:pwa-register/react';
 
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
@@ -94,6 +95,8 @@ const AppRoutes = () => {
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [isFirstVisit, setIsFirstVisit] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
 
   useEffect(() => {
     const visited = sessionStorage.getItem('directly_visited');
@@ -104,6 +107,42 @@ const App = () => {
       setShowSplash(false);
     }
   }, []);
+
+  const { needRefresh, updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(swUrl, r) {
+      // Check for updates when user returns to the app
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && r) {
+          r.update();
+        }
+      });
+    },
+    onNeedRefresh() {
+      // Show the update prompt when a new version is detected
+      setShowUpdatePrompt(true);
+    },
+    onOfflineReady() {
+      // Hide the update prompt when the app is ready for offline use
+      setShowUpdatePrompt(false);
+    },
+  });
+
+  // Hide update prompt when needRefresh becomes false (after successful update)
+  useEffect(() => {
+    if (!needRefresh) {
+      setShowUpdatePrompt(false);
+    }
+  }, [needRefresh]);
+
+  const handleUpdate = () => {
+    setIsUpdating(true);
+    setShowUpdatePrompt(false); // Hide immediately to prevent double-clicks and reappearance after reload
+    updateServiceWorker(true);
+    // Fallback reload in case updateServiceWorker doesn't reload
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -125,6 +164,23 @@ const App = () => {
                 <BrowserRouter>
                   <AppRoutes />
                 </BrowserRouter>
+                
+                {showUpdatePrompt && (
+                  <div className="fixed bottom-0 left-0 right-0 z-50 p-4 safe-area-inset-bottom">
+                    <div className="max-w-lg mx-auto bg-card border border-border rounded-2xl shadow-xl p-4 flex flex-col gap-3">
+                      <p className="text-center text-sm font-medium text-foreground">
+                        يوجد تحديث جديد للتطبيق
+                      </p>
+                      <button
+                        onClick={handleUpdate}
+                        disabled={isUpdating}
+                        className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-medium touch-feedback active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        تحديث الآن
+                      </button>
+                    </div>
+                  </div>
+                )}
               </TooltipProvider>
             </RoleProvider>
           </AuthProvider>
