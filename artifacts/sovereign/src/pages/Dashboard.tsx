@@ -435,7 +435,7 @@ export default function Dashboard() {
     if (error) throw error;
   };
 
-  // Handle reject
+  // Handle reject - update deal to 'rejected' and send message from managed celebrity
   const handleReject = async (deal: PendingDeal) => {
     // Guard: manager must have a managed celebrity
     if (role === 'manager' && !managedCelebrityId) {
@@ -444,7 +444,27 @@ export default function Dashboard() {
     }
     
     try {
-      await updateDealStatus(deal.id, 'declined');
+      // Update deal status to 'rejected'
+      await updateDealStatus(deal.id, 'rejected');
+      
+      // Send rejection message from the managed celebrity
+      const { error: messageError } = await supabase
+        .from('messages')
+        .insert({
+          sender_id: managedCelebrityId,
+          receiver_id: deal.sender_id,
+          celebrity_id: managedCelebrityId,
+          subject: deal.deal_type ? `Re: ${deal.deal_type}` : null,
+          content: isRTL ? 'شكراً لعرضك، لكننا غير مهتمين في الوقت الحالي' : 'Thank you for your offer, but we are not interested at this time',
+          category: 'work',
+          deal_id: deal.id,
+        } as any);
+
+      if (messageError) {
+        console.error('Error sending rejection message:', messageError);
+        // Don't throw - deal is already rejected
+      }
+
       setPendingDeals(prev => prev.filter(d => d.id !== deal.id));
       toast.success(isRTL ? 'تم رفض العرض' : 'Offer rejected');
     } catch (error) {
@@ -453,7 +473,7 @@ export default function Dashboard() {
     }
   };
 
-  // Handle interested (accept in principle)
+  // Handle interested (accept in principle) - update deal to 'accepted' and send message from managed celebrity
   const handleInterested = async (deal: PendingDeal) => {
     // Guard: manager must have a managed celebrity
     if (role === 'manager' && !managedCelebrityId) {
@@ -461,43 +481,26 @@ export default function Dashboard() {
       return;
     }
     
-    // Determine the actor ID: if manager, use managedCelebrityId; otherwise user.id
-    const actorId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user?.id;
-    if (!actorId) return;
-    
     try {
-      // Query for existing root message between actor and deal.sender_id with this deal_id
-      const query = supabase
-        .from('messages')
-        .select('id')
-        .or(`and(sender_id.eq.${actorId},receiver_id.eq.${deal.sender_id}),and(sender_id.eq.${deal.sender_id},receiver_id.eq.${actorId})`);
-      const { data: rootMessage } = await (query as any)
-        .eq('deal_id', deal.id)
-        .eq('category', 'work')
-        .is('parent_id', null)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      const parentId = rootMessage?.id || null;
-
-      // 1. Insert message to sender using actorId as sender (celebrity)
+      // 1. Insert message to sender using managedCelebrityId as sender (celebrity)
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert({
-          sender_id: actorId,
+          sender_id: managedCelebrityId,
           receiver_id: deal.sender_id,
-          celebrity_id: deal.celebrity_id,
+          celebrity_id: managedCelebrityId,
           subject: deal.deal_type ? `Re: ${deal.deal_type}` : null,
           content: isRTL ? 'مهتم بعرضك' : 'Interested in your offer',
           category: 'work',
           deal_id: deal.id,
-          parent_id: parentId,
         } as any)
         .select('id')
         .single();
 
-      if (messageError) throw messageError;
+      if (messageError) {
+        console.error('Error sending interested message:', messageError);
+        throw messageError;
+      }
 
       // 2. Update deal status to accepted and link message
       const { error: dealError } = await supabase
@@ -505,7 +508,10 @@ export default function Dashboard() {
         .update({ status: 'accepted', message_id: messageData.id })
         .eq('id', deal.id);
 
-      if (dealError) throw dealError;
+      if (dealError) {
+        console.error('Error updating deal status:', dealError);
+        throw dealError;
+      }
 
       // 3. Remove from pending deals
       setPendingDeals(prev => prev.filter(d => d.id !== deal.id));
@@ -529,7 +535,7 @@ export default function Dashboard() {
     setAskTalentOpen(true);
   };
 
-  // Handle Ask Talent submit
+  // Handle Ask Talent submit - send message from managed celebrity
   const handleAskTalentSubmit = async () => {
     // Guard: manager must have a managed celebrity
     if (role === 'manager' && !managedCelebrityId) {
@@ -539,25 +545,25 @@ export default function Dashboard() {
     
     if (!user || !askTalentDeal || !askTalentQuestion.trim()) return;
     
-    // Determine the actor ID: if manager, use managedCelebrityId; otherwise user.id
-    const actorId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
-    
     setIsSubmittingQuestion(true);
     try {
-      // Insert message to the company (sender) asking the question using actorId as sender (celebrity)
+      // Insert message to the company (sender) asking the question using managedCelebrityId as sender (celebrity)
       const { error } = await supabase
         .from('messages')
         .insert({
-          sender_id: actorId,
+          sender_id: managedCelebrityId,
           receiver_id: askTalentDeal.sender_id,
-          celebrity_id: askTalentDeal.celebrity_id,
+          celebrity_id: managedCelebrityId,
           subject: askTalentDeal.deal_type ? `Re: ${askTalentDeal.deal_type}` : null,
           content: askTalentQuestion.trim(),
           category: 'work',
           deal_id: askTalentDeal.id,
         } as any);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error sending question:', error);
+        throw error;
+      }
 
       // Close dialog and reset
       setAskTalentOpen(false);
