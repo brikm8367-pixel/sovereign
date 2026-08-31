@@ -437,6 +437,12 @@ export default function Dashboard() {
 
   // Handle reject
   const handleReject = async (deal: PendingDeal) => {
+    // Guard: manager must have a managed celebrity
+    if (role === 'manager' && !managedCelebrityId) {
+      toast.error(isRTL ? 'يجب اختيار موهبة أولاً' : 'Must select a talent first');
+      return;
+    }
+    
     try {
       await updateDealStatus(deal.id, 'declined');
       setPendingDeals(prev => prev.filter(d => d.id !== deal.id));
@@ -449,13 +455,22 @@ export default function Dashboard() {
 
   // Handle interested (accept in principle)
   const handleInterested = async (deal: PendingDeal) => {
-    if (!user) return;
+    // Guard: manager must have a managed celebrity
+    if (role === 'manager' && !managedCelebrityId) {
+      toast.error(isRTL ? 'يجب اختيار موهبة أولاً' : 'Must select a talent first');
+      return;
+    }
+    
+    // Determine the actor ID: if manager, use managedCelebrityId; otherwise user.id
+    const actorId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user?.id;
+    if (!actorId) return;
+    
     try {
-      // Query for existing root message between user and deal.sender_id with this deal_id
+      // Query for existing root message between actor and deal.sender_id with this deal_id
       const query = supabase
         .from('messages')
         .select('id')
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${deal.sender_id}),and(sender_id.eq.${deal.sender_id},receiver_id.eq.${user.id})`);
+        .or(`and(sender_id.eq.${actorId},receiver_id.eq.${deal.sender_id}),and(sender_id.eq.${deal.sender_id},receiver_id.eq.${actorId})`);
       const { data: rootMessage } = await (query as any)
         .eq('deal_id', deal.id)
         .eq('category', 'work')
@@ -466,11 +481,11 @@ export default function Dashboard() {
 
       const parentId = rootMessage?.id || null;
 
-      // 1. Insert message to sender using deal.celebrity_id
+      // 1. Insert message to sender using actorId as sender (celebrity)
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert({
-          sender_id: user.id,
+          sender_id: actorId,
           receiver_id: deal.sender_id,
           celebrity_id: deal.celebrity_id,
           subject: deal.deal_type ? `Re: ${deal.deal_type}` : null,
@@ -495,8 +510,9 @@ export default function Dashboard() {
       // 3. Remove from pending deals
       setPendingDeals(prev => prev.filter(d => d.id !== deal.id));
 
-      // 4. Show success toast
-      toast.success(isRTL ? 'تم قبول العرض وإرسال رد' : 'Offer accepted and reply sent');
+      // 4. Show success toast with celebrity name
+      const celebrityName = managedCelebrities.find(c => c.id === managedCelebrityId)?.display_name || 'الموهبة';
+      toast.success(isRTL ? `تم قبول العرض من ${celebrityName} وإرسال رد` : `Offer accepted by ${celebrityName} and reply sent`);
 
       // 5. Navigate to chat with deal pinned
       navigate(`/chat/${deal.sender_id}?dealId=${deal.id}`);
@@ -515,16 +531,25 @@ export default function Dashboard() {
 
   // Handle Ask Talent submit
   const handleAskTalentSubmit = async () => {
+    // Guard: manager must have a managed celebrity
+    if (role === 'manager' && !managedCelebrityId) {
+      toast.error(isRTL ? 'يجب اختيار موهبة أولاً' : 'Must select a talent first');
+      return;
+    }
+    
     if (!user || !askTalentDeal || !askTalentQuestion.trim()) return;
+    
+    // Determine the actor ID: if manager, use managedCelebrityId; otherwise user.id
+    const actorId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
     
     setIsSubmittingQuestion(true);
     try {
-      // Insert message to the celebrity (talent) asking the question using deal.celebrity_id
+      // Insert message to the company (sender) asking the question using actorId as sender (celebrity)
       const { error } = await supabase
         .from('messages')
         .insert({
-          sender_id: user.id,
-          receiver_id: askTalentDeal.celebrity_id,
+          sender_id: actorId,
+          receiver_id: askTalentDeal.sender_id,
           celebrity_id: askTalentDeal.celebrity_id,
           subject: askTalentDeal.deal_type ? `Re: ${askTalentDeal.deal_type}` : null,
           content: askTalentQuestion.trim(),
@@ -539,7 +564,8 @@ export default function Dashboard() {
       setAskTalentDeal(null);
       setAskTalentQuestion('');
       
-      toast.success(isRTL ? 'تم إرسال السؤال للموهبة' : 'Question sent to talent');
+      const celebrityName = managedCelebrities.find(c => c.id === managedCelebrityId)?.display_name || 'الموهبة';
+      toast.success(isRTL ? `تم إرسال السؤال من ${celebrityName} للشركة` : `Question sent from ${celebrityName} to company`);
       
       // Refresh messages to show the new message
       fetchMessages();

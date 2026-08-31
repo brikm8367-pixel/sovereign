@@ -83,6 +83,9 @@ export default function ChatPage() {
 
   const t = useCallback((ar: string, en: string) => (isRTL ? ar : en), [isRTL]);
 
+  // Determine the effective sender ID: if manager, use managedCelebrityId; otherwise user.id
+  const effectiveSenderId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user?.id;
+
   // Determine display profile based on role and deal context
   const getDisplayProfile = useCallback((): Profile | null => {
     if (!dealId || !deal) return recipient;
@@ -289,6 +292,13 @@ export default function ChatPage() {
   const handleSend = async (text: string, voiceUrl?: string) => {
     if (!user || !userId || (!text.trim() && !voiceUrl && !mediaPreview)) return;
     
+    // Guard: manager must have a managed celebrity selected
+    if (role === 'manager' && !managedCelebrityId) {
+      toast.error(isRTL ? 'يجب اختيار موهبة أولاً' : 'Must select a talent first');
+      setIsSending(false);
+      return;
+    }
+    
     // Resume audio context on user interaction
     resumeAudioContext();
     
@@ -415,29 +425,57 @@ export default function ChatPage() {
         console.debug('Encryption failed, sending unencrypted');
       }
 
+      // Determine sender_id: if manager, use managedCelebrityId; otherwise user.id
+      const senderId = effectiveSenderId;
+      
+      // Determine receiver_id: the other party (company/sender)
+      // If manager is sending on behalf of celebrity, receiver is the company (deal.sender_id)
+      // If company is sending, receiver is the celebrity (deal.celebrity_id or managedCelebrityId)
+      let receiverId = userId;
+      if (role === 'manager' && managedCelebrityId && foundDeal) {
+        // Manager sending as celebrity -> receiver is the company who sent the deal
+        receiverId = foundDeal.sender_id;
+      } else if (role !== 'manager' && foundDeal) {
+        // Company sending -> receiver is the celebrity
+        receiverId = foundDeal.celebrity_id || userId;
+      }
+
       // Insert message with category 'work' and parent_id pointing to conversation root
       // Include deal_id and celebrity_id from the deal
       const { error } = await supabase.from('messages').insert({
-        sender_id: user.id,
-        receiver_id: userId,
+        sender_id: senderId,
+        receiver_id: receiverId,
         content: finalContent,
         voice_url: voiceUrl || null,
         media_url: mediaUrl,
         media_type: mediaType,
         category,
         parent_id: parentId,
-        celebrity_id: (foundDeal || deal)?.celebrity_id || null,
+        celebrity_id: (foundDeal || deal)?.celebrity_id || managedCelebrityId || null,
         deal_id: dealId || foundDeal?.id || null,
       } as any);
       
       if (error) throw error;
 
-      // Push notification
-      const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', user.id).single();
+      // Push notification - use celebrity name for manager actions
+      let senderName = '';
+      if (role === 'manager' && managedCelebrityId) {
+        // Fetch celebrity profile for notification
+        const { data: celebProfile } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', managedCelebrityId)
+          .single();
+        senderName = celebProfile?.display_name || 'Someone';
+      } else {
+        const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', user.id).single();
+        senderName = senderProfile?.display_name || 'Someone';
+      }
+      
       supabase.functions.invoke('send-push-notification', {
         body: {
-          receiverId: userId,
-          senderName: senderProfile?.display_name || 'Someone',
+          receiverId: receiverId,
+          senderName: senderName,
           messageType: voiceUrl ? 'voice' : mediaType || 'text',
           content: text,
         },
@@ -532,7 +570,7 @@ export default function ChatPage() {
         ) : (
           <div className="space-y-3">
             {messages.map((msg, i) => {
-              const isMine = msg.sender_id === user.id;
+              const isMine = msg.sender_id === effectiveSenderId;
               const showDateSep = i === 0 || formatDate(msg.created_at) !== formatDate(messages[i - 1]?.created_at);
               
               // Check if this message has a deal_id and it's the first message with this deal_id
