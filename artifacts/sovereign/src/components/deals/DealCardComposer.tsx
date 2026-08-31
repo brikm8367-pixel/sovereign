@@ -10,6 +10,7 @@ import {
 import { Loader2, Briefcase, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { validateDealCard } from '@/utils/dealValidation';
 
 interface Props {
   open: boolean;
@@ -135,6 +136,25 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
       toast.error(isRTL ? 'لديك عرض قيد المراجعة — انتظر الرد أولاً' : 'You have a pending deal — wait for a reply first');
       return;
     }
+
+    // Smart validation & spam detection
+    const validation = validateDealCard({
+      dealType,
+      budgetRange: budget,
+      pitch,
+      timeline,
+      campaignDescription: pitch, // Use pitch as campaignDescription for validation
+      deliverables: '',
+      whyThem: '',
+      companyName: 'Deal Card', // Placeholder for required field
+      websiteUrl: 'https://example.com', // Placeholder for required field
+    });
+
+    if (!validation.valid) {
+      validation.errors.forEach(err => toast.error(err));
+      return;
+    }
+
     setSending(true);
 
     const typeLabel = DEAL_TYPES.find(t => t.id === dealType);

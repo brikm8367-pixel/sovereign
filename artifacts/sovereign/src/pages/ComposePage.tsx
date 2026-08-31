@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
 import { toast } from 'sonner';
+import { validateDealCard } from '@/utils/dealValidation';
 
 export const ComposePage = () => {
   const { isRTL } = useLanguage();
@@ -72,6 +73,23 @@ export const ComposePage = () => {
     // Validation des champs requis
     if (!companyName.trim() || !websiteUrl.trim() || !budgetRange.trim() || !dealType.trim() || !campaignDescription.trim() || !timeline.trim() || !celebrityId || !user) return;
     
+    // Smart validation & spam detection
+    const validation = validateDealCard({
+      companyName,
+      websiteUrl,
+      budgetRange,
+      campaignDescription,
+      dealType,
+      timeline,
+      deliverables,
+      whyThem,
+    });
+
+    if (!validation.valid) {
+      validation.errors.forEach(err => toast.error(err));
+      return;
+    }
+
     setSending(true);
     try {
       const { error } = await supabase.from('deal_cards').insert({
