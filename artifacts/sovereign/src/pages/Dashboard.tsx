@@ -243,7 +243,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
-          deal_id: dealId as any,
+          deal_id: dealId,
           content: 'تم قبول العرض',
           category: 'work'
         });
@@ -303,7 +303,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
-          deal_id: dealId as any,
+          deal_id: dealId,
           content: 'تم رفض العرض',
           category: 'work'
         });
@@ -342,7 +342,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: askTalentDeal.sender_id,
-          deal_id: askTalentDeal.id as any,
+          deal_id: askTalentDeal.id,
           content: question,
           category: 'work'
         });
