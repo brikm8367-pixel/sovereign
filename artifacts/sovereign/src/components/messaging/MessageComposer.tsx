@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield } from 'lucide-react';
+import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield, Briefcase } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { encryptForRecipient } from '@/utils/e2eManager';
@@ -27,9 +27,18 @@ interface MessageComposerProps {
   onClose: () => void;
   recipient: Profile | null;
   onMessageSent?: () => void;
+  dealId?: string | null; // Added dealId prop for deal card reference
+  dealTitle?: string | null; // Added dealTitle for display context
 }
 
-export default function MessageComposer({ isOpen, onClose, recipient: initialRecipient, onMessageSent }: MessageComposerProps) {
+export default function MessageComposer({ 
+  isOpen, 
+  onClose, 
+  recipient: initialRecipient, 
+  onMessageSent,
+  dealId,
+  dealTitle
+}: MessageComposerProps) {
   const { isRTL } = useLanguage();
   const [content, setContent] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -164,6 +173,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
       }
       const encryptedContent = enc.payload;
 
+      // Insert message with deal_id reference if provided
       const { data: insertedMsg, error } = await supabase.from('messages').insert({
         sender_id: senderId,
         receiver_id: recipient.id,
@@ -173,6 +183,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
         media_type: mediaType,
         category,
         parent_id: parentId,
+        deal_id: dealId, // Include deal_id for threading under specific deal card
       } as any).select('id').single();
       if (error) throw error;
 
@@ -189,6 +200,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
           notificationType,
           conversationId: insertedMsg?.id || null,
           senderId,
+          dealId: dealId, // Include dealId in notification
         },
       }).catch(() => {});
 
@@ -217,13 +229,33 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
     return null;
   }
 
+  const t = (ar: string, en: string) => (isRTL ? ar : en);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md rounded-3xl p-0 gap-0">
         <DialogHeader className="p-5 pb-3 border-b border-border">
-          <DialogTitle className="text-lg font-bold">
-            {isRTL ? 'رسالة عمل جديدة' : 'New Work Message'}
-          </DialogTitle>
+          <div className="flex items-center gap-3">
+            <DialogTitle className="text-lg font-bold flex-1 truncate">
+              {dealId ? t('سؤال حول العرض', 'Question about Deal') : t('رسالة عمل جديدة', 'New Work Message')}
+            </DialogTitle>
+          </div>
+          {/* Deal card context indicator */}
+          {dealId && dealTitle && (
+            <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 flex items-center gap-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+                <Briefcase className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                  {t('بطاقة العرض', 'Deal Card')}
+                </p>
+                <p className="font-medium text-foreground truncate text-sm">
+                  {dealTitle}
+                </p>
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="p-5 space-y-4">
@@ -243,7 +275,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
 
           {/* Message composition */}
           <Textarea
-            placeholder={isRTL ? 'اكتب رسالتك...' : 'Write your message...'}
+            placeholder={dealId ? t('اكتب سؤالك حول هذا العرض...', 'Write your question about this deal...') : t('اكتب رسالتك...', 'Write your message...')}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={4}
@@ -271,19 +303,20 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
               <ImageIcon className="h-5 w-5" />
             </Button>
             <Button variant="outline" onClick={onClose} className="flex-1 h-13 text-base rounded-xl touch-feedback">
-              {isRTL ? 'إلغاء' : 'Cancel'}
+              {t('إلغاء', 'Cancel')}
             </Button>
+            {/* Send button - ALWAYS VISIBLE, only disabled when no content can be sent */}
             <Button
               onClick={() => sendMessage(content)}
               disabled={(!content.trim() && !mediaPreview) || isSending}
-              className="flex-1 h-13 text-base rounded-xl touch-feedback"
+              className="flex-1 h-13 text-base rounded-xl touch-feedback bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {isSending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <>
                   <Send className="h-5 w-5 me-2" />
-                  {isRTL ? 'إرسال' : 'Send'}
+                  {dealId ? t('إرسال السؤال', 'Send Question') : t('إرسال', 'Send')}
                 </>
               )}
             </Button>
@@ -292,7 +325,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
           {/* E2E badge */}
           <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
             <Shield className="h-3 w-3 text-emerald-500" />
-            {isRTL ? 'مشفّر من طرف إلى طرف' : 'End-to-end encrypted'}
+            {t('مشفّر من طرف إلى طرف', 'End-to-end encrypted')}
           </p>
         </div>
       </DialogContent>
