@@ -53,6 +53,7 @@ interface Message {
   receiver_id: string;
   content: string;
   category: 'work' | 'audience' | 'direct';
+  deal_id?: string | null;
   created_at: string;
   is_read: boolean;
   is_edited: boolean;
@@ -94,7 +95,6 @@ export default function Dashboard() {
   const [isProcessing, setIsProcessing] = useState(false);
   const isMountedRef = useRef(true);
 
-  // Fetch pending deals
   const fetchPendingDeals = useCallback(async () => {
     if (!user) return;
     
@@ -136,7 +136,6 @@ export default function Dashboard() {
     }
   }, [user, role, managedCelebrityId]);
 
-  // Fetch conversations - FIXED: Include manager's own messages and use correct currentUserId
   const fetchConversations = useCallback(async () => {
     if (!user) return;
 
@@ -149,7 +148,6 @@ export default function Dashboard() {
     }
 
     try {
-      // Determine the current user ID for messaging (celebrity ID for managers, own user ID for others)
       const currentUserId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
 
       let query = supabase
@@ -159,10 +157,10 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (role === 'manager' && managedCelebrityId) {
-        // For managers, fetch messages where the manager is involved (user.id) OR the managed celebrity is involved
-        query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId},sender_id.eq.${managedCelebrityId}`);
+        query = query.or(
+          `receiver_id.eq.${user.id},sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId},sender_id.eq.${managedCelebrityId}`
+        );
       } else {
-        // For celebrities and senders, fetch messages where they are sender or receiver
         query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
       }
 
@@ -224,7 +222,6 @@ export default function Dashboard() {
     }
   }, [user, role, managedCelebrityId]);
 
-  // Handle Interested (Accept deal)
   const handleInterested = async (dealId: string) => {
     if (!user) return;
     setIsProcessing(true);
@@ -246,7 +243,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
-          deal_id: dealId as any,
+          deal_id: dealId,
           content: 'تم قبول العرض',
           category: 'work'
         });
@@ -274,7 +271,6 @@ export default function Dashboard() {
     }
   };
 
-  // Handle Reject
   const handleReject = async (dealId: string) => {
     if (!user) return;
     setIsProcessing(true);
@@ -306,7 +302,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
-          deal_id: dealId as any,
+          deal_id: dealId,
           content: 'تم رفض العرض',
           category: 'work'
         });
@@ -324,7 +320,6 @@ export default function Dashboard() {
     }
   };
 
-  // Handle Ask Talent Submit
   const handleAskTalentSubmit = async () => {
     if (!user || !askTalentDeal) return;
     
@@ -345,7 +340,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: askTalentDeal.sender_id,
-          deal_id: askTalentDeal.id as any,
+          deal_id: askTalentDeal.id,
           content: question,
           category: 'work'
         });
@@ -365,7 +360,6 @@ export default function Dashboard() {
     }
   };
 
-  // Load data
   useEffect(() => {
     if (authLoading || !user) return;
 
