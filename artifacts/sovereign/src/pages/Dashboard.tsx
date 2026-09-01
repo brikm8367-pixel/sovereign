@@ -136,7 +136,7 @@ export default function Dashboard() {
     }
   }, [user, role, managedCelebrityId]);
 
-  // Fetch conversations - FIXED
+  // Fetch conversations - FIXED: Include manager's own messages and use correct currentUserId
   const fetchConversations = useCallback(async () => {
     if (!user) return;
 
@@ -149,6 +149,9 @@ export default function Dashboard() {
     }
 
     try {
+      // Determine the current user ID for messaging (celebrity ID for managers, own user ID for others)
+      const currentUserId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
+
       let query = supabase
         .from('messages')
         .select('*')
@@ -156,8 +159,10 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (role === 'manager' && managedCelebrityId) {
-        query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId}`);
+        // For managers, fetch messages where the manager is involved (user.id) OR the managed celebrity is involved
+        query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId},sender_id.eq.${managedCelebrityId}`);
       } else {
+        // For celebrities and senders, fetch messages where they are sender or receiver
         query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
       }
 
@@ -168,7 +173,7 @@ export default function Dashboard() {
       const conversationsMap = new Map<string, Conversation>();
       
       for (const msg of (data as any[]) || []) {
-        const otherUserId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
+        const otherUserId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
         if (!otherUserId) continue;
 
         const convId = msg.deal_id || otherUserId;
@@ -198,7 +203,7 @@ export default function Dashboard() {
             existing.last_message = msg.content || '';
             existing.last_message_time = msg.created_at;
           }
-          if (!msg.is_read && msg.receiver_id === user.id) {
+          if (!msg.is_read && msg.receiver_id === currentUserId) {
             existing.unread_count += 1;
           }
         }
