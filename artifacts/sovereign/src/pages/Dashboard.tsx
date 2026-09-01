@@ -39,7 +39,7 @@ interface Deal {
   timeline: string;
   exclusivity: string;
   why_them: string | null;
-  status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'countered';
+  status: 'pending' | 'accepted' | 'declined' | 'completed' | 'countered';
   created_at: string;
   updated_at: string;
   message_id: string | null;
@@ -53,7 +53,6 @@ interface Message {
   receiver_id: string;
   content: string;
   category: 'work' | 'audience' | 'direct';
-  deal_id: string | null;
   created_at: string;
   is_read: boolean;
   is_edited: boolean;
@@ -95,7 +94,7 @@ export default function Dashboard() {
   const [isProcessing, setIsProcessing] = useState(false);
   const isMountedRef = useRef(true);
 
-  // Fetch pending deals (for managers)
+  // Fetch pending deals
   const fetchPendingDeals = useCallback(async () => {
     if (!user) return;
     
@@ -137,7 +136,7 @@ export default function Dashboard() {
     }
   }, [user, role, managedCelebrityId]);
 
-  // Fetch conversations
+  // Fetch conversations - FIXED
   const fetchConversations = useCallback(async () => {
     if (!user) return;
 
@@ -150,9 +149,6 @@ export default function Dashboard() {
     }
 
     try {
-      // Determine the current user ID for messaging (celebrity ID for managers, own user ID for others)
-      const currentUserId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
-
       let query = supabase
         .from('messages')
         .select('*')
@@ -160,10 +156,8 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (role === 'manager' && managedCelebrityId) {
-        // For managers, fetch messages where the celebrity is either sender or receiver
-        query = query.or(`receiver_id.eq.${managedCelebrityId},sender_id.eq.${managedCelebrityId}`);
+        query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId}`);
       } else {
-        // For celebrities and senders, fetch messages where they are sender or receiver
         query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
       }
 
@@ -174,7 +168,7 @@ export default function Dashboard() {
       const conversationsMap = new Map<string, Conversation>();
       
       for (const msg of (data as any[]) || []) {
-        const otherUserId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
+        const otherUserId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
         if (!otherUserId) continue;
 
         const convId = msg.deal_id || otherUserId;
@@ -189,7 +183,7 @@ export default function Dashboard() {
           conversationsMap.set(convId, {
             id: convId,
             user_id: otherUserId,
-            display_name: profile?.display_name || profile?.username || 'User',
+            display_name: profile?.display_name || profile?.username || 'مستخدم',
             username: profile?.username || '',
             avatar_url: profile?.avatar_url || null,
             last_message: msg.content || '',
@@ -204,7 +198,7 @@ export default function Dashboard() {
             existing.last_message = msg.content || '';
             existing.last_message_time = msg.created_at;
           }
-          if (!msg.is_read && msg.receiver_id === currentUserId) {
+          if (!msg.is_read && msg.receiver_id === user.id) {
             existing.unread_count += 1;
           }
         }
@@ -242,20 +236,18 @@ export default function Dashboard() {
       const celebrityId = managedCelebrityId || deal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
 
-      // 1. Insert message with celebrity as sender
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
-          deal_id: dealId,
+          deal_id: dealId as any,
           content: 'تم قبول العرض',
           category: 'work'
         });
 
       if (msgError) throw msgError;
 
-      // 2. Update deal status
       const { error: updateError } = await supabase
         .from('deal_cards')
         .update({
@@ -294,24 +286,22 @@ export default function Dashboard() {
       const celebrityId = managedCelebrityId || deal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
 
-      // 1. Update deal status
       const { error: updateError } = await supabase
         .from('deal_cards')
         .update({
-          status: 'rejected',
+          status: 'declined',
           updated_at: new Date().toISOString()
         })
         .eq('id', dealId);
 
       if (updateError) throw updateError;
 
-      // 2. Insert rejection message with celebrity as sender
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
-          deal_id: dealId,
+          deal_id: dealId as any,
           content: 'تم رفض العرض',
           category: 'work'
         });
@@ -350,7 +340,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: askTalentDeal.sender_id,
-          deal_id: askTalentDeal.id,
+          deal_id: askTalentDeal.id as any,
           content: question,
           category: 'work'
         });
@@ -370,7 +360,7 @@ export default function Dashboard() {
     }
   };
 
-  // Load data on mount
+  // Load data
   useEffect(() => {
     if (authLoading || !user) return;
 
