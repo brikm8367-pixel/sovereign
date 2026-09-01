@@ -254,11 +254,11 @@ export default function Dashboard() {
 
       console.log('[handleInterested] Starting with:', { dealId, celebrityId });
 
-      // 1. Insert message (as manager)
+      // 1. Insert message (as celebrity, not manager)
       const { data: msgData, error: msgError } = await supabase
         .from('messages')
         .insert({
-          sender_id: user.id,
+          sender_id: celebrityId, // Changed from user.id to celebrityId
           receiver_id: deal.sender_id,
           deal_id: dealId,
           content: 'تم قبول العرض',
@@ -332,11 +332,11 @@ export default function Dashboard() {
 
       if (updateError) throw updateError;
 
-      // 2. Send rejection message (optional but recommended)
+      // 2. Send rejection message (as celebrity, not manager)
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
-          sender_id: user.id,
+          sender_id: celebrityId, // Changed from user.id to celebrityId
           receiver_id: deal.sender_id,
           deal_id: dealId,
           content: 'تم رفض العرض',
@@ -374,20 +374,23 @@ export default function Dashboard() {
     setIsSubmittingAsk(true);
 
     try {
+      const celebrityId = managedCelebrityId || askTalentDeal.celebrity_id;
+      if (!celebrityId) throw new Error('No celebrity selected');
+
       console.log('[handleAskTalentSubmit] Starting with:', { 
         dealId: askTalentDeal.id,
         question,
         managerId: user.id,
-        senderId: managedCelebrityId || askTalentDeal.celebrity_id,
+        senderId: celebrityId, // Changed to celebrityId
         receiverId: askTalentDeal.sender_id
       });
 
-      // Insert message (as manager, but shown on behalf of celebrity)
+      // Insert message (as celebrity, not manager)
       const { data: msgData, error: msgError } = await supabase
         .from('messages')
         .insert({
-          sender_id: user.id, // Manager is the sender
-          receiver_id: askTalentDeal.sender_id, // Company is the receiver
+          sender_id: celebrityId, // Changed from user.id to celebrityId
+          receiver_id: askTalentDeal.sender_id,
           deal_id: askTalentDeal.id,
           content: question,
           category: 'work'
