@@ -18,6 +18,7 @@ interface RoleContextType {
   managedCelebrityId: string | null;
   managedCelebrities: ManagedCelebrity[];
   loading: boolean;
+  switching: boolean;
   refresh: () => Promise<void>;
   switchCelebrity: (celebrityId: string) => Promise<void>;
 }
@@ -31,6 +32,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const [managedCelebrityId, setManagedCelebrityId] = useState<string | null>(null);
   const [managedCelebrities, setManagedCelebrities] = useState<ManagedCelebrity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
   
   // Use refs to store latest values for use in callbacks without triggering re-renders
   const managedCelebrityIdRef = useRef(managedCelebrityId);
@@ -238,26 +240,39 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     const currentUser = userRef.current;
     if (!currentUser) return;
     
-    // Verify the celebrity is in the managed list
-    const { data: link, error } = await supabase
-      .from('manager_links')
-      .select('id')
-      .eq('manager_id', currentUser.id)
-      .eq('celebrity_id', celebrityId)
-      .eq('status', 'active')
-      .maybeSingle();
+    setSwitching(true);
+    console.log('[useRole] Switching to celebrity:', celebrityId);
     
-    if (error) {
-      console.error('Error verifying celebrity link:', error);
-      return;
-    }
-    
-    if (link) {
-      // Update ref immediately so refresh() knows a celebrity is selected
-      managedCelebrityIdRef.current = celebrityId;
-      setManagedCelebrityId(celebrityId);
-      // Refresh to sync managedCelebrities list and ensure context is up to date
-      await refresh();
+    try {
+      // Verify the celebrity is in the managed list
+      const { data: link, error } = await supabase
+        .from('manager_links')
+        .select('id')
+        .eq('manager_id', currentUser.id)
+        .eq('celebrity_id', celebrityId)
+        .eq('status', 'active')
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error verifying celebrity link:', error);
+        setSwitching(false);
+        return;
+      }
+      
+      if (link) {
+        // Update ref immediately so refresh() knows a celebrity is selected
+        managedCelebrityIdRef.current = celebrityId;
+        setManagedCelebrityId(celebrityId);
+        // Refresh to sync managedCelebrities list and ensure context is up to date
+        await refresh();
+        console.log('[useRole] Successfully switched to celebrity:', celebrityId);
+      } else {
+        console.warn('[useRole] Celebrity not in managed list:', celebrityId);
+      }
+    } catch (error) {
+      console.error('[useRole] Error switching celebrity:', error);
+    } finally {
+      setSwitching(false);
     }
   }, [refresh]);
 
@@ -272,6 +287,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       managedCelebrityId,
       managedCelebrities,
       loading,
+      switching,
       refresh,
       switchCelebrity,
     }}>

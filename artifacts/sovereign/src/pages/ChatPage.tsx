@@ -14,6 +14,7 @@ import VoiceRecorder from '@/components/messaging/VoiceRecorder';
 import VoicePlayer from '@/components/messaging/VoicePlayer';
 import { encryptForRecipient, decryptFromSender, isEncryptedMessage } from '@/utils/e2eManager';
 import { resumeAudioContext } from '@/utils/sounds';
+import { DealCardInline } from '@/components/deals/DealCardInline';
 
 interface Profile {
   id: string;
@@ -262,6 +263,7 @@ export default function ChatPage() {
           if (dealId && msg.deal_id !== dealId) return;
           // If no dealId but we have an inferred deal, only reload if message matches that deal_id
           if (!dealId && deal && msg.deal_id !== deal.id) return;
+          console.log('[ChatPage] Realtime message received, reloading');
           await loadMessages();
         }
       })
@@ -429,7 +431,7 @@ export default function ChatPage() {
       const senderId = effectiveSenderId;
       
       // Determine receiver_id: the other party (company/sender)
-      // If manager is sending on behalf of celebrity, receiver is the company (deal.sender_id)
+      // If manager is sending as celebrity, receiver is the company (deal.sender_id)
       // If company is sending, receiver is the celebrity (deal.celebrity_id or managedCelebrityId)
       let receiverId = userId;
       if (role === 'manager' && managedCelebrityId && foundDeal) {
@@ -593,7 +595,6 @@ export default function ChatPage() {
                   {isFirstInDealGroup && msg.deal_id && (
                     <DealCardInline 
                       dealId={msg.deal_id} 
-                      fetchDeal={fetchDealForMessage} 
                       isRTL={isRTL} 
                       onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
                       showDetails={showDealDetails} 
@@ -666,7 +667,7 @@ export default function ChatPage() {
           ) : (
             <img src={mediaPreview.url} className="h-20 rounded-xl object-cover" />
           )}
-          <Button size="icon" variant="destructive" className="absolute top-1 end-1 h-6 w-6 rounded-full" onClick={() => { URL.revokeObjectURL(mediaPreview.url); setMediaPreview(null); }}>
+          <Button size="icon" variant="destructive" className="absolute top-1 end-1 h-6 w-6 rounded-full touch-feedback" onClick={() => { URL.revokeObjectURL(mediaPreview.url); setMediaPreview(null); }}>
             <X className="h-3 w-3" />
           </Button>
         </div>
@@ -682,7 +683,7 @@ export default function ChatPage() {
           />
         ) : (
           <div className="flex items-end gap-2">
-            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-full shrink-0" aria-label={t('إرفاق وسائط', 'Attach media')}>
+            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t('إرفاق وسائط', 'Attach media')}>
               <ImageIcon className="h-5 w-5 text-muted-foreground" />
             </Button>
             <div className="flex-1 relative">
@@ -708,189 +709,6 @@ export default function ChatPage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// Inline Deal Card Component - Apple Messages Style
-// Fetches deal data on demand and renders inline with messages
-function DealCardInline({ 
-  dealId, 
-  fetchDeal, 
-  isRTL, 
-  onToggleDetails, 
-  showDetails 
-}: { 
-  dealId: string; 
-  fetchDeal: (dealId: string) => Promise<Deal | null>;
-  isRTL: boolean; 
-  onToggleDetails: () => void; 
-  showDetails: boolean 
-}) {
-  const [deal, setDeal] = useState<Deal | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const t = (ar: string, en: string) => (isRTL ? ar : en);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadDeal = async () => {
-      setIsLoading(true);
-      const dealData = await fetchDeal(dealId);
-      if (!cancelled) {
-        setDeal(dealData);
-        setIsLoading(false);
-      }
-    };
-    loadDeal();
-    return () => { cancelled = true; };
-  }, [dealId, fetchDeal]);
-
-  if (isLoading || !deal) {
-    return (
-      <div className="mb-4 border border-border/50 rounded-2xl bg-card p-4 shadow-sm animate-pulse">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-primary/10 rounded-xl shrink-0">
-            <Briefcase className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1 space-y-1">
-            <div className="h-4 w-3/4 bg-muted rounded" />
-            <div className="h-3 w-1/2 bg-muted rounded" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mb-4 border border-border/50 rounded-2xl bg-card p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="p-2 bg-primary/10 rounded-xl shrink-0">
-            <Briefcase className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-sm text-foreground truncate">
-              {deal.deal_type || t('عرض غير محدد', 'Untitled Offer')}
-            </p>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
-              {deal.company_name && (
-                <>
-                  <Building2 className="h-3 w-3" />
-                  {deal.company_name}
-                </>
-              )}
-              {deal.budget_range && (
-                <>
-                  <span className="text-muted-foreground">·</span>
-                  <DollarSign className="h-3 w-3" />
-                  {deal.budget_range}
-                </>
-              )}
-              {deal.timeline && (
-                <>
-                  <span className="text-muted-foreground">·</span>
-                  <Calendar className="h-3 w-3" />
-                  {deal.timeline}
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-xl shrink-0"
-          onClick={onToggleDetails}
-          aria-label={showDetails ? t('إخفاء التفاصيل', 'Hide details') : t('إظهار التفاصيل', 'Show details')}
-        >
-          {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </Button>
-      </div>
-
-      {showDetails && (
-        <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
-          {deal.website_url && (
-            <div className="flex items-center gap-2 text-sm">
-              <div className="p-1.5 bg-cyan-100 dark:bg-cyan-900/30 rounded-full">
-                <Globe className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                  {t('الموقع الإلكتروني', 'Website')}
-                </p>
-                <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary truncate hover:underline">
-                  {deal.website_url}
-                </a>
-              </div>
-            </div>
-          )}
-          {deal.budget_cycle && (
-            <div className="flex items-center gap-2 text-sm">
-              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                  {t('دورة الميزانية', 'Budget Cycle')}
-                </p>
-                <p className="font-medium text-foreground truncate">{deal.budget_cycle}</p>
-              </div>
-            </div>
-          )}
-          {deal.exclusivity && (
-            <div className="flex items-center gap-2 text-sm">
-              <div className="p-1.5 bg-orange-100 dark:bg-orange-900/30 rounded-full">
-                <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                  {t('الحصرية', 'Exclusivity')}
-                </p>
-                <p className="font-medium text-foreground truncate">{deal.exclusivity}</p>
-              </div>
-            </div>
-          )}
-          {deal.deliverables && (
-            <div className="flex items-center gap-2 text-sm">
-              <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
-                <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                  {t('المخرجات', 'Deliverables')}
-                </p>
-                <p className="font-medium text-foreground truncate">{deal.deliverables}</p>
-              </div>
-            </div>
-          )}
-          {deal.why_them && (
-            <div className="flex items-center gap-2 text-sm">
-              <div className="p-1.5 bg-teal-100 dark:bg-teal-900/30 rounded-full">
-                <UserCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                  {t('لماذا هم', 'Why Them')}
-                </p>
-                <p className="font-medium text-foreground truncate">{deal.why_them}</p>
-              </div>
-            </div>
-          )}
-          {deal.details && (
-            <div className="flex items-start gap-2 text-sm">
-              <div className="p-1.5 bg-gray-100 dark:bg-gray-800 rounded-full mt-0.5">
-                <FileText className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                  {t('التفاصيل', 'Details')}
-                </p>
-                <p className="font-medium text-foreground whitespace-pre-wrap">{deal.details}</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

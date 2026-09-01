@@ -24,6 +24,7 @@ import {
   Moon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DealCardInline } from '@/components/deals/DealCardInline';
 
 interface Deal {
   id: string;
@@ -79,7 +80,7 @@ interface Conversation {
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
-  const { role, managedCelebrityId, managedCelebrities, switchCelebrity } = useRole();
+  const { role, managedCelebrityId, managedCelebrities, switchCelebrity, switching } = useRole();
   const { isRTL } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -92,7 +93,21 @@ export default function Dashboard() {
   const [askTalentQuestion, setAskTalentQuestion] = useState('');
   const [isSubmittingAsk, setIsSubmittingAsk] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showDealDetails, setShowDealDetails] = useState<Record<string, boolean>>({});
   const isMountedRef = useRef(true);
+
+  // Reset data when managedCelebrityId changes
+  useEffect(() => {
+    if (role === 'manager' && managedCelebrityId) {
+      console.log('[Dashboard] Celebrity changed, resetting data for:', managedCelebrityId);
+      setPendingDeals([]);
+      setConversations([]);
+      setIsLoadingDeals(true);
+      setIsLoadingMessages(true);
+      fetchPendingDeals();
+      fetchConversations();
+    }
+  }, [managedCelebrityId, role]);
 
   const fetchPendingDeals = useCallback(async () => {
     if (!user) return;
@@ -106,6 +121,7 @@ export default function Dashboard() {
     }
 
     try {
+      console.log('[Dashboard] Fetching pending deals for:', role === 'manager' ? managedCelebrityId : user.id);
       const query = supabase
         .from('deal_cards')
         .select('*')
@@ -126,6 +142,7 @@ export default function Dashboard() {
       if (isMountedRef.current) {
         setPendingDeals(data as Deal[] || []);
         setIsLoadingDeals(false);
+        console.log('[Dashboard] Fetched pending deals:', data?.length || 0);
       }
     } catch (error) {
       console.error('Error fetching pending deals:', error);
@@ -147,7 +164,10 @@ export default function Dashboard() {
     }
 
     try {
+      // Determine the current user ID for messaging (celebrity ID for managers, own user ID for others)
       const currentUserId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
+
+      console.log('[Dashboard] Fetching conversations for:', currentUserId, 'role:', role);
 
       let query = supabase
         .from('messages')
@@ -156,10 +176,12 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (role === 'manager' && managedCelebrityId) {
+        // For managers, fetch messages where the manager is involved (user.id) OR the managed celebrity is involved
         query = query.or(
           `receiver_id.eq.${user.id},sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId},sender_id.eq.${managedCelebrityId}`
         );
       } else {
+        // For celebrities and senders, fetch messages where they are sender or receiver
         query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
       }
 
@@ -212,6 +234,7 @@ export default function Dashboard() {
       if (isMountedRef.current) {
         setConversations(conversationsList);
         setIsLoadingMessages(false);
+        console.log('[Dashboard] Fetched conversations:', conversationsList.length);
       }
     } catch (error) {
       console.error('Error fetching conversations:', error);
@@ -226,6 +249,7 @@ export default function Dashboard() {
     setIsProcessing(true);
 
     try {
+      console.log('[Dashboard] Accepting deal:', dealId);
       const { data: deal, error: dealError } = await supabase
         .from('deal_cards')
         .select('*')
@@ -261,6 +285,7 @@ export default function Dashboard() {
       if (updateError) throw updateError;
 
       toast.success('تم قبول العرض بنجاح');
+      console.log('[Dashboard] Deal accepted successfully');
       await fetchPendingDeals();
       
     } catch (error: any) {
@@ -276,6 +301,7 @@ export default function Dashboard() {
     setIsProcessing(true);
 
     try {
+      console.log('[Dashboard] Rejecting deal:', dealId);
       const { data: deal, error: dealError } = await supabase
         .from('deal_cards')
         .select('*')
@@ -311,6 +337,7 @@ export default function Dashboard() {
       if (msgError) throw msgError;
 
       toast.success('تم رفض العرض بنجاح');
+      console.log('[Dashboard] Deal rejected successfully');
       await fetchPendingDeals();
       
     } catch (error: any) {
@@ -336,6 +363,8 @@ export default function Dashboard() {
       const celebrityId = managedCelebrityId || askTalentDeal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
 
+      console.log('[Dashboard] Sending Ask Talent question for deal:', askTalentDeal.id);
+
       // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
@@ -350,6 +379,7 @@ export default function Dashboard() {
       if (msgError) throw msgError;
 
       toast.success('تم إرسال السؤال بنجاح');
+      console.log('[Dashboard] Ask Talent question sent successfully');
       setAskTalentDeal(null);
       setAskTalentQuestion('');
       await fetchConversations();
@@ -362,6 +392,7 @@ export default function Dashboard() {
     }
   };
 
+  // Load data on mount
   useEffect(() => {
     if (authLoading || !user) return;
 
@@ -372,15 +403,31 @@ export default function Dashboard() {
       .channel('dashboard-changes')
       .on('postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'deal_cards' },
-        () => { fetchPendingDeals(); }
+        (payload) => {
+          console.log('[Dashboard] Realtime: New deal inserted', payload);
+          fetchPendingDeals();
+        }
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'deal_cards', filter: `status=eq.pending` },
-        () => { fetchPendingDeals(); }
+        (payload) => {
+          console.log('[Dashboard] Realtime: Deal updated', payload);
+          fetchPendingDeals();
+        }
       )
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
-        () => { fetchConversations(); }
+        (payload) => {
+          console.log('[Dashboard] Realtime: New message inserted', payload);
+          fetchConversations();
+        }
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          console.log('[Dashboard] Realtime: Message updated', payload);
+          fetchConversations();
+        }
       )
       .subscribe();
 
@@ -437,12 +484,14 @@ export default function Dashboard() {
               {managedCelebrities.map((celeb) => (
                 <button
                   key={celeb.id}
-                  onClick={() => switchCelebrity(celeb.id)}
+                  onClick={() => !switching && switchCelebrity(celeb.id)}
+                  disabled={switching}
                   className={cn(
-                    'flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all shrink-0',
+                    'flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all shrink-0 touch-feedback',
                     celeb.id === managedCelebrityId
                       ? 'bg-primary/10 border border-primary/20'
-                      : 'bg-card border border-border/50'
+                      : 'bg-card border border-border/50',
+                    switching && 'opacity-50'
                   )}
                 >
                   <Avatar className="h-10 w-10 ring-2 ring-primary/10">
@@ -454,6 +503,9 @@ export default function Dashboard() {
                   <span className="text-[10px] font-medium truncate max-w-[60px]">
                     {celeb.display_name || celeb.username}
                   </span>
+                  {switching && celeb.id === managedCelebrityId && (
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  )}
                 </button>
               ))}
             </div>
@@ -488,32 +540,19 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {pendingDeals.map((deal) => (
                   <div key={deal.id} className="bg-card rounded-xl border border-border p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-sm">{deal.company_name}</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {deal.deal_type} · {deal.budget_range}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {deal.details}
-                        </p>
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-[10px] bg-yellow-500/10 text-yellow-600 px-2 py-0.5 rounded-full">
-                            قيد المراجعة
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {new Date(deal.created_at).toLocaleDateString('ar-SA')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
+                    <DealCardInline 
+                      dealId={deal.id} 
+                      isRTL={isRTL} 
+                      onToggleDetails={() => setShowDealDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
+                      showDetails={showDealDetails[deal.id] || false}
+                    />
+                    
                     {managedCelebrityId && (
                       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
                         <Button
                           onClick={() => handleInterested(deal.id)}
                           disabled={isProcessing}
-                          className="flex-1 h-9 rounded-xl bg-green-600 hover:bg-green-700 text-xs font-semibold"
+                          className="flex-1 h-9 rounded-xl bg-green-600 hover:bg-green-700 text-xs font-semibold touch-feedback"
                         >
                           <Check className="h-3.5 w-3.5 mr-1" />
                           قبول
@@ -522,7 +561,7 @@ export default function Dashboard() {
                           onClick={() => handleReject(deal.id)}
                           disabled={isProcessing}
                           variant="outline"
-                          className="flex-1 h-9 rounded-xl border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold"
+                          className="flex-1 h-9 rounded-xl border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold touch-feedback"
                         >
                           <X className="h-3.5 w-3.5 mr-1" />
                           رفض
@@ -531,7 +570,7 @@ export default function Dashboard() {
                           onClick={() => setAskTalentDeal(deal)}
                           disabled={isProcessing}
                           variant="outline"
-                          className="flex-1 h-9 rounded-xl border-blue-300 text-blue-600 hover:bg-blue-50 text-xs font-semibold"
+                          className="flex-1 h-9 rounded-xl border-blue-300 text-blue-600 hover:bg-blue-50 text-xs font-semibold touch-feedback"
                         >
                           <MessageCircle className="h-3.5 w-3.5 mr-1" />
                           سؤال
@@ -581,7 +620,7 @@ export default function Dashboard() {
                   setAskTalentDeal(null);
                   setAskTalentQuestion('');
                 }}
-                className="h-8 w-8 rounded-full"
+                className="h-8 w-8 rounded-full touch-feedback"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -605,7 +644,7 @@ export default function Dashboard() {
               <Button
                 onClick={handleAskTalentSubmit}
                 disabled={isSubmittingAsk || !askTalentQuestion.trim()}
-                className="w-full h-12 rounded-xl"
+                className="w-full h-12 rounded-xl touch-feedback"
               >
                 {isSubmittingAsk ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
