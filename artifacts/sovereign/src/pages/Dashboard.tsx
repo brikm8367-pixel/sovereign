@@ -53,7 +53,6 @@ interface Message {
   receiver_id: string;
   content: string;
   category: 'work' | 'audience' | 'direct';
-  deal_id?: string | null;
   created_at: string;
   is_read: boolean;
   is_edited: boolean;
@@ -243,7 +242,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
-          deal_id: dealId,
+          deal_id: dealId as any,
           content: 'تم قبول العرض',
           category: 'work'
         });
@@ -302,7 +301,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
-          deal_id: dealId,
+          deal_id: dealId as any,
           content: 'تم رفض العرض',
           category: 'work'
         });
@@ -340,7 +339,7 @@ export default function Dashboard() {
         .insert({
           sender_id: celebrityId,
           receiver_id: askTalentDeal.sender_id,
-          deal_id: askTalentDeal.id,
+          deal_id: askTalentDeal.id as any,
           content: question,
           category: 'work'
         });
