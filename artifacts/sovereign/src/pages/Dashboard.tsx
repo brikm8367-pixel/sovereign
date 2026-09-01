@@ -237,6 +237,7 @@ export default function Dashboard() {
       const celebrityId = managedCelebrityId || deal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
 
+      // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
@@ -296,6 +297,7 @@ export default function Dashboard() {
 
       if (updateError) throw updateError;
 
+      // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
@@ -334,6 +336,7 @@ export default function Dashboard() {
       const celebrityId = managedCelebrityId || askTalentDeal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
 
+      // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
