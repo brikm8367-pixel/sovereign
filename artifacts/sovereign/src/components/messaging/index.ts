@@ -2,7 +2,6 @@ export { default as InboxSection } from './InboxSection';
 export { default as MessageComposer } from './MessageComposer';
 export { MessageViewer } from './MessageViewer';
 export { default as ConversationView } from './ConversationView';
-export { default as DirectAccessManager } from './DirectAccessManager';
 export { default as VoiceRecorder } from './VoiceRecorder';
 export { default as VoicePlayer } from './VoicePlayer';
 export { default as CallScreen } from './CallScreen';

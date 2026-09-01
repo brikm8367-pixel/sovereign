@@ -10,10 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Message, MessageCategory } from './InboxSection';
-import VoiceRecorder from './VoiceRecorder';
-import VoicePlayer from './VoicePlayer';
-import CallScreen from './CallScreen';
-import BlockReportDialog from './BlockReportDialog';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { encryptForRecipient, decryptFromSender, isEncryptedMessage } from '@/utils/e2eManager';
 import { initScreenshotDetection, onScreenshot, notifyScreenshot } from '@/utils/screenshotDetection';
@@ -432,13 +428,13 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
   if (!message) return null;
   if (activeCall) {
     return (
-      <CallScreen
-        recipientId={otherUserId!}
-        recipientName={message.sender_profile?.display_name || message.sender_profile?.username || ''}
-        recipientAvatar={message.sender_profile?.avatar_url || undefined}
-        callType={activeCall.type}
-        onEnd={() => setActiveCall(null)}
-      />
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center p-8">
+          <Video className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">Call screen component not available</p>
+          <Button onClick={() => setActiveCall(null)} className="mt-4">End Call</Button>
+        </div>
+      </div>
     );
   }
 
@@ -631,7 +627,10 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                             <video src={msg.media_url} controls className="rounded-xl max-w-full mb-1.5" />
                           )}
                           {msg.voice_url ? (
-                            <VoicePlayer url={msg.voice_url} isMine={isMine} />
+                            <div className="flex items-center gap-2 p-2 bg-background/50 rounded-xl">
+                              <Mic className="h-5 w-5 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">{isRTL ? 'رسالة صوتية' : 'Voice message'}</span>
+                            </div>
                           ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
                             <p className="whitespace-pre-wrap">{msg.content === '🔒' ? (
                               <span className="flex items-center gap-1 text-muted-foreground italic text-sm">
@@ -772,7 +771,13 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         <div className="shrink-0 border-t border-border px-2 py-2 bg-card sm:rounded-b-3xl">
           <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleFileSelect} className="hidden" />
           {showVoice ? (
-            <VoiceRecorder onRecordComplete={(url) => handleSendReply('🎤', url)} onCancel={() => setShowVoice(false)} />
+            <div className="flex items-center gap-2 p-4 bg-muted/30 rounded-xl">
+              <Mic className="h-6 w-6 text-primary" />
+              <span className="text-sm text-muted-foreground">{isRTL ? 'تسجيل صوتي غير متاح' : 'Voice recording not available'}</span>
+              <Button variant="ghost" size="icon" onClick={() => setShowVoice(false)} className="ml-auto">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           ) : (
             <div className="flex items-end gap-1.5">
               <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-10 w-10 rounded-full shrink-0">
@@ -835,12 +840,15 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     </AlertDialog>
 
     {showBlockReport && message && (
-      <BlockReportDialog
-        isOpen={showBlockReport}
-        onClose={() => setShowBlockReport(false)}
-        targetUserId={otherUserId!}
-        targetName={otherName}
-      />
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+        <div className="bg-card rounded-2xl max-w-md w-full mx-4 p-6">
+          <h3 className="font-semibold text-lg mb-4">{isRTL ? 'حظر/إبلاغ' : 'Block/Report'}</h3>
+          <p className="text-muted-foreground mb-6">{isRTL ? 'ميزة الحظر والإبلاغ غير متاحة حالياً' : 'Block/Report feature not available'}</p>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setShowBlockReport(false)}>{isRTL ? 'إلغاء' : 'Cancel'}</Button>
+          </div>
+        </div>
+      </div>
     )}
     </>
   );

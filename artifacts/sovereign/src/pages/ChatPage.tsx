@@ -10,8 +10,6 @@ import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X,
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import VoiceRecorder from '@/components/messaging/VoiceRecorder';
-import VoicePlayer from '@/components/messaging/VoicePlayer';
 import { encryptForRecipient, decryptFromSender, isEncryptedMessage } from '@/utils/e2eManager';
 import { resumeAudioContext } from '@/utils/sounds';
 import { DealCardInline } from '@/components/deals/DealCardInline';
@@ -640,7 +638,10 @@ export default function ChatPage() {
                           <video src={msg.media_url} controls className="rounded-xl max-w-full mb-1.5" />
                         )}
                         {msg.voice_url ? (
-                          <VoicePlayer url={msg.voice_url} isMine={isMine} />
+                          <div className="flex items-center gap-2 p-2 bg-background/50 rounded-xl">
+                            <Mic className="h-5 w-5 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">{isRTL ? 'رسالة صوتية' : 'Voice message'}</span>
+                          </div>
                         ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
                           <p className="whitespace-pre-wrap">{msg.content === '🔒' ? (
                             <span className="flex items-center gap-1 text-muted-foreground/70 italic text-sm">
@@ -701,10 +702,13 @@ export default function ChatPage() {
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border/50 safe-area-inset-bottom px-4 pb-4 max-w-lg mx-auto">
         <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
         {showVoice ? (
-          <VoiceRecorder
-            onRecordComplete={(url) => handleSend('🎤', url)}
-            onCancel={() => setShowVoice(false)}
-          />
+          <div className="flex items-center gap-2 p-4 bg-muted/30 rounded-xl">
+            <Mic className="h-6 w-6 text-primary" />
+            <span className="text-sm text-muted-foreground">{isRTL ? 'تسجيل صوتي غير متاح' : 'Voice recording not available'}</span>
+            <Button variant="ghost" size="icon" onClick={() => setShowVoice(false)} className="ml-auto">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         ) : (
           <div className="flex items-end gap-2">
             <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t('إرفاق وسائط', 'Attach media')}>
