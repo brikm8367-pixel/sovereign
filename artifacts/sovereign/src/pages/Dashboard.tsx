@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BottomNavigation } from '@/components/BottomNavigation';
 import { InboxSection } from '@/components/InboxSection';
+import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { 
   Loader2, 
@@ -17,17 +18,10 @@ import {
   Check, 
   X, 
   MessageCircle, 
-  Users, 
   User, 
-  ChevronDown,
-  ChevronUp,
   Send,
-  ArrowRight,
-  ArrowLeft,
-  Search,
-  Filter,
-  Clock,
-  AlertCircle
+  Sun,
+  Moon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -45,10 +39,12 @@ interface Deal {
   timeline: string;
   exclusivity: string;
   why_them: string | null;
-  status: 'pending' | 'accepted' | 'rejected' | 'completed';
+  status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'countered';
   created_at: string;
   updated_at: string;
   message_id: string | null;
+  golden_hour: boolean;
+  golden_hour_expires_at: string | null;
 }
 
 interface Message {
@@ -56,7 +52,7 @@ interface Message {
   sender_id: string;
   receiver_id: string;
   content: string;
-  category: string;
+  category: 'work' | 'audience' | 'direct';
   deal_id: string | null;
   created_at: string;
   is_read: boolean;
@@ -64,6 +60,9 @@ interface Message {
   media_url: string | null;
   media_type: string | null;
   voice_url: string | null;
+  edited_at: string | null;
+  expires_at: string | null;
+  is_important: boolean;
 }
 
 interface Conversation {
@@ -83,14 +82,13 @@ export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const { role, managedCelebrityId, managedCelebrities, switchCelebrity } = useRole();
   const { isRTL } = useLanguage();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   
   const [pendingDeals, setPendingDeals] = useState<Deal[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingDeals, setIsLoadingDeals] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
-  const [activeCategory, setActiveCategory] = useState<'work' | 'private' | 'public'>('work');
   const [askTalentDeal, setAskTalentDeal] = useState<Deal | null>(null);
   const [askTalentQuestion, setAskTalentQuestion] = useState('');
   const [isSubmittingAsk, setIsSubmittingAsk] = useState(false);
@@ -101,7 +99,6 @@ export default function Dashboard() {
   const fetchPendingDeals = useCallback(async () => {
     if (!user) return;
     
-    // For managers: only fetch if managedCelebrityId exists
     if (role === 'manager' && !managedCelebrityId) {
       if (isMountedRef.current) {
         setPendingDeals([]);
@@ -116,13 +113,11 @@ export default function Dashboard() {
         .select('*')
         .eq('status', 'pending');
 
-      // If manager, filter by celebrity_id = managedCelebrityId
       if (role === 'manager' && managedCelebrityId) {
         query.eq('celebrity_id', managedCelebrityId);
       } else if (role === 'sender') {
         query.eq('sender_id', user.id);
       } else {
-        // For celebrities, show deals where they are the celebrity
         query.eq('celebrity_id', user.id);
       }
 
@@ -131,7 +126,7 @@ export default function Dashboard() {
       if (error) throw error;
       
       if (isMountedRef.current) {
-        setPendingDeals(data || []);
+        setPendingDeals(data as Deal[] || []);
         setIsLoadingDeals(false);
       }
     } catch (error) {
@@ -142,11 +137,10 @@ export default function Dashboard() {
     }
   }, [user, role, managedCelebrityId]);
 
-  // Fetch conversations (FIXED: includes messages sent by manager)
+  // Fetch conversations
   const fetchConversations = useCallback(async () => {
     if (!user) return;
 
-    // For managers: only fetch if managedCelebrityId exists
     if (role === 'manager' && !managedCelebrityId) {
       if (isMountedRef.current) {
         setConversations([]);
@@ -159,15 +153,12 @@ export default function Dashboard() {
       let query = supabase
         .from('messages')
         .select('*')
-        .eq('category', activeCategory)
+        .eq('category', 'work')
         .order('created_at', { ascending: false });
 
-      // ✅ FIX: Use or() to get messages where user is either sender or receiver
       if (role === 'manager' && managedCelebrityId) {
-        // For managers: get messages involving the managed celebrity or sent/received by the manager
         query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId}`);
       } else {
-        // For regular users: get messages sent to or from the user
         query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
       }
 
@@ -175,19 +166,15 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      // Group messages by conversation (user or deal)
       const conversationsMap = new Map<string, Conversation>();
       
-      for (const msg of data || []) {
+      for (const msg of (data as any[]) || []) {
         const otherUserId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
-        
-        // Skip if no other user
         if (!otherUserId) continue;
 
         const convId = msg.deal_id || otherUserId;
         
         if (!conversationsMap.has(convId)) {
-          // Fetch user profile for display
           const { data: profile } = await supabase
             .from('profiles')
             .select('id, display_name, username, avatar_url')
@@ -207,7 +194,6 @@ export default function Dashboard() {
             category: msg.category || 'work'
           });
         } else {
-          // Update last message if newer
           const existing = conversationsMap.get(convId)!;
           if (new Date(msg.created_at) > new Date(existing.last_message_time)) {
             existing.last_message = msg.content || '';
@@ -232,7 +218,7 @@ export default function Dashboard() {
         setIsLoadingMessages(false);
       }
     }
-  }, [user, role, managedCelebrityId, activeCategory]);
+  }, [user, role, managedCelebrityId]);
 
   // Handle Interested (Accept deal)
   const handleInterested = async (dealId: string) => {
@@ -240,7 +226,6 @@ export default function Dashboard() {
     setIsProcessing(true);
 
     try {
-      // Fetch deal details
       const { data: deal, error: dealError } = await supabase
         .from('deal_cards')
         .select('*')
@@ -252,27 +237,18 @@ export default function Dashboard() {
       const celebrityId = managedCelebrityId || deal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
 
-      console.log('[handleInterested] Starting with:', { dealId, celebrityId });
-
-      // 1. Insert message (as celebrity, not manager)
-      const { data: msgData, error: msgError } = await supabase
+      // 1. Insert message with celebrity as sender
+      const { error: msgError } = await supabase
         .from('messages')
         .insert({
-          sender_id: celebrityId, // Changed from user.id to celebrityId
+          sender_id: celebrityId,
           receiver_id: deal.sender_id,
           deal_id: dealId,
           content: 'تم قبول العرض',
           category: 'work'
-        })
-        .select('id')
-        .single();
+        });
 
-      if (msgError) {
-        console.error('[handleInterested] Error inserting message:', msgError);
-        throw msgError;
-      }
-
-      console.log('[handleInterested] Message inserted successfully:', msgData);
+      if (msgError) throw msgError;
 
       // 2. Update deal status
       const { error: updateError } = await supabase
@@ -283,20 +259,13 @@ export default function Dashboard() {
         })
         .eq('id', dealId);
 
-      if (updateError) {
-        console.error('[handleInterested] Error updating deal:', updateError);
-        throw updateError;
-      }
-
-      console.log('[handleInterested] Deal status updated to accepted');
+      if (updateError) throw updateError;
 
       toast.success('تم قبول العرض بنجاح');
-      
-      // Refresh deals list
       await fetchPendingDeals();
       
-    } catch (error) {
-      console.error('[handleInterested] Full error:', error);
+    } catch (error: any) {
+      console.error('Error accepting deal:', error);
       toast.error('فشل قبول العرض: ' + (error.message || ''));
     } finally {
       setIsProcessing(false);
@@ -309,7 +278,6 @@ export default function Dashboard() {
     setIsProcessing(true);
 
     try {
-      // Fetch deal details
       const { data: deal, error: dealError } = await supabase
         .from('deal_cards')
         .select('*')
@@ -332,28 +300,23 @@ export default function Dashboard() {
 
       if (updateError) throw updateError;
 
-      // 2. Send rejection message (as celebrity, not manager)
+      // 2. Insert rejection message with celebrity as sender
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
-          sender_id: celebrityId, // Changed from user.id to celebrityId
+          sender_id: celebrityId,
           receiver_id: deal.sender_id,
           deal_id: dealId,
           content: 'تم رفض العرض',
           category: 'work'
         });
 
-      if (msgError) {
-        console.warn('Failed to send rejection message:', msgError);
-        // Don't throw, just log
-      }
+      if (msgError) throw msgError;
 
       toast.success('تم رفض العرض بنجاح');
-      
-      // Refresh deals list
       await fetchPendingDeals();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error rejecting deal:', error);
       toast.error('فشل رفض العرض: ' + (error.message || ''));
     } finally {
@@ -377,59 +340,38 @@ export default function Dashboard() {
       const celebrityId = managedCelebrityId || askTalentDeal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
 
-      console.log('[handleAskTalentSubmit] Starting with:', { 
-        dealId: askTalentDeal.id,
-        question,
-        managerId: user.id,
-        senderId: celebrityId, // Changed to celebrityId
-        receiverId: askTalentDeal.sender_id
-      });
-
-      // Insert message (as celebrity, not manager)
-      const { data: msgData, error: msgError } = await supabase
+      const { error: msgError } = await supabase
         .from('messages')
         .insert({
-          sender_id: celebrityId, // Changed from user.id to celebrityId
+          sender_id: celebrityId,
           receiver_id: askTalentDeal.sender_id,
           deal_id: askTalentDeal.id,
           content: question,
           category: 'work'
-        })
-        .select('id')
-        .single();
+        });
 
-      if (msgError) {
-        console.error('[handleAskTalentSubmit] Error sending question:', msgError);
-        throw msgError;
-      }
-
-      console.log('[handleAskTalentSubmit] Question sent successfully:', msgData);
+      if (msgError) throw msgError;
 
       toast.success('تم إرسال السؤال بنجاح');
-      
-      // Clear the dialog
       setAskTalentDeal(null);
       setAskTalentQuestion('');
-      
-      // Refresh conversations
       await fetchConversations();
       
-    } catch (error) {
-      console.error('[handleAskTalentSubmit] Full error:', error);
+    } catch (error: any) {
+      console.error('Error sending question:', error);
       toast.error('فشل إرسال السؤال: ' + (error.message || ''));
     } finally {
       setIsSubmittingAsk(false);
     }
   };
 
-  // Load data on mount and when dependencies change
+  // Load data on mount
   useEffect(() => {
     if (authLoading || !user) return;
 
     fetchPendingDeals();
     fetchConversations();
 
-    // Set up real-time subscriptions
     const subscription = supabase
       .channel('dashboard-changes')
       .on('postgres_changes', 
@@ -452,7 +394,6 @@ export default function Dashboard() {
     };
   }, [user, authLoading, managedCelebrityId, role, fetchPendingDeals, fetchConversations]);
 
-  // Show loader while auth is loading
   if (authLoading || (!user && !authLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -463,25 +404,37 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
-      {/* Header */}
       <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
         <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
           <h1 className="font-bold text-lg">
             {role === 'manager' ? 'لوحة الوكيل' : 'الرئيسية'}
           </h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/profile')}
-            className="h-10 w-10 rounded-xl touch-feedback"
-          >
-            <User className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-10 w-10 rounded-xl touch-feedback"
+            >
+              {theme === 'dark' ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/profile')}
+              className="h-10 w-10 rounded-xl touch-feedback"
+            >
+              <User className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-lg mx-auto pt-16 pb-20 px-4">
-        {/* Manager: Celebrity Switcher */}
         {role === 'manager' && managedCelebrities.length > 0 && (
           <div className="mb-4">
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-2">
@@ -511,7 +464,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Pending Deals Section (only for managers) */}
         {role === 'manager' && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
@@ -560,7 +512,6 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* Action buttons */}
                     {managedCelebrityId && (
                       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
                         <Button
@@ -598,7 +549,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Inbox Section */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-base flex items-center gap-2">
@@ -610,8 +560,6 @@ export default function Dashboard() {
           <InboxSection
             conversations={conversations}
             isLoading={isLoadingMessages}
-            activeCategory={activeCategory}
-            onCategoryChange={setActiveCategory}
             onConversationClick={(conv) => {
               if (conv.deal_id) {
                 navigate(`/chat/${conv.user_id}?dealId=${conv.deal_id}`);
@@ -623,7 +571,6 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* Ask Talent Dialog */}
       {askTalentDeal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center">
           <div className="bg-card rounded-t-2xl max-w-lg w-full max-h-[80vh] p-4 animate-slide-up">
