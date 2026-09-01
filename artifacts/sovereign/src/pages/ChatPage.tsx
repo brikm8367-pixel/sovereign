@@ -698,7 +698,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Fixed Bottom Input - Apple Messages Style */}
+      {/* Fixed Bottom Input - Apple Messages Style with always-visible Send button */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border/50 safe-area-inset-bottom px-4 pb-4 max-w-lg mx-auto">
         <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
         {showVoice ? (
@@ -721,19 +721,30 @@ export default function ChatPage() {
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 rows={1}
-                className="w-full resize-none text-[15px] rounded-2xl border border-border/50 bg-card px-4 py-3 min-h-[48px] max-h-32 focus:outline-none focus:border-primary/50 transition-colors"
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(replyContent); } }}
+                className="w-full resize-none text-[15px] rounded-2xl border border-border/50 bg-card px-4 py-3 min-h-[48px] max-h-32 focus:outline-none focus:border-primary/50 transition-colors pr-14"
+                onKeyDown={(e) => { 
+                  if (e.key === 'Enter' && !e.shiftKey) { 
+                    e.preventDefault(); 
+                    if (replyContent.trim() || mediaPreview) {
+                      handleSend(replyContent);
+                    }
+                  } 
+                }}
               />
             </div>
-            {replyContent.trim() || mediaPreview ? (
-              <Button onClick={() => handleSend(replyContent)} disabled={isSending} size="icon" className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t('إرسال', 'Send')}>
-                {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-              </Button>
-            ) : (
-              <Button variant="ghost" size="icon" onClick={() => setShowVoice(true)} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t('رسالة صوتية', 'Voice message')}>
-                <Mic className="h-5 w-5 text-muted-foreground" />
-              </Button>
-            )}
+            {/* Always-visible Send button - disabled only when no content and no media */}
+            <Button 
+              onClick={() => { if (replyContent.trim() || mediaPreview) handleSend(replyContent); }} 
+              disabled={isSending || (!replyContent.trim() && !mediaPreview)} 
+              size="icon" 
+              className="h-12 w-12 rounded-full shrink-0 touch-feedback bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:hover:bg-primary"
+              aria-label={t('إرسال', 'Send')}
+            >
+              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setShowVoice(true)} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t('رسالة صوتية', 'Voice message')}>
+              <Mic className="h-5 w-5 text-muted-foreground" />
+            </Button>
           </div>
         )}
       </div>
