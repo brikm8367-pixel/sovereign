@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
@@ -95,6 +95,8 @@ export default function Dashboard() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showDealDetails, setShowDealDetails] = useState<Record<string, boolean>>({});
   const isMountedRef = useRef(true);
+  const fetchConversationsRef = useRef<() => Promise<void>>();
+  const fetchPendingDealsRef = useRef<() => Promise<void>>();
 
   // Reset data when managedCelebrityId changes
   useEffect(() => {
@@ -173,7 +175,8 @@ export default function Dashboard() {
         .from('messages')
         .select('*')
         .eq('category', 'work')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50); // Limit to 50 most recent messages per conversation
 
       if (role === 'manager' && managedCelebrityId) {
         // For managers, fetch messages where the manager is involved (user.id) OR the managed celebrity is involved
@@ -243,6 +246,15 @@ export default function Dashboard() {
       }
     }
   }, [user, role, managedCelebrityId]);
+
+  // Store refs for use in effects
+  useEffect(() => {
+    fetchConversationsRef.current = fetchConversations;
+  }, [fetchConversations]);
+
+  useEffect(() => {
+    fetchPendingDealsRef.current = fetchPendingDeals;
+  }, [fetchPendingDeals]);
 
   const handleInterested = async (dealId: string) => {
     if (!user) return;
@@ -437,6 +449,20 @@ export default function Dashboard() {
     };
   }, [user, authLoading, managedCelebrityId, role, fetchPendingDeals, fetchConversations]);
 
+  // Refresh when navigating back to dashboard
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isMountedRef.current && user) {
+        console.log('[Dashboard] Window focus, refreshing data');
+        fetchPendingDeals();
+        fetchConversations();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user, fetchPendingDeals, fetchConversations]);
+
   if (authLoading || (!user && !authLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -444,6 +470,9 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  // Memoize conversations to prevent unnecessary re-renders
+  const memoizedConversations = useMemo(() => conversations, [conversations]);
 
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -593,7 +622,7 @@ export default function Dashboard() {
           </div>
 
           <InboxSection
-            conversations={conversations}
+            conversations={memoizedConversations}
             isLoading={isLoadingMessages}
             onConversationClick={(conv) => {
               if (conv.deal_id) {

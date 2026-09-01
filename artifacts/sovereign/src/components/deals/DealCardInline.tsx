@@ -148,7 +148,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 rounded-xl shrink-0"
+          className="h-8 w-8 rounded-xl shrink-0 touch-feedback"
           onClick={onToggleDetails}
           aria-label={showDetails ? t(isRTL, 'إخفاء التفاصيل', 'Hide details') : t(isRTL, 'إظهار التفاصيل', 'Show details')}
         >
@@ -158,6 +158,19 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
 
       {showDetails && (
         <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+          {deal.company_name && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t(isRTL, 'اسم الشركة', 'Company Name')}
+                </p>
+                <p className="font-medium text-foreground truncate">{deal.company_name}</p>
+              </div>
+            </div>
+          )}
           {deal.website_url && (
             <div className="flex items-center gap-2 text-sm">
               <div className="p-1.5 bg-cyan-100 dark:bg-cyan-900/30 rounded-full">
@@ -170,6 +183,19 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
                 <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary truncate hover:underline">
                   {deal.website_url}
                 </a>
+              </div>
+            </div>
+          )}
+          {deal.budget_range && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-full">
+                <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t(isRTL, 'نطاق الميزانية', 'Budget Range')}
+                </p>
+                <p className="font-medium text-foreground truncate">{deal.budget_range}</p>
               </div>
             </div>
           )}
@@ -186,10 +212,36 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
               </div>
             </div>
           )}
-          {deal.exclusivity && (
+          {deal.deal_type && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                <Briefcase className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t(isRTL, 'نوع العرض', 'Deal Type')}
+                </p>
+                <p className="font-medium text-foreground truncate">{deal.deal_type}</p>
+              </div>
+            </div>
+          )}
+          {deal.timeline && (
             <div className="flex items-center gap-2 text-sm">
               <div className="p-1.5 bg-orange-100 dark:bg-orange-900/30 rounded-full">
-                <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                <Calendar className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t(isRTL, 'الجدول الزمني', 'Timeline')}
+                </p>
+                <p className="font-medium text-foreground truncate">{deal.timeline}</p>
+              </div>
+            </div>
+          )}
+          {deal.exclusivity && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-red-100 dark:bg-red-900/30 rounded-full">
+                <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -201,8 +253,8 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
           )}
           {deal.deliverables && (
             <div className="flex items-center gap-2 text-sm">
-              <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
-                <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              <div className="p-1.5 bg-pink-100 dark:bg-pink-900/30 rounded-full">
+                <FileText className="h-4 w-4 text-pink-600 dark:text-pink-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -235,6 +287,19 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
                   {t(isRTL, 'التفاصيل', 'Details')}
                 </p>
                 <p className="font-medium text-foreground whitespace-pre-wrap">{deal.details}</p>
+              </div>
+            </div>
+          )}
+          {deal.status && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="p-1.5 bg-yellow-100 dark:bg-yellow-900/30 rounded-full">
+                <Briefcase className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {t(isRTL, 'الحالة', 'Status')}
+                </p>
+                <p className="font-medium text-foreground truncate capitalize">{deal.status}</p>
               </div>
             </div>
           )}

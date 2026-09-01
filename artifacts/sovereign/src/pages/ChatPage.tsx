@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
@@ -81,6 +81,8 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isMountedRef = useRef(true);
+  const loadMessagesRef = useRef<() => Promise<void>>();
 
   const t = useCallback((ar: string, en: string) => (isRTL ? ar : en), [isRTL]);
 
@@ -219,7 +221,7 @@ export default function ChatPage() {
         query = (query as any).eq('deal_id', dealId);
       }
 
-      const { data, error } = await query.order('created_at', { ascending: true });
+      const { data, error } = await query.order('created_at', { ascending: true }).limit(100);
 
       if (error) throw error;
 
@@ -232,20 +234,29 @@ export default function ChatPage() {
         return msg;
       }));
 
-      setMessages(decrypted);
+      if (isMountedRef.current) {
+        setMessages(decrypted);
 
-      // Mark as read
-      const unreadIds = decrypted.filter(m => m.receiver_id === user.id && !m.is_read).map(m => m.id);
-      if (unreadIds.length > 0) {
-        await supabase.from('messages').update({ is_read: true }).in('id', unreadIds);
+        // Mark as read
+        const unreadIds = decrypted.filter(m => m.receiver_id === user.id && !m.is_read).map(m => m.id);
+        if (unreadIds.length > 0) {
+          await supabase.from('messages').update({ is_read: true }).in('id', unreadIds);
+        }
       }
     } catch (error) {
       console.error('Error loading messages:', error);
       toast.error(t('فشل تحميل الرسائل', 'Failed to load messages'));
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [user?.id, userId, dealId, t]);
+
+  // Store ref for use in effects
+  useEffect(() => {
+    loadMessagesRef.current = loadMessages;
+  }, [loadMessages]);
 
   useEffect(() => {
     loadMessages();
@@ -280,6 +291,19 @@ export default function ChatPage() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Refresh on window focus
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isMountedRef.current && user) {
+        console.log('[ChatPage] Window focus, refreshing messages');
+        loadMessages();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user, loadMessages]);
 
   const uploadMedia = async (file: File): Promise<{ url: string; type: string } | null> => {
     const { data: auth } = await supabase.auth.getUser();
