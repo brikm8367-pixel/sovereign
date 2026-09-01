@@ -3,11 +3,15 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import VoiceRecorder from './VoiceRecorder';
 import { encryptForRecipient } from '@/utils/e2eManager';
 
 interface Profile {
@@ -29,7 +33,6 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
   const { isRTL } = useLanguage();
   const [content, setContent] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [showVoice, setShowVoice] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,7 +45,6 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
   useEffect(() => {
     if (!isOpen) {
       setContent('');
-      setShowVoice(false);
       setMediaPreview(null);
     }
   }, [isOpen]);
@@ -58,8 +60,8 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
     return { url: urlData.publicUrl, type: file.type.startsWith('video/') ? 'video' : 'image' };
   };
 
-  const sendMessage = async (text: string, voiceUrl?: string) => {
-    if (!recipient || (!text.trim() && !voiceUrl && !mediaPreview)) return;
+  const sendMessage = async (text: string) => {
+    if (!recipient || (!text.trim() && !mediaPreview)) return;
     setIsSending(true);
 
     try {
@@ -153,7 +155,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
       }
 
       // Encrypt the message content
-      const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '🎤');
+      const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '');
       const enc = await encryptForRecipient(contentToSend, recipient.id);
       if (!enc.success) {
         toast.error(isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent');
@@ -166,7 +168,7 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
         sender_id: senderId,
         receiver_id: recipient.id,
         content: encryptedContent,
-        voice_url: voiceUrl || null,
+        voice_url: null,
         media_url: mediaUrl,
         media_type: mediaType,
         category,
@@ -176,13 +178,13 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
 
       // Push notification with conversationId
       const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', senderId).single();
-      const notificationType = voiceUrl ? 'voice' : mediaType ? mediaType : 'work_message';
+      const notificationType = mediaType ? mediaType : 'work_message';
       
       supabase.functions.invoke('send-push-notification', {
         body: {
           receiverId: recipient.id,
           senderName: senderProfile?.display_name || 'Someone',
-          messageType: voiceUrl ? 'voice' : mediaType || 'text',
+          messageType: mediaType || 'text',
           content: text,
           notificationType,
           conversationId: insertedMsg?.id || null,
@@ -192,7 +194,6 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
 
       toast.success(isRTL ? 'تم الإرسال ✨' : 'Sent ✨');
       setContent('');
-      setShowVoice(false);
       onClose();
       onMessageSent?.();
     } catch (error) {
@@ -241,64 +242,52 @@ export default function MessageComposer({ isOpen, onClose, recipient: initialRec
           </div>
 
           {/* Message composition */}
-          {showVoice ? (
-            <VoiceRecorder
-              onRecordComplete={(url) => sendMessage('🎤', url)}
-              onCancel={() => setShowVoice(false)}
-            />
-          ) : (
-            <>
-              <Textarea
-                placeholder={isRTL ? 'اكتب رسالتك...' : 'Write your message...'}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                rows={4}
-                className="resize-none text-base rounded-xl border-2 focus:border-primary p-4"
-                autoFocus
-              />
+          <Textarea
+            placeholder={isRTL ? 'اكتب رسالتك...' : 'Write your message...'}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={4}
+            className="resize-none text-base rounded-xl border-2 focus:border-primary p-4"
+            autoFocus
+          />
 
-              {mediaPreview && (
-                <div className="relative inline-block">
-                  {mediaPreview.file.type.startsWith('video/') ? (
-                    <video src={mediaPreview.url} className="h-24 rounded-xl" />
-                  ) : (
-                    <img src={mediaPreview.url} className="h-24 rounded-xl object-cover" alt="" />
-                  )}
-                  <Button size="icon" variant="destructive" className="absolute top-1 end-1 h-6 w-6 rounded-full" onClick={() => { URL.revokeObjectURL(mediaPreview.url); setMediaPreview(null); }}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
+          {mediaPreview && (
+            <div className="relative inline-block">
+              {mediaPreview.file.type.startsWith('video/') ? (
+                <video src={mediaPreview.url} className="h-24 rounded-xl" />
+              ) : (
+                <img src={mediaPreview.url} className="h-24 rounded-xl object-cover" alt="" />
               )}
-
-              <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
-
-              <div className="flex gap-3">
-                <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-13 w-13 rounded-xl touch-feedback">
-                  <ImageIcon className="h-5 w-5" />
-                </Button>
-                <Button variant="outline" size="icon" onClick={() => setShowVoice(true)} className="h-13 w-13 rounded-xl touch-feedback">
-                  <Mic className="h-5 w-5" />
-                </Button>
-                <Button variant="outline" onClick={onClose} className="flex-1 h-13 text-base rounded-xl touch-feedback">
-                  {isRTL ? 'إلغاء' : 'Cancel'}
-                </Button>
-                <Button
-                  onClick={() => sendMessage(content)}
-                  disabled={(!content.trim() && !mediaPreview) || isSending}
-                  className="flex-1 h-13 text-base rounded-xl touch-feedback"
-                >
-                  {isSending ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Send className="h-5 w-5 me-2" />
-                      {isRTL ? 'إرسال' : 'Send'}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </>
+              <Button size="icon" variant="destructive" className="absolute top-1 end-1 h-6 w-6 rounded-full" onClick={() => { URL.revokeObjectURL(mediaPreview.url); setMediaPreview(null); }}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
           )}
+
+          <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
+
+          <div className="flex gap-3">
+            <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-13 w-13 rounded-xl touch-feedback">
+              <ImageIcon className="h-5 w-5" />
+            </Button>
+            <Button variant="outline" onClick={onClose} className="flex-1 h-13 text-base rounded-xl touch-feedback">
+              {isRTL ? 'إلغاء' : 'Cancel'}
+            </Button>
+            <Button
+              onClick={() => sendMessage(content)}
+              disabled={(!content.trim() && !mediaPreview) || isSending}
+              className="flex-1 h-13 text-base rounded-xl touch-feedback"
+            >
+              {isSending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <Send className="h-5 w-5 me-2" />
+                  {isRTL ? 'إرسال' : 'Send'}
+                </>
+              )}
+            </Button>
+          </div>
 
           {/* E2E badge */}
           <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
