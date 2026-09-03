@@ -74,17 +74,16 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
     });
 
     // Backwards compatibility: ensure profiles.public_key has *some* key so older
-    // recipients (that read profiles.public_key) can still encrypt to us. Only set
-    // if missing, never overwrite.
+    // recipients (that read profiles.public_key) can still encrypt to us. Use upsert
+    // to handle case where profile row doesn't exist yet (should not happen but safe).
     await withRetry(async () => {
-      const { data: profile } = await supabase
+      const { error } = await supabase
         .from('profiles')
-        .select('public_key')
-        .eq('id', userId)
-        .single();
-      if (!profile?.public_key) {
-        await supabase.from('profiles').update({ public_key: keys!.publicKey }).eq('id', userId);
-      }
+        .upsert(
+          { id: userId, public_key: keys!.publicKey },
+          { onConflict: 'id' }
+        );
+      if (error) throw error;
     });
 
     // Restore cloud sessions if password is provided
@@ -128,7 +127,8 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
     });
 
   } catch (e) {
-    console.warn('[E2E] initE2EKeys failed, will retry on next login', e);
+    console.error('[E2E] initE2EKeys failed', e);
+    throw e; // Re-throw so caller knows it failed
   }
 }
 
@@ -181,14 +181,14 @@ export async function getRecipientPublicKey(recipientId: string): Promise<string
         .then((r: any) => r)
     )) as any;
     if (result?.data?.public_key) return result.data.public_key;
-  } catch {
-    /* fall through to profile key */
+  } catch (err) {
+    console.warn('[E2E] getRecipientPublicKey device_keys query failed', err);
   }
   try {
     const { data } = await supabase.from('profiles').select('public_key').eq('id', recipientId).single();
     if (data?.public_key) return data.public_key;
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn('[E2E] getRecipientPublicKey profiles query failed', err);
   }
   return null;
 }
@@ -197,7 +197,7 @@ export async function getRecipientPublicKey(recipientId: string): Promise<string
 export async function ensureUserE2EReady(userId: string): Promise<boolean> {
   try {
     // Check device_keys first (most reliable)
-    const { data: deviceKey } = await supabase
+    const { data: deviceKey, error: deviceKeyError } = await supabase
       .from('device_keys' as any)
       .select('public_key')
       .eq('user_id', userId)
@@ -205,17 +205,25 @@ export async function ensureUserE2EReady(userId: string): Promise<boolean> {
       .limit(1)
       .maybeSingle();
     
+    if (deviceKeyError) {
+      console.warn('[E2E] ensureUserE2EReady device_keys query error', deviceKeyError);
+    }
     if (deviceKey?.public_key) return true;
 
     // Fallback to profiles.public_key
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('public_key')
       .eq('id', userId)
       .single();
     
+    if (profileError) {
+      console.warn('[E2E] ensureUserE2EReady profiles query error', profileError);
+    }
+    
     return !!profile?.public_key;
-  } catch {
+  } catch (err) {
+    console.error('[E2E] ensureUserE2EReady unexpected error', err);
     return false;
   }
 }
@@ -297,7 +305,7 @@ export async function recoverE2EKeys(userId: string): Promise<{ success: boolean
         { onConflict: 'user_id,device_id' }
       );
 
-    await supabase.from('profiles').update({ public_key: keys.publicKey }).eq('id', userId);
+    await supabase.from('profiles').upsert({ id: userId, public_key: keys.publicKey }, { onConflict: 'id' });
     return { success: true };
   } catch (e: any) {
     console.error('[E2E] recovery failed', e);

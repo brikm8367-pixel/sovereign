@@ -7,7 +7,7 @@ type AuthContextType = {
   session: Session | null;
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string, displayName: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, displayName: string) => Promise<{ error: Error | null; userId?: string }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<{ error: Error | null }>;
   deleteAccount: () => Promise<{ error: Error | null }>;
@@ -69,27 +69,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        // Initialize E2E keys for existing session before marking loading as false
+        if (session?.user) {
+          const hasKeys = await ensureUserE2EReady(session.user.id);
+          if (!hasKeys) {
+            await initE2EKeys(session.user.id);
+          }
+        }
+      } catch (e) {
+        console.error('[Auth] Initialization error', e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
       
       // Ensure E2E keys are initialized whenever a user session is established
       if (session?.user) {
-        const hasKeys = await ensureUserE2EReady(session.user.id);
-        if (!hasKeys) {
-          await initE2EKeys(session.user.id);
+        try {
+          const hasKeys = await ensureUserE2EReady(session.user.id);
+          if (!hasKeys) {
+            await initE2EKeys(session.user.id);
+          }
+        } catch (e) {
+          console.error('[Auth] E2E key initialization failed on auth state change', e);
         }
       }
+      
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, displayName: string) => {
@@ -110,7 +138,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (profileError) return { error: profileError };
 
-    return { error: null };
+    // Initialize E2E keys for the new user immediately (even before email confirmation)
+    try {
+      await initE2EKeys(data.user.id);
+    } catch (e) {
+      console.error('[Auth] E2E key initialization failed during signup', e);
+      // Don't fail signup if E2E init fails - will retry on first login
+    }
+
+    return { error: null, userId: data.user.id };
   };
 
   const signIn = async (email: string, password: string) => {
