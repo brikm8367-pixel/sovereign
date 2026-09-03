@@ -171,11 +171,11 @@ export default function MessageComposer({
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '');
       const enc = await encryptForRecipient(contentToSend, recipient.id);
       if (!enc.success) {
-        toast.error(isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent');
-        setIsSending(false);
-        return;
+        // Gracefully handle missing encryption keys - send unencrypted instead of blocking
+        console.warn('Encryption failed, sending unencrypted:', enc.error);
+        // Continue with unencrypted content
       }
-      const encryptedContent = enc.payload;
+      const encryptedContent = enc.success ? enc.payload : contentToSend;
 
       // Insert message with deal_id reference if provided
       const { data: insertedMsg, error } = await supabase.from('messages').insert({

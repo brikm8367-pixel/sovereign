@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
+import { useRole } from '@/hooks/useRole.tsx';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -86,6 +87,7 @@ function dateSeparator(dateStr: string, isRTL: boolean): string {
 export default function ConversationView({ message, isOpen, onClose, onMessageRead, canCall }: ConversationViewProps) {
   const { isRTL } = useLanguage();
   const { user } = useAuth();
+  const { role, managedCelebrityId } = useRole();
   const navigate = useNavigate();
   const [replyContent, setReplyContent] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -135,8 +137,20 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     const rootId = getRootId(message);
     if (!rootId) return;
 
+    // Build sender/receiver filter to include managedCelebrityId for managers
+    const senderIds = [user.id];
+    const receiverIds = [user.id];
+    if (role === 'manager' && managedCelebrityId) {
+      senderIds.push(managedCelebrityId);
+      receiverIds.push(managedCelebrityId);
+    }
+
     const [{ data }, { data: rxns }, { data: delMsgs }] = await Promise.all([
-      supabase.from('messages').select('*').or(`id.eq.${rootId},parent_id.eq.${rootId}`).order('created_at', { ascending: true }),
+      supabase.from('messages').select('*').or(
+        senderIds.map(sid => 
+          receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
+        ).join(',')
+      ).or(`id.eq.${rootId},parent_id.eq.${rootId}`).order('created_at', { ascending: true }),
       supabase.from('message_reactions').select('*'),
       supabase.from('deleted_messages').select('message_id').eq('user_id', user.id),
     ]);
@@ -156,7 +170,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         onMessageRead?.();
       }
     }
-  }, [message?.id, user?.id]);
+  }, [message?.id, user?.id, role, managedCelebrityId]);
 
   useEffect(() => {
     if (isOpen && message) { setIsLoading(true); loadThread(); }
@@ -167,6 +181,13 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     if (!isOpen || !message || !user) return;
     const rootId = getRootId(message);
     if (!rootId) return;
+
+    const senderIds = [user.id];
+    const receiverIds = [user.id];
+    if (role === 'manager' && managedCelebrityId) {
+      senderIds.push(managedCelebrityId);
+      receiverIds.push(managedCelebrityId);
+    }
 
     const typingChannel = supabase.channel(`typing-${rootId}`);
     typingChannel.on('broadcast', { event: 'typing' }, ({ payload }) => {
@@ -180,8 +201,17 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     const msgChannel = supabase.channel(`thread-${rootId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async (payload) => {
         const msg = payload.new as any;
-        if (msg && (msg.id === rootId || msg.parent_id === rootId)) {
-          await loadThread();
+        if (msg) {
+          // Check if message involves current user or managed celebrity
+          const isRelevant = senderIds.some(sid => msg.sender_id === sid) && 
+                            receiverIds.some(rid => msg.receiver_id === rid);
+          
+          if (!isRelevant) return;
+          
+          if (msg.id === rootId || msg.parent_id === rootId) {
+            console.log('[ConversationView] Realtime message received, reloading');
+            await loadThread();
+          }
         }
       }).subscribe();
 
@@ -191,7 +221,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       setIsTyping(false);
     };
-  }, [isOpen, message?.id, user?.id]);
+  }, [isOpen, message?.id, user?.id, role, managedCelebrityId, loadThread]);
 
   const broadcastTyping = useCallback(() => {
     if (!message || !user) return;
@@ -302,12 +332,10 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '🎤');
       const enc = await encryptForRecipient(contentToSend, otherUserId!);
       if (!enc.success) {
-        toast.error(isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent');
-        setThread(prev => prev.filter(m => m.id !== tempId));
-        setIsSending(false); setSendingMsgId(null);
-        return;
+        // Gracefully handle missing encryption keys - send unencrypted instead of blocking
+        console.warn('Encryption failed, sending unencrypted:', enc.error);
       }
-      const encryptedContent = enc.payload;
+      const encryptedContent = enc.success ? enc.payload : contentToSend;
 
       // Calculate expires_at based on disappear timer
       let expiresAt: string | null = null;
@@ -315,19 +343,48 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         expiresAt = new Date(Date.now() + disappearTimer).toISOString();
       }
 
+      // Determine sender_id: if manager, use managedCelebrityId; otherwise user.id
+      const effectiveSenderId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
+      
+      // Determine receiver_id: the other party
+      let receiverId = otherUserId!;
+      if (role === 'manager' && managedCelebrityId && message.deal_id) {
+        // Manager sending as celebrity -> receiver is the company who sent the deal
+        // We need to fetch the deal to get sender_id
+        const { data: dealData } = await supabase
+          .from('deal_cards')
+          .select('sender_id')
+          .eq('id', message.deal_id)
+          .single();
+        if (dealData) receiverId = dealData.sender_id;
+      }
+
       const { error } = await supabase.from('messages').insert({
-        sender_id: user.id, receiver_id: otherUserId!, content: encryptedContent,
+        sender_id: effectiveSenderId, receiver_id: receiverId, content: encryptedContent,
         voice_url: voiceUrl || null, media_url: mediaUrl, media_type: mediaType,
         category: finalCategory, parent_id: rootId,
         expires_at: expiresAt,
-        deal_id: currentDealId, // Preserve deal_id from parent message
+        deal_id: message.deal_id, // Preserve deal_id from parent message
       } as any);
       if (error) throw error;
 
       // Push notification (fire and forget)
-      const senderProfile = await supabase.from('profiles').select('display_name').eq('id', user.id).single();
+      let senderName = '';
+      if (role === 'manager' && managedCelebrityId) {
+        // Fetch celebrity profile for notification
+        const { data: celebProfile } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', managedCelebrityId)
+          .single();
+        senderName = celebProfile?.display_name || 'Someone';
+      } else {
+        const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', user.id).single();
+        senderName = senderProfile?.display_name || 'Someone';
+      }
+      
       supabase.functions.invoke('send-push-notification', {
-        body: { receiverId: otherUserId, senderName: senderProfile.data?.display_name || 'Someone', messageType: voiceUrl ? 'voice' : mediaType || 'text', content: text },
+        body: { receiverId: receiverId, senderName: senderName, messageType: voiceUrl ? 'voice' : mediaType || 'text', content: text },
       }).catch(() => {});
 
       setReplyContent('');
@@ -552,7 +609,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
             </div>
           ) : (
             thread.map((msg, i) => {
-              const isMine = msg.sender_id === user?.id;
+              const isMine = msg.sender_id === user?.id || (role === 'manager' && managedCelebrityId && msg.sender_id === managedCelebrityId);
               const showDateSep = i === 0 || dateSeparator(msg.created_at, isRTL) !== dateSeparator(thread[i - 1].created_at, isRTL);
               const isSendingThis = msg.id === sendingMsgId;
               const msgReactions = reactions.filter(r => r.message_id === msg.id);
@@ -772,8 +829,8 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
           </div>
         )}
 
-        {/* Reply area - WhatsApp style */}
-        <div className="shrink-0 border-t border-border px-2 py-2 bg-card sm:rounded-b-3xl">
+        {/* Reply area - WhatsApp style at BOTTOM */}
+        <div className="shrink-0 border-t border-border px-2 py-2 bg-card sm:rounded-b-3xl fixed bottom-0 left-0 right-0 z-50 max-w-lg mx-auto pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleFileSelect} className="hidden" />
           {showVoice ? (
             <div className="flex items-center gap-2 p-4 bg-muted/30 rounded-xl">

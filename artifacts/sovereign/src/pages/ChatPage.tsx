@@ -209,10 +209,22 @@ export default function ChatPage() {
     if (!user || !userId) return;
     setIsLoading(true);
     try {
+      // Build the sender/receiver filter to include managedCelebrityId for managers
+      const senderIds = [user.id];
+      const receiverIds = [user.id];
+      if (role === 'manager' && managedCelebrityId) {
+        senderIds.push(managedCelebrityId);
+        receiverIds.push(managedCelebrityId);
+      }
+
       let query = supabase
         .from('messages')
         .select('*')
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
+        .or(
+          senderIds.map(sid => 
+            receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
+          ).join(',')
+        );
 
       // Only apply deal_id filter when dealId exists in the URL
       if (dealId) {
@@ -249,7 +261,7 @@ export default function ChatPage() {
         setIsLoading(false);
       }
     }
-  }, [user?.id, userId, dealId, t]);
+  }, [user?.id, userId, dealId, role, managedCelebrityId, t]);
 
   // Store ref for use in effects
   useEffect(() => {
@@ -267,7 +279,20 @@ export default function ChatPage() {
       .channel(`chat-${user.id}-${userId}-${dealId || 'all'}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async (payload) => {
         const msg = payload.new as any;
-        if (msg && ((msg.sender_id === user.id && msg.receiver_id === userId) || (msg.sender_id === userId && msg.receiver_id === user.id))) {
+        if (msg) {
+          // Check if message involves current user or managed celebrity
+          const senderIds = [user.id];
+          const receiverIds = [user.id];
+          if (role === 'manager' && managedCelebrityId) {
+            senderIds.push(managedCelebrityId);
+            receiverIds.push(managedCelebrityId);
+          }
+          
+          const isRelevant = senderIds.some(sid => msg.sender_id === sid) && 
+                            receiverIds.some(rid => msg.receiver_id === rid);
+          
+          if (!isRelevant) return;
+          
           // If dealId is present, only reload if message matches deal_id
           if (dealId && msg.deal_id !== dealId) return;
           // If no dealId but we have an inferred deal, only reload if message matches that deal_id
@@ -281,7 +306,7 @@ export default function ChatPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [user?.id, userId, dealId, deal, loadMessages]);
+  }, [user?.id, userId, dealId, deal, loadMessages, role, managedCelebrityId]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -413,12 +438,23 @@ export default function ChatPage() {
     // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
     // This ensures each pair of users has exactly ONE work conversation per deal
     let parentId: string | null = null;
+    const senderIds = [user.id];
+    const receiverIds = [user.id];
+    if (role === 'manager' && managedCelebrityId) {
+      senderIds.push(managedCelebrityId);
+      receiverIds.push(managedCelebrityId);
+    }
+    
     let rootQuery = supabase
       .from('messages')
       .select('id')
       .is('parent_id', null)
       .eq('category', 'work')
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
+      .or(
+        senderIds.map(sid => 
+          receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
+        ).join(',')
+      );
 
     // Scope root message to the deal: use dealId from URL, or foundDeal.id if inferred
     if (effectiveDealId) {
@@ -701,8 +737,8 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Fixed Top Input - Apple Messages Style with always-visible Send button */}
-      <div className="fixed top-16 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50 px-4 pt-4 max-w-lg mx-auto">
+      {/* Fixed Bottom Input - Apple Messages Style with always-visible Send button */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border/50 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] max-w-lg mx-auto">
         <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
         {showVoice ? (
           <div className="flex items-center gap-2 p-4 bg-muted/30 rounded-xl">
