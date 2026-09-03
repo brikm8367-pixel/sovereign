@@ -453,7 +453,7 @@ export default function ChatPage() {
       const senderId = effectiveSenderId;
       
       // Determine receiver_id: the other party (company/sender)
-      // If manager is sending as celebrity, receiver is the company (deal.sender_id)
+      // If manager is sending as celebrity, receiver is the company who sent the deal
       // If company is sending, receiver is the celebrity (deal.celebrity_id or managedCelebrityId)
       let receiverId = userId;
       if (role === 'manager' && managedCelebrityId && foundDeal) {
@@ -699,7 +699,7 @@ export default function ChatPage() {
       )}
 
       {/* Fixed Bottom Input - Apple Messages Style with always-visible Send button */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border/50 safe-area-inset-bottom px-4 pb-4 max-w-lg mx-auto">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border/50 safe-area-inset-bottom px-4 pb-20 max-w-lg mx-auto">
         <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
         {showVoice ? (
           <div className="flex items-center gap-2 p-4 bg-muted/30 rounded-xl">
