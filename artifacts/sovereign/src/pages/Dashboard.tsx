@@ -21,10 +21,12 @@ import {
   User, 
   Send,
   Sun,
-  Moon
+  Moon,
+  MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DealCardInline } from '@/components/deals/DealCardInline';
+import MessageComposer from '@/components/messaging/MessageComposer';
 
 interface Deal {
   id: string;
@@ -94,6 +96,8 @@ export default function Dashboard() {
   const [isSubmittingAsk, setIsSubmittingAsk] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showDealDetails, setShowDealDetails] = useState<Record<string, boolean>>({});
+  const [showDealQuestion, setShowDealQuestion] = useState<string | null>(null);
+  const [selectedDealForQuestion, setSelectedDealForQuestion] = useState<Deal | null>(null);
   const isMountedRef = useRef(true);
   const fetchConversationsRef = useRef<() => Promise<void>>();
   const fetchPendingDealsRef = useRef<() => Promise<void>>();
@@ -474,6 +478,8 @@ export default function Dashboard() {
   // Memoize conversations to prevent unnecessary re-renders
   const memoizedConversations = useMemo(() => conversations, [conversations]);
 
+  const t = (ar: string, en: string) => (isRTL ? ar : en);
+
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
       <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
@@ -596,13 +602,16 @@ export default function Dashboard() {
                           رفض
                         </Button>
                         <Button
-                          onClick={() => setAskTalentDeal(deal)}
+                          onClick={() => {
+                            setSelectedDealForQuestion(deal);
+                            setShowDealQuestion(deal.id);
+                          }}
                           disabled={isProcessing}
                           variant="outline"
                           className="flex-1 h-9 rounded-xl border-blue-300 text-blue-600 hover:bg-blue-50 text-xs font-semibold touch-feedback"
                         >
-                          <MessageCircle className="h-3.5 w-3.5 mr-1" />
-                          سؤال
+                          <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                          {t('سؤال الموهبة', 'Ask Talent')}
                         </Button>
                       </div>
                     )}
@@ -687,6 +696,30 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MessageComposer for Ask Talent Question */}
+      {showDealQuestion && selectedDealForQuestion && (
+        <MessageComposer
+          isOpen={true}
+          onClose={() => {
+            setShowDealQuestion(null);
+            setSelectedDealForQuestion(null);
+          }}
+          recipient={{
+            id: selectedDealForQuestion.sender_id,
+            username: null,
+            display_name: selectedDealForQuestion.company_name,
+            avatar_url: null,
+          }}
+          dealId={selectedDealForQuestion.id}
+          dealTitle={selectedDealForQuestion.company_name}
+          onMessageSent={() => {
+            setShowDealQuestion(null);
+            setSelectedDealForQuestion(null);
+            fetchConversations();
+          }}
+        />
       )}
 
       <BottomNavigation />

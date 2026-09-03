@@ -233,7 +233,7 @@ export default function MessageComposer({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md rounded-3xl p-0 gap-0">
+      <DialogContent className="max-w-md rounded-3xl p-0 gap-0 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
         <DialogHeader className="p-5 pb-3 border-b border-border">
           <div className="flex items-center gap-3">
             <DialogTitle className="text-lg font-bold flex-1 truncate">
