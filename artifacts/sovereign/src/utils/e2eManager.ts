@@ -167,7 +167,7 @@ async function restoreCloudSessions(userId: string, password: string) {
 }
 
 // Get recipient's most-recently-seen device public key (fallback to profile).
-// If no key exists, auto-provision a key pair for the recipient to ensure encryption always works.
+// Returns null if no key exists — caller must handle this (no auto-provisioning).
 export async function getRecipientPublicKey(recipientId: string): Promise<string | null> {
   try {
     const result = (await withRetry(() =>
@@ -187,24 +187,36 @@ export async function getRecipientPublicKey(recipientId: string): Promise<string
   try {
     const { data } = await supabase.from('profiles').select('public_key').eq('id', recipientId).single();
     if (data?.public_key) return data.public_key;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+// Check if a user has valid E2E keys ready for encryption
+export async function ensureUserE2EReady(userId: string): Promise<boolean> {
+  try {
+    // Check device_keys first (most reliable)
+    const { data: deviceKey } = await supabase
+      .from('device_keys' as any)
+      .select('public_key')
+      .eq('user_id', userId)
+      .order('last_seen', { ascending: false })
+      .limit(1)
+      .maybeSingle();
     
-    // No key exists for recipient — auto-provision a key pair so encryption can proceed.
-    // This handles cases where a celebrity/talent hasn't initialized E2E keys yet (e.g., never logged in).
-    // The public key is stored in profiles.public_key for future use.
-    // Note: The private key is not persisted for the recipient; they will generate their own
-    // key pair when they first run initE2EKeys. Messages encrypted to this ephemeral key
-    // will not be decryptable until the recipient initializes, but this ensures the send
-    // never blocks for legitimate deal-based conversations.
-    console.warn(`[E2E] No public key for recipient ${recipientId}, auto-provisioning ephemeral key pair`);
-    const { publicKey } = await generateKeyPair();
+    if (deviceKey?.public_key) return true;
+
+    // Fallback to profiles.public_key
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('public_key')
+      .eq('id', userId)
+      .single();
     
-    // Store public key in profiles for future encryption attempts
-    await supabase.from('profiles').update({ public_key: publicKey }).eq('id', recipientId);
-    
-    return publicKey;
-  } catch (err) {
-    console.error('[E2E] Failed to get or create recipient public key', err);
-    return null;
+    return !!profile?.public_key;
+  } catch {
+    return false;
   }
 }
 

@@ -6,11 +6,11 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { encryptForRecipient, decryptFromSender, isEncryptedMessage } from '@/utils/e2eManager';
+import { encryptForRecipient, decryptFromSender, isEncryptedMessage, ensureUserE2EReady } from '@/utils/e2eManager';
 import { resumeAudioContext } from '@/utils/sounds';
 import { DealCardInline } from '@/components/deals/DealCardInline';
 
@@ -76,6 +76,7 @@ export default function ChatPage() {
   const [showDealDetails, setShowDealDetails] = useState(false);
   const [celebrityProfile, setCelebrityProfile] = useState<Profile | null>(null);
   const [dealCache, setDealCache] = useState<Map<string, Deal>>(new Map());
+  const [recipientE2EReady, setRecipientE2EReady] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -114,6 +115,19 @@ export default function ChatPage() {
     };
     fetchRecipient();
   }, [userId]);
+
+  // Check recipient E2E readiness when recipient is loaded
+  useEffect(() => {
+    if (recipient) {
+      const checkReady = async () => {
+        const ready = await ensureUserE2EReady(recipient.id);
+        setRecipientE2EReady(ready);
+      };
+      checkReady();
+    } else {
+      setRecipientE2EReady(null);
+    }
+  }, [recipient]);
 
   // Fetch celebrity profile when dealId is present and user is company
   useEffect(() => {
@@ -348,6 +362,18 @@ export default function ChatPage() {
       return;
     }
     
+    // Early check: recipient must have E2E keys
+    if (recipientE2EReady === false) {
+      toast.error(
+        isRTL
+          ? 'Le destinataire n\'a pas encore configuré le chiffrement. Il doit se connecter une fois pour initialiser ses clés.'
+          : 'Recipient has not set up encryption yet. They need to log in once to initialize their keys.',
+        { duration: 7000 }
+      );
+      setIsSending(false);
+      return;
+    }
+    
     // Resume audio context on user interaction
     resumeAudioContext();
     
@@ -483,10 +509,25 @@ export default function ChatPage() {
 
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '🎤');
       const enc = await encryptForRecipient(contentToSend, userId);
-      const finalContent = enc.success ? enc.payload : contentToSend;
       if (!enc.success) {
-        console.debug('Encryption failed, sending unencrypted');
+        // Encryption failed — block sending with clear error
+        let errorMsg = '';
+        if (enc.reason === 'recipient_no_e2e') {
+          errorMsg = isRTL
+            ? 'Le destinataire n\'a pas de clés de chiffrement. Il doit se connecter à l\'application pour initialiser son chiffrement de bout en bout.'
+            : 'Recipient has no encryption keys. They need to log into the app to initialize their end-to-end encryption.';
+        } else if (enc.reason === 'no_local_keys') {
+          errorMsg = isRTL
+            ? 'Vos clés de chiffrement ne sont pas initialisées. Veuillez vous déconnecter et vous reconnecter.'
+            : 'Your encryption keys are not initialized. Please log out and log back in.';
+        } else {
+          errorMsg = isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent';
+        }
+        toast.error(errorMsg, { duration: 7000 });
+        setIsSending(false);
+        return;
       }
+      const finalContent = enc.payload;
 
       // Determine sender_id: if manager, use managedCelebrityId; otherwise user.id
       const senderId = effectiveSenderId;
@@ -769,12 +810,25 @@ export default function ChatPage() {
                     }
                   } 
                 }}
+                disabled={recipientE2EReady === false}
               />
+              {recipientE2EReady === false && (
+                <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-2xl border border-border/50 z-10">
+                  <div className="text-center p-4">
+                    <AlertCircle className="h-6 w-6 text-amber-600 dark:text-amber-400 mx-auto mb-2" />
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      {isRTL
+                        ? 'Le destinataire n\'a pas encore configuré le chiffrement. Il doit se connecter une fois pour initialiser ses clés.'
+                        : 'Recipient has not set up encryption yet. They need to log in once to initialize their keys.'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-            {/* Always-visible Send button - disabled only when no content and no media */}
+            {/* Always-visible Send button - disabled only when no content and no media or recipient not ready */}
             <Button 
               onClick={() => { if (replyContent.trim() || mediaPreview) handleSend(replyContent); }} 
-              disabled={isSending || (!replyContent.trim() && !mediaPreview)} 
+              disabled={isSending || (!replyContent.trim() && !mediaPreview) || recipientE2EReady === false} 
               size="icon" 
               className="h-12 w-12 rounded-full shrink-0 touch-feedback bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:hover:bg-primary"
               aria-label={t('إرسال', 'Send')}

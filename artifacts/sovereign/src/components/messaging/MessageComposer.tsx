@@ -9,10 +9,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield, Briefcase } from 'lucide-react';
+import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield, Briefcase, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { encryptForRecipient } from '@/utils/e2eManager';
+import { encryptForRecipient, ensureUserE2EReady } from '@/utils/e2eManager';
 
 interface Profile {
   id: string;
@@ -43,6 +43,7 @@ export default function MessageComposer({
   const [content, setContent] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string } | null>(null);
+  const [recipientReady, setRecipientReady] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [recipient, setRecipient] = useState<Profile | null>(initialRecipient);
@@ -55,8 +56,20 @@ export default function MessageComposer({
     if (!isOpen) {
       setContent('');
       setMediaPreview(null);
+      setRecipientReady(null);
     }
   }, [isOpen]);
+
+  // Check recipient E2E readiness when recipient changes or dialog opens
+  useEffect(() => {
+    if (isOpen && recipient) {
+      const checkReady = async () => {
+        const ready = await ensureUserE2EReady(recipient.id);
+        setRecipientReady(ready);
+      };
+      checkReady();
+    }
+  }, [isOpen, recipient]);
 
   const uploadMedia = async (file: File): Promise<{ url: string; type: string } | null> => {
     const { data: auth } = await supabase.auth.getUser();
@@ -71,6 +84,18 @@ export default function MessageComposer({
 
   const sendMessage = async (text: string) => {
     if (!recipient || (!text.trim() && !mediaPreview)) return;
+    
+    // Early check: recipient must have E2E keys
+    if (recipientReady === false) {
+      toast.error(
+        isRTL
+          ? 'Le destinataire n\'a pas encore configuré le chiffrement. Il doit se connecter une fois pour initialiser ses clés.'
+          : 'Recipient has not set up encryption yet. They need to log in once to initialize their keys.',
+        { duration: 7000 }
+      );
+      return;
+    }
+    
     setIsSending(true);
 
     try {
@@ -172,12 +197,19 @@ export default function MessageComposer({
       const enc = await encryptForRecipient(contentToSend, recipient.id);
       if (!enc.success) {
         // Encryption failed — block sending with clear error (no silent plaintext fallback)
-        const errorMsg = enc.reason === 'recipient_no_e2e'
-          ? (isRTL ? 'المستلم غير جاهز للتشيفر — يرجى المحاولة لاحقاً' : 'Recipient not ready for encryption — please try again later')
-          : enc.reason === 'no_local_keys'
-            ? (isRTL ? 'مفاتيحك غير مهيأة — أعد تسجيل الدخول' : 'Your keys not initialized — please re-login')
-            : (isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent');
-        toast.error(errorMsg, { duration: 5000 });
+        let errorMsg = '';
+        if (enc.reason === 'recipient_no_e2e') {
+          errorMsg = isRTL
+            ? 'Le destinataire n\'a pas de clés de chiffrement. Il doit se connecter à l\'application pour initialiser son chiffrement de bout en bout.'
+            : 'Recipient has no encryption keys. They need to log into the app to initialize their end-to-end encryption.';
+        } else if (enc.reason === 'no_local_keys') {
+          errorMsg = isRTL
+            ? 'Vos clés de chiffrement ne sont pas initialisées. Veuillez vous déconnecter et vous reconnecter.'
+            : 'Your encryption keys are not initialized. Please log out and log back in.';
+        } else {
+          errorMsg = isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent';
+        }
+        toast.error(errorMsg, { duration: 7000 });
         setIsSending(false);
         return;
       }
@@ -281,6 +313,19 @@ export default function MessageComposer({
               <p className="font-bold text-base truncate">{recipient.display_name || recipient.username}</p>
               {recipient.username && <p className="text-sm text-muted-foreground">@{recipient.username}</p>}
             </div>
+            {/* E2E readiness indicator */}
+            {recipientReady === false && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-full">
+                <AlertCircle className="h-3 w-3" />
+                <span>{isRTL ? 'Chiffrement non prêt' : 'Encryption not ready'}</span>
+              </div>
+            )}
+            {recipientReady === true && (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 rounded-full">
+                <Shield className="h-3 w-3" />
+                <span>{isRTL ? 'Prêt pour E2E' : 'E2E Ready'}</span>
+              </div>
+            )}
           </div>
 
           {/* Message composition */}
@@ -291,7 +336,16 @@ export default function MessageComposer({
             rows={4}
             className="resize-none text-base rounded-xl border-2 focus:border-primary p-4"
             autoFocus
+            disabled={recipientReady === false}
           />
+
+          {recipientReady === false && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 text-center">
+              {isRTL
+                ? 'Le destinataire doit se connecter une fois pour activer le chiffrement de bout en bout.'
+                : 'Recipient must log in once to activate end-to-end encryption.'}
+            </p>
+          )}
 
           {mediaPreview && (
             <div className="relative inline-block">
@@ -309,17 +363,17 @@ export default function MessageComposer({
           <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
 
           <div className="flex gap-3">
-            <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-13 w-13 rounded-xl touch-feedback">
+            <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-13 w-13 rounded-xl touch-feedback" disabled={recipientReady === false}>
               <ImageIcon className="h-5 w-5" />
             </Button>
             <Button variant="outline" onClick={onClose} className="flex-1 h-13 text-base rounded-xl touch-feedback">
               {t('إلغاء', 'Cancel')}
             </Button>
-            {/* Send button - ALWAYS VISIBLE, only disabled when no content can be sent */}
+            {/* Send button - ALWAYS VISIBLE, only disabled when no content can be sent or recipient not ready */}
             <Button
               onClick={() => sendMessage(content)}
-              disabled={(!content.trim() && !mediaPreview) || isSending}
-              className="flex-1 h-13 text-base rounded-xl touch-feedback bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={(!content.trim() && !mediaPreview) || isSending || recipientReady === false}
+              className="flex-1 h-13 text-base rounded-xl touch-feedback bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {isSending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
