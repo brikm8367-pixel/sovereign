@@ -578,7 +578,7 @@ export default function ChatPage() {
             variant="ghost"
             size="icon"
             className="h-10 w-10 rounded-xl touch-feedback shrink-0"
-            aria-label={t('المزيد', 'More')}
+            aria-label={t('سؤال الموهبة', 'Ask Talent')}
           >
             <MoreHorizontal className="h-5 w-5" />
           </Button>
@@ -698,8 +698,8 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Fixed Bottom Input - Apple Messages Style with always-visible Send button */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border/50 safe-area-inset-bottom px-4 pb-20 max-w-lg mx-auto">
+      {/* Fixed Top Input - Apple Messages Style with always-visible Send button */}
+      <div className="fixed top-16 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50 px-4 pt-4 max-w-lg mx-auto">
         <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
         {showVoice ? (
           <div className="flex items-center gap-2 p-4 bg-muted/30 rounded-xl">
