@@ -27,6 +27,7 @@ import {
 import { cn } from '@/lib/utils';
 import { DealCardInline } from '@/components/deals/DealCardInline';
 import MessageComposer from '@/components/messaging/MessageComposer';
+import { initE2EKeys, ensureUserE2EReady } from '@/utils/e2eManager';
 
 interface Deal {
   id: string;
@@ -101,6 +102,45 @@ export default function Dashboard() {
   const isMountedRef = useRef(true);
   const fetchConversationsRef = useRef<() => Promise<void>>();
   const fetchPendingDealsRef = useRef<() => Promise<void>>();
+
+  // Auto-initialize E2E keys for existing users who may not have them yet
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeE2EKeys = async () => {
+      if (!user) return;
+      
+      try {
+        const hasKeys = await ensureUserE2EReady(user.id);
+        if (!hasKeys) {
+          console.log('[Dashboard] E2E keys missing for user, initializing...', user.id);
+          await initE2EKeys(user.id);
+          if (mounted) {
+            console.log('[Dashboard] E2E keys initialized successfully for user:', user.id);
+          }
+        }
+      } catch (error) {
+        console.error('[Dashboard] Failed to initialize E2E keys, will retry on next focus:', error);
+        // Error is logged, will retry on next window focus
+      }
+    };
+
+    // Run on mount
+    initializeE2EKeys();
+
+    // Also run on window focus to retry if previous attempt failed
+    const handleFocus = () => {
+      if (mounted && user) {
+        initializeE2EKeys();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      mounted = false;
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user]);
 
   // Reset data when managedCelebrityId changes
   useEffect(() => {
