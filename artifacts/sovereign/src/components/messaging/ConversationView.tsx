@@ -266,7 +266,11 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         setMediaPreview(null);
       }
 
-      const shouldDeductCredit = isInactive;
+      // RELAXED VALIDATION: If message has a deal_id (from parent message or current message), skip inbox credit checks
+      // Only enforce inbox limits for messages WITHOUT a deal_id (legacy direct messages)
+      const currentDealId = message.deal_id;
+      const shouldDeductCredit = isInactive && !currentDealId;
+
       if (shouldDeductCredit) {
         const { data: canReceive } = await supabase.rpc('can_receive_message', { _user_id: otherUserId!, _category: message.category as any });
         if (!canReceive) {
@@ -316,6 +320,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         voice_url: voiceUrl || null, media_url: mediaUrl, media_type: mediaType,
         category: finalCategory, parent_id: rootId,
         expires_at: expiresAt,
+        deal_id: currentDealId, // Preserve deal_id from parent message
       } as any);
       if (error) throw error;
 

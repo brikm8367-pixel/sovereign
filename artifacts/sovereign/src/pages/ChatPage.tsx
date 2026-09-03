@@ -328,12 +328,13 @@ export default function ChatPage() {
     
     setIsSending(true);
 
-    // GUARD: User can only send a work message if they have an accepted Deal Card with the other participant
+    // RELAXED VALIDATION: If dealId is present in URL or message has deal_id, allow sending regardless of deal status
+    // Only enforce "accepted deal" check for messages WITHOUT a dealId (legacy direct messages)
     let hasDeal = false;
     let foundDeal: Deal | null = null;
 
     if (dealId) {
-      // 1. If dealId is in the URL, allow sending
+      // 1. If dealId is in the URL, allow sending (deal-linked conversation)
       hasDeal = true;
       if (!deal) {
         // Fetch deal details for pinned card display
@@ -397,7 +398,10 @@ export default function ChatPage() {
       }
     }
 
-    if (!hasDeal) {
+    // RELAXED: If we have a dealId from URL or from message thread, allow sending regardless of deal status
+    // Only block if NO dealId at all (legacy direct message without any deal context)
+    const effectiveDealId = dealId || foundDeal?.id;
+    if (!effectiveDealId && !hasDeal) {
       toast.error(isRTL ? 'لا يمكن بدء محادثة بدون عرض عمل' : 'Cannot start a conversation without a deal');
       setIsSending(false);
       return;
@@ -417,7 +421,6 @@ export default function ChatPage() {
       .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
 
     // Scope root message to the deal: use dealId from URL, or foundDeal.id if inferred
-    const effectiveDealId = dealId || foundDeal?.id;
     if (effectiveDealId) {
       rootQuery = (rootQuery as any).eq('deal_id', effectiveDealId);
     }

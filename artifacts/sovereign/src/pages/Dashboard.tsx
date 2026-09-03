@@ -707,7 +707,7 @@ export default function Dashboard() {
             setSelectedDealForQuestion(null);
           }}
           recipient={{
-            id: selectedDealForQuestion.sender_id,
+            id: selectedDealForQuestion.celebrity_id,
             username: null,
             display_name: selectedDealForQuestion.company_name,
             avatar_url: null,

@@ -110,6 +110,8 @@ export default function MessageComposer({
         parentId = rootMsg.id;
       }
 
+      // RELAXED VALIDATION: If message has a dealId, skip inbox mode/limit checks entirely
+      // Only validate inbox mode for messages WITHOUT a dealId (legacy direct messages)
       let shouldDeductCredit = true;
 
       if (parentId) {
@@ -130,7 +132,9 @@ export default function MessageComposer({
         }
       }
 
-      if (shouldDeductCredit) {
+      // Only check inbox mode/limits if NO dealId is present (legacy behavior)
+      // Messages with dealId are ALWAYS allowed regardless of inbox settings
+      if (shouldDeductCredit && !dealId) {
         // Check recipient inbox mode (closed / limited) for 'work' category
         const { data: limitRow } = await supabase
           .from('message_limits')
