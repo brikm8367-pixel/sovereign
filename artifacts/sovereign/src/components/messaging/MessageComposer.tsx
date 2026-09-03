@@ -167,15 +167,21 @@ export default function MessageComposer({
         }
       }
 
-      // Encrypt the message content
+      // Encrypt the message content — encryption MUST succeed, no unencrypted fallback
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '');
       const enc = await encryptForRecipient(contentToSend, recipient.id);
       if (!enc.success) {
-        // Gracefully handle missing encryption keys - send unencrypted instead of blocking
-        console.warn('Encryption failed, sending unencrypted:', enc.error);
-        // Continue with unencrypted content
+        // Encryption failed — block sending with clear error (no silent plaintext fallback)
+        const errorMsg = enc.reason === 'recipient_no_e2e'
+          ? (isRTL ? 'المستلم غير جاهز للتشيفر — يرجى المحاولة لاحقاً' : 'Recipient not ready for encryption — please try again later')
+          : enc.reason === 'no_local_keys'
+            ? (isRTL ? 'مفاتيحك غير مهيأة — أعد تسجيل الدخول' : 'Your keys not initialized — please re-login')
+            : (isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent');
+        toast.error(errorMsg, { duration: 5000 });
+        setIsSending(false);
+        return;
       }
-      const encryptedContent = enc.success ? enc.payload : contentToSend;
+      const encryptedContent = enc.payload;
 
       // Insert message with deal_id reference if provided
       const { data: insertedMsg, error } = await supabase.from('messages').insert({
