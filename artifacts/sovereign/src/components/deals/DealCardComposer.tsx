@@ -205,7 +205,7 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl max-w-md max-h-[92vh] overflow-y-auto">
+      <DialogContent className="rounded-2xl max-w-md max-h-[92vh] overflow-y-auto pb-20 safe-area-inset-bottom">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-primary" />
