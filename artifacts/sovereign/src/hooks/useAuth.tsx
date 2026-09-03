@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { initE2EKeys, ensureUserE2EReady } from '@/utils/e2eManager';
 
 type AuthContextType = {
   session: Session | null;
@@ -74,10 +75,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      
+      // Ensure E2E keys are initialized whenever a user session is established
+      if (session?.user) {
+        const hasKeys = await ensureUserE2EReady(session.user.id);
+        if (!hasKeys) {
+          await initE2EKeys(session.user.id);
+        }
+      }
     });
 
     return () => subscription.unsubscribe();

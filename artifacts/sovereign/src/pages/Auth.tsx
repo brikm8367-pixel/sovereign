@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MessageSquare, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { initE2EKeys, ensureUserE2EReady } from '@/utils/e2eManager';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -88,6 +89,16 @@ export default function Auth() {
           } else {
             setError(isRTL ? 'حدث خطأ — بياناتك آمنة.' : "Something didn't work — your messages are safe.");
           }
+        } else {
+          // Login successful - ensure E2E keys are initialized
+          const currentUser = supabase.auth.getUser();
+          if ((await currentUser).data.user) {
+            const userId = (await currentUser).data.user!.id;
+            const hasKeys = await ensureUserE2EReady(userId);
+            if (!hasKeys) {
+              await initE2EKeys(userId);
+            }
+          }
         }
       } else {
         const validation = signupSchema.safeParse({ email, password, displayName });
@@ -113,6 +124,12 @@ export default function Auth() {
             setError(isRTL ? 'حدث خطأ — بياناتك آمنة.' : "Something didn't work — your messages are safe.");
           }
         } else {
+          // Signup successful - initialize E2E keys for the new user
+          const currentUser = supabase.auth.getUser();
+          if ((await currentUser).data.user) {
+            const userId = (await currentUser).data.user!.id;
+            await initE2EKeys(userId);
+          }
           // Supabase sends a confirmation email; show dedicated screen.
           setEmailConfirmSent(true);
           setError('');
