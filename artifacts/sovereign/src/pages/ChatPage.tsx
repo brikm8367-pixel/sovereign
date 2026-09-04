@@ -260,13 +260,6 @@ export default function ChatPage() {
         .select('*')
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
 
-      // If manager, also include messages involving the managed celebrity
-      if (role === 'manager' && managedCelebrityId) {
-        query = query.or(
-          `and(sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId}),and(sender_id.eq.${managedCelebrityId},receiver_id.eq.${user.id})`
-        );
-      }
-
       // Only apply deal_id filter when dealId exists in the URL
       if (dealId) {
         query = query.eq('deal_id', dealId);
@@ -583,35 +576,8 @@ export default function ChatPage() {
       const senderRole = role === 'manager' ? 'manager' : null;
       const managedCelebrityIdField = role === 'manager' && managedCelebrityId ? managedCelebrityId : null;
       
-      // Determine receiver_id based on role:
-      // - If manager: send to deal.sender_id (the company)
-      // - If company: check if celebrity has active manager, if so send to manager, else send to celebrity
-      let receiverId = userId;
-      if (role === 'manager' && managedCelebrityId && foundDeal) {
-        // Manager sending as celebrity -> receiver is the company who sent the deal
-        receiverId = foundDeal.sender_id;
-      } else if (role !== 'manager' && foundDeal) {
-        // Company sending -> check if celebrity has active manager
-        const celebrityId = foundDeal.celebrity_id;
-        if (celebrityId) {
-          const { data: managerLink } = await supabase
-            .from('manager_links')
-            .select('manager_id')
-            .eq('celebrity_id', celebrityId)
-            .eq('status', 'active')
-            .maybeSingle();
-          
-          if (managerLink?.manager_id) {
-            // Celebrity has active manager, send to manager
-            receiverId = managerLink.manager_id;
-          } else {
-            // No active manager, send directly to celebrity
-            receiverId = celebrityId;
-          }
-        } else {
-          receiverId = userId;
-        }
-      }
+      // FIX: Always send to userId from URL (the conversation partner) so loadMessages finds the message
+      const receiverId = userId;
 
       // Insert message with category 'work' and parent_id pointing to conversation root
       // Include deal_id and celebrity_id from the deal
