@@ -130,12 +130,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const lastName = nameParts.slice(1).join(' ') || '';
     const username = await generateUniqueUsername(firstName, lastName);
 
-    const { error: profileError } = await supabase.from('profiles').insert({
+    const { error: profileError } = await supabase.from('profiles').upsert({
       id: data.user.id,
       username,
       display_name: displayName,
       account_type: 'sender',
-    });
+    }, { onConflict: 'id' });
     if (profileError) return { error: profileError };
 
     // Initialize E2E keys for the new user immediately (even before email confirmation)
