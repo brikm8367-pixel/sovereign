@@ -233,10 +233,48 @@ export default function MessageComposer({
       const senderRole = role === 'manager' ? 'manager' : null;
       const managedCelebrityIdField = role === 'manager' && managedCelebrityId ? managedCelebrityId : null;
       
+      // Determine receiver_id based on role:
+      // - If manager: send to deal.sender_id (the company) - but we need to fetch the deal
+      // - If company: check if celebrity has active manager, if so send to manager, else send to celebrity
+      let receiverId = recipient.id;
+      
+      if (role === 'manager' && managedCelebrityId && dealId) {
+        // Manager sending as celebrity -> receiver is the company who sent the deal
+        const { data: dealData } = await supabase
+          .from('deal_cards')
+          .select('sender_id')
+          .eq('id', dealId)
+          .single();
+        if (dealData) receiverId = dealData.sender_id;
+      } else if (role !== 'manager' && dealId) {
+        // Company sending -> check if celebrity has active manager
+        const { data: dealData } = await supabase
+          .from('deal_cards')
+          .select('celebrity_id')
+          .eq('id', dealId)
+          .single();
+        if (dealData?.celebrity_id) {
+          const { data: managerLink } = await supabase
+            .from('manager_links')
+            .select('manager_id')
+            .eq('celebrity_id', dealData.celebrity_id)
+            .eq('status', 'active')
+            .maybeSingle();
+          
+          if (managerLink?.manager_id) {
+            // Celebrity has active manager, send to manager
+            receiverId = managerLink.manager_id;
+          } else {
+            // No active manager, send directly to celebrity
+            receiverId = dealData.celebrity_id;
+          }
+        }
+      }
+
       // Insert message with deal_id reference if provided
       const { data: insertedMsg, error } = await supabase.from('messages').insert({
         sender_id: senderId, // Always use agent's own user.id
-        receiver_id: recipient.id,
+        receiver_id: receiverId,
         content: encryptedContent,
         voice_url: null,
         media_url: mediaUrl,
@@ -268,7 +306,7 @@ export default function MessageComposer({
       
       supabase.functions.invoke('send-push-notification', {
         body: {
-          receiverId: recipient.id,
+          receiverId: receiverId,
           senderName: senderName,
           messageType: mediaType || 'text',
           content: text,

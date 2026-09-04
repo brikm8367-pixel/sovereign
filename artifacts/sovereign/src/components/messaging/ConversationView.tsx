@@ -131,13 +131,40 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     return (Date.now() - new Date(threadMsgs[threadMsgs.length - 1].created_at).getTime()) / 3600000 >= 1;
   }, []);
 
+  // Fetch managed celebrity profile for display
+  const fetchManagedCelebrityProfile = useCallback(async (celebrityId: string): Promise<Profile | null> => {
+    if (managedCelebrityProfiles.has(celebrityId)) {
+      return managedCelebrityProfiles.get(celebrityId) || null;
+    }
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', celebrityId)
+        .single();
+      if (data) {
+        const profile = data as Profile;
+        setManagedCelebrityProfiles(prev => new Map(prev).set(celebrityId, profile));
+        return profile;
+      }
+    } catch (error) {
+      console.error('Error fetching managed celebrity profile:', error);
+    }
+    return null;
+  }, [managedCelebrityProfiles]);
+
   const decryptThread = async (msgs: ThreadMessage[]): Promise<ThreadMessage[]> => {
     if (!user) return msgs;
     return Promise.all(msgs.map(async (msg) => {
       if (isEncryptedMessage(msg.content)) {
         // FIX: Use message.sender_id as the key owner for decryption
-        const res = await decryptFromSender(msg.content, msg.sender_id);
-        return { ...msg, content: res.success ? res.plaintext : '🔒' };
+        try {
+          const res = await decryptFromSender(msg.content, msg.sender_id);
+          return { ...msg, content: res.success ? res.plaintext : '🔒' };
+        } catch (decryptError) {
+          console.error('[ConversationView] Decryption failed for message:', msg.id, decryptError);
+          return { ...msg, content: '🔒' };
+        }
       }
       return msg;
     }));
@@ -148,36 +175,66 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     const rootId = getRootId(message);
     if (!rootId) return;
 
-    // Build sender/receiver filter using only user.id (not managedCelebrityId)
-    const senderIds = [user.id];
-    const receiverIds = [user.id];
+    setIsLoading(true);
+    
+    // Add 3-second timeout to prevent stuck loading
+    const loadingTimeout = setTimeout(() => {
+      console.warn('[ConversationView] loadThread timeout after 3s, setting loading to false');
+      setIsLoading(false);
+    }, 3000);
 
-    const [{ data }, { data: rxns }, { data: delMsgs }] = await Promise.all([
-      supabase.from('messages').select('*').or(
-        senderIds.map(sid => 
-          receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
-        ).join(',')
-      ).or(`id.eq.${rootId},parent_id.eq.${rootId}`).order('created_at', { ascending: true }),
-      supabase.from('message_reactions').select('*'),
-      supabase.from('deleted_messages').select('message_id').eq('user_id', user.id),
-    ]);
+    try {
+      // Build sender/receiver filter using only user.id (not managedCelebrityId)
+      const senderIds = [user.id];
+      const receiverIds = [user.id];
 
-    const deletedSet = new Set((delMsgs || []).map(d => d.message_id));
-    setDeletedIds(deletedSet);
-    const filtered = ((data as ThreadMessage[]) || []).filter(m => !deletedSet.has(m.id));
-    const decrypted = await decryptThread(filtered);
-    setThread(decrypted);
-    setReactions((rxns as Reaction[]) || []);
-    setIsLoading(false);
+      const [{ data }, { data: rxns }, { data: delMsgs }] = await Promise.all([
+        supabase.from('messages').select('*').or(
+          senderIds.map(sid => 
+            receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
+          ).join(',')
+        ).or(`id.eq.${rootId},parent_id.eq.${rootId}`).order('created_at', { ascending: true }),
+        supabase.from('message_reactions').select('*'),
+        supabase.from('deleted_messages').select('message_id').eq('user_id', user.id),
+      ]);
 
-    if (data) {
-      const unreadIds = data.filter(m => m.receiver_id === user.id && !m.is_read).map(m => m.id);
-      if (unreadIds.length > 0) {
-        await supabase.from('messages').update({ is_read: true }).in('id', unreadIds);
-        onMessageRead?.();
+      const deletedSet = new Set((delMsgs || []).map(d => d.message_id));
+      setDeletedIds(deletedSet);
+      const filtered = ((data as ThreadMessage[]) || []).filter(m => !deletedSet.has(m.id));
+      const decrypted = await decryptThread(filtered);
+      
+      // Fetch managed celebrity profiles for messages that have managed_celebrity_id
+      const celebrityIds = new Set<string>();
+      decrypted.forEach(msg => {
+        if (msg.managed_celebrity_id) {
+          celebrityIds.add(msg.managed_celebrity_id);
+        }
+      });
+      
+      for (const celebId of celebrityIds) {
+        if (!managedCelebrityProfiles.has(celebId)) {
+          await fetchManagedCelebrityProfile(celebId);
+        }
       }
+
+      setThread(decrypted);
+      setReactions((rxns as Reaction[]) || []);
+      clearTimeout(loadingTimeout);
+      setIsLoading(false);
+
+      if (data) {
+        const unreadIds = data.filter(m => m.receiver_id === user.id && !m.is_read).map(m => m.id);
+        if (unreadIds.length > 0) {
+          await supabase.from('messages').update({ is_read: true }).in('id', unreadIds);
+          onMessageRead?.();
+        }
+      }
+    } catch (error) {
+      console.error('Error loading thread:', error);
+      clearTimeout(loadingTimeout);
+      setIsLoading(false);
     }
-  }, [message?.id, user?.id]);
+  }, [message?.id, user?.id, managedCelebrityProfiles, fetchManagedCelebrityProfile]);
 
   useEffect(() => {
     if (isOpen && message) { setIsLoading(true); loadThread(); }
@@ -406,6 +463,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       setReplyContent('');
       setShowVoice(false);
       haptic('medium');
+      // Immediately refresh thread so sender sees their message instantly
       await loadThread();
       setSendingMsgId(null);
       onMessageRead?.();
@@ -554,7 +612,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                 </p>
               )}
               {/* Show agent badge in header when conversation partner is a manager */}
-              {senderProfile && thread.some(m => m.sender_role === 'manager' && m.managed_celebrity_id) && (
+              {thread.some(m => m.sender_role === 'manager' && m.sender_id !== user.id && m.managed_celebrity_id) && (
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                     <UserCheck className="h-2.5 w-2.5" />
@@ -562,7 +620,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                   </span>
                   {thread.some(m => m.managed_celebrity_id) && (
                     <span className="text-[10px] text-muted-foreground">
-                      {isRTL ? 'يمثل' : 'represents'} {thread.find(m => m.managed_celebrity_id)?.managed_celebrity_id && '...'}
+                      {isRTL ? 'يمثل' : 'represents'} {thread.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(thread.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
                     </span>
                   )}
                 </div>

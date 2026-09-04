@@ -244,8 +244,18 @@ export default function ChatPage() {
   const loadMessages = useCallback(async () => {
     if (!user || !userId) return;
     setIsLoading(true);
+    
+    // Add 3-second timeout to prevent stuck loading
+    const loadingTimeout = setTimeout(() => {
+      if (isMountedRef.current) {
+        console.warn('[ChatPage] loadMessages timeout after 3s, setting loading to false');
+        setIsLoading(false);
+      }
+    }, 3000);
+
     try {
       // Build the sender/receiver filter using only user.id (not managedCelebrityId)
+      // For both managers and companies: only user.id
       const senderIds = [user.id];
       const receiverIds = [user.id];
 
@@ -267,19 +277,40 @@ export default function ChatPage() {
 
       if (error) throw error;
 
-      // Decrypt messages
+      // Decrypt messages with individual try-catch to prevent blocking
       const decrypted = await Promise.all(((data as Message[]) || []).map(async (msg) => {
         if (isEncryptedMessage(msg.content)) {
-          // Use message.sender_id as the key owner for decryption
-          const senderId = msg.sender_id;
-          const res = await decryptFromSender(msg.content, senderId);
-          return { ...msg, content: res.success ? res.plaintext : '🔒' };
+          try {
+            // Use message.sender_id as the key owner for decryption
+            const senderId = msg.sender_id;
+            const res = await decryptFromSender(msg.content, senderId);
+            return { ...msg, content: res.success ? res.plaintext : '🔒' };
+          } catch (decryptError) {
+            console.error('[ChatPage] Decryption failed for message:', msg.id, decryptError);
+            return { ...msg, content: '🔒' };
+          }
         }
         return msg;
       }));
 
+      // Fetch managed celebrity profiles for messages that have managed_celebrity_id
+      const celebrityIds = new Set<string>();
+      decrypted.forEach(msg => {
+        if (msg.managed_celebrity_id) {
+          celebrityIds.add(msg.managed_celebrity_id);
+        }
+      });
+      
+      for (const celebId of celebrityIds) {
+        if (!managedCelebrityProfiles.has(celebId)) {
+          await fetchManagedCelebrityProfile(celebId);
+        }
+      }
+
       if (isMountedRef.current) {
         setMessages(decrypted);
+        clearTimeout(loadingTimeout);
+        setIsLoading(false);
 
         // Mark as read
         const unreadIds = decrypted.filter(m => m.receiver_id === user.id && !m.is_read).map(m => m.id);
@@ -290,12 +321,12 @@ export default function ChatPage() {
     } catch (error) {
       console.error('Error loading messages:', error);
       toast.error(t('فشل تحميل الرسائل', 'Failed to load messages'));
-    } finally {
       if (isMountedRef.current) {
+        clearTimeout(loadingTimeout);
         setIsLoading(false);
       }
     }
-  }, [user?.id, userId, dealId, t]);
+  }, [user?.id, userId, dealId, t, managedCelebrityProfiles, fetchManagedCelebrityProfile]);
 
   // Store ref for use in effects
   useEffect(() => {
@@ -546,16 +577,34 @@ export default function ChatPage() {
       const senderRole = role === 'manager' ? 'manager' : null;
       const managedCelebrityIdField = role === 'manager' && managedCelebrityId ? managedCelebrityId : null;
       
-      // Determine receiver_id: the other party (company/sender)
-      // If manager is sending as celebrity, receiver is the company who sent the deal
-      // If company is sending, receiver is the celebrity (deal.celebrity_id or managedCelebrityId)
+      // Determine receiver_id based on role:
+      // - If manager: send to deal.sender_id (the company)
+      // - If company: check if celebrity has active manager, if so send to manager, else send to celebrity
       let receiverId = userId;
       if (role === 'manager' && managedCelebrityId && foundDeal) {
         // Manager sending as celebrity -> receiver is the company who sent the deal
         receiverId = foundDeal.sender_id;
       } else if (role !== 'manager' && foundDeal) {
-        // Company sending -> receiver is the celebrity
-        receiverId = foundDeal.celebrity_id || userId;
+        // Company sending -> check if celebrity has active manager
+        const celebrityId = foundDeal.celebrity_id;
+        if (celebrityId) {
+          const { data: managerLink } = await supabase
+            .from('manager_links')
+            .select('manager_id')
+            .eq('celebrity_id', celebrityId)
+            .eq('status', 'active')
+            .maybeSingle();
+          
+          if (managerLink?.manager_id) {
+            // Celebrity has active manager, send to manager
+            receiverId = managerLink.manager_id;
+          } else {
+            // No active manager, send directly to celebrity
+            receiverId = celebrityId;
+          }
+        } else {
+          receiverId = userId;
+        }
       }
 
       // Insert message with category 'work' and parent_id pointing to conversation root
@@ -604,6 +653,7 @@ export default function ChatPage() {
       // Only clear input and reset state AFTER successful insert
       setReplyContent('');
       setShowVoice(false);
+      // Immediately refresh messages so sender sees their message instantly
       await loadMessages();
     } catch (error) {
       console.error('Send error:', error);
@@ -669,15 +719,15 @@ export default function ChatPage() {
                 <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
               </p>
               {/* Show agent badge in header when conversation partner is a manager */}
-              {recipient && messages.length > 0 && messages.some(m => m.sender_role === 'manager' && m.managed_celebrity_id) && (
+              {messages.length > 0 && messages.some(m => m.sender_role === 'manager' && m.sender_id !== user.id && m.managed_celebrity_id) && (
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                     <UserCheck className="h-2.5 w-2.5" />
                     {t('وكيل مفوض', 'Authorized Agent')}
                   </span>
-                  {recipient && messages.some(m => m.managed_celebrity_id) && (
+                  {messages.some(m => m.managed_celebrity_id) && (
                     <span className="text-[10px] text-muted-foreground">
-                      {t('يمثل', 'represents')} {messages.find(m => m.managed_celebrity_id)?.managed_celebrity_id && '...'}
+                      {t('يمثل', 'represents')} {messages.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(messages.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
                     </span>
                   )}
                 </div>
