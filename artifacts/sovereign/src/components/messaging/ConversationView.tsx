@@ -6,7 +6,7 @@ import { useRole } from '@/hooks/useRole.tsx';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Phone, Video, Image as ImageIcon, X, Check, CheckCheck, Copy, Reply, MoreVertical, Shield, Pencil, Timer } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Phone, Video, Image as ImageIcon, X, Check, CheckCheck, Copy, Reply, MoreVertical, Shield, Pencil, Timer, ShieldCheck, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -42,6 +42,8 @@ interface ThreadMessage {
   is_edited?: boolean | null;
   edited_at?: string | null;
   expires_at?: string | null;
+  sender_role?: string | null;
+  managed_celebrity_id?: string | null;
 }
 
 interface Reaction {
@@ -113,6 +115,14 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
   const scrollRef = useRef<HTMLDivElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [managedCelebrityProfiles, setManagedCelebrityProfiles] = useState<Map<string, Profile>>(new Map());
+
+  interface Profile {
+    id: string;
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  }
 
   const getRootId = (msg: Message | null): string | null => msg ? (msg.parent_id || msg.id) : null;
 
@@ -138,13 +148,9 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     const rootId = getRootId(message);
     if (!rootId) return;
 
-    // Build sender/receiver filter to include managedCelebrityId for managers
+    // Build sender/receiver filter using only user.id (not managedCelebrityId)
     const senderIds = [user.id];
     const receiverIds = [user.id];
-    if (role === 'manager' && managedCelebrityId) {
-      senderIds.push(managedCelebrityId);
-      receiverIds.push(managedCelebrityId);
-    }
 
     const [{ data }, { data: rxns }, { data: delMsgs }] = await Promise.all([
       supabase.from('messages').select('*').or(
@@ -171,7 +177,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         onMessageRead?.();
       }
     }
-  }, [message?.id, user?.id, role, managedCelebrityId]);
+  }, [message?.id, user?.id]);
 
   useEffect(() => {
     if (isOpen && message) { setIsLoading(true); loadThread(); }
@@ -185,10 +191,6 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
 
     const senderIds = [user.id];
     const receiverIds = [user.id];
-    if (role === 'manager' && managedCelebrityId) {
-      senderIds.push(managedCelebrityId);
-      receiverIds.push(managedCelebrityId);
-    }
 
     const typingChannel = supabase.channel(`typing-${rootId}`);
     typingChannel.on('broadcast', { event: 'typing' }, ({ payload }) => {
@@ -203,7 +205,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async (payload) => {
         const msg = payload.new as any;
         if (msg) {
-          // Check if message involves current user or managed celebrity
+          // Check if message involves current user (only user.id, not managedCelebrityId)
           const isRelevant = senderIds.some(sid => msg.sender_id === sid) && 
                             receiverIds.some(rid => msg.receiver_id === rid);
           
@@ -222,7 +224,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       setIsTyping(false);
     };
-  }, [isOpen, message?.id, user?.id, role, managedCelebrityId, loadThread]);
+  }, [isOpen, message?.id, user?.id, loadThread]);
 
   const broadcastTyping = useCallback(() => {
     if (!message || !user) return;
@@ -274,14 +276,15 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     setIsSending(true);
 
     const tempId = `temp-${Date.now()}`;
-    // FIX: isMine check for optimistic message - use effective sender ID
-    const effectiveSenderId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
+    // FIX: isMine check for optimistic message - use user.id only
     const optimisticMsg: ThreadMessage = {
-      id: tempId, sender_id: effectiveSenderId, receiver_id: otherUserId!,
+      id: tempId, sender_id: user.id, receiver_id: otherUserId!,
       content: text || (voiceUrl ? '🎤' : '📷'), created_at: new Date().toISOString(),
       is_read: null, category: message.category as MessageCategory, parent_id: getRootId(message),
       voice_url: voiceUrl || null, media_url: mediaPreview?.url || null,
       media_type: mediaPreview?.file.type.startsWith('video/') ? 'video' : mediaPreview ? 'image' : null,
+      sender_role: role === 'manager' ? 'manager' : null,
+      managed_celebrity_id: role === 'manager' && managedCelebrityId ? managedCelebrityId : null,
     };
     setSendingMsgId(tempId);
     setThread(prev => [...prev, optimisticMsg]);
@@ -346,8 +349,10 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         expiresAt = new Date(Date.now() + disappearTimer).toISOString();
       }
 
-      // FIX: Determine sender_id: if manager, use managedCelebrityId; otherwise user.id
-      const effectiveSenderId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
+      // FIX: Always use user.id as sender_id (agent's own identity for E2E encryption)
+      // Add metadata fields: sender_role and managed_celebrity_id
+      const senderRole = role === 'manager' ? 'manager' : null;
+      const managedCelebrityIdField = role === 'manager' && managedCelebrityId ? managedCelebrityId : null;
       
       // FIX: Determine receiver_id: the other party
       // If manager sending as celebrity -> receiver is the company who sent the deal
@@ -364,24 +369,31 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       }
 
       const { error } = await supabase.from('messages').insert({
-        sender_id: effectiveSenderId, receiver_id: receiverId, content: encryptedContent,
-        voice_url: voiceUrl || null, media_url: mediaUrl, media_type: mediaType,
-        category: finalCategory, parent_id: rootId,
+        sender_id: user.id, // Always use agent's own user.id
+        receiver_id: receiverId,
+        content: encryptedContent,
+        voice_url: voiceUrl || null,
+        media_url: mediaUrl,
+        media_type: mediaType,
+        category: finalCategory,
+        parent_id: rootId,
         expires_at: expiresAt,
         deal_id: message.deal_id, // Preserve deal_id from parent message
+        sender_role: senderRole,
+        managed_celebrity_id: managedCelebrityIdField,
       } as any);
       if (error) throw error;
 
-      // Push notification (fire and forget)
+      // Push notification (fire and forget) - use agent's own display name for managers
       let senderName = '';
-      if (role === 'manager' && managedCelebrityId) {
-        // Fetch celebrity profile for notification
-        const { data: celebProfile } = await supabase
+      if (role === 'manager') {
+        // Fetch agent's own profile for notification
+        const { data: agentProfile } = await supabase
           .from('profiles')
           .select('display_name')
-          .eq('id', managedCelebrityId)
+          .eq('id', user.id)
           .single();
-        senderName = celebProfile?.display_name || 'Someone';
+        senderName = agentProfile?.display_name || 'Someone';
       } else {
         const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', user.id).single();
         senderName = senderProfile?.display_name || 'Someone';
@@ -541,6 +553,20 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                   <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
                 </p>
               )}
+              {/* Show agent badge in header when conversation partner is a manager */}
+              {senderProfile && thread.some(m => m.sender_role === 'manager' && m.managed_celebrity_id) && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                    <UserCheck className="h-2.5 w-2.5" />
+                    {isRTL ? 'وكيل مفوض' : 'Authorized Agent'}
+                  </span>
+                  {thread.some(m => m.managed_celebrity_id) && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {isRTL ? 'يمثل' : 'represents'} {thread.find(m => m.managed_celebrity_id)?.managed_celebrity_id && '...'}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </button>
           <div className="flex items-center gap-0.5 shrink-0">
@@ -613,13 +639,19 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
             </div>
           ) : (
             thread.map((msg, i) => {
-              // FIX: isMine check - true when message.sender_id equals current user id OR (manager and message.sender_id equals managedCelebrityId)
-              const isMine = msg.sender_id === user?.id || (role === 'manager' && managedCelebrityId && msg.sender_id === managedCelebrityId);
+              // FIX: isMine check - only check msg.sender_id === user.id (no managedCelebrityId condition)
+              const isMine = msg.sender_id === user?.id;
               const showDateSep = i === 0 || dateSeparator(msg.created_at, isRTL) !== dateSeparator(thread[i - 1].created_at, isRTL);
               const isSendingThis = msg.id === sendingMsgId;
               const msgReactions = reactions.filter(r => r.message_id === msg.id);
               const canUnsend = isMine && (Date.now() - new Date(msg.created_at).getTime()) < UNSEND_WINDOW_MS;
               const canEdit = isMine && (Date.now() - new Date(msg.created_at).getTime()) < EDIT_WINDOW_MS && !msg.voice_url && !msg.media_url;
+
+              // Check if message is from a manager (agent)
+              const isFromManager = msg.sender_role === 'manager' && msg.managed_celebrity_id;
+              const managedCelebrityName = isFromManager && msg.managed_celebrity_id 
+                ? managedCelebrityProfiles.get(msg.managed_celebrity_id)?.display_name 
+                : null;
 
               const readStatus = isMine ? (
                 isSendingThis ? (
@@ -680,6 +712,20 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                           isSendingThis ? 'bg-muted text-muted-foreground'
                             : isMine ? `${categoryBubbleClass} rounded-ee-sm` : 'bg-card border border-border rounded-es-sm'
                         )}>
+                          {/* Agent badge for messages from managers */}
+                          {!isMine && isFromManager && (
+                            <div className="mb-1.5 flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                                <ShieldCheck className="h-2.5 w-2.5" />
+                                {isRTL ? 'وكيل مفوض' : 'Authorized Agent'}
+                              </span>
+                              {managedCelebrityName && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {isRTL ? 'يمثل' : 'represents'} {managedCelebrityName}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {/* Disappearing message indicator */}
                           {msg.expires_at && (
                             <div className={cn("flex items-center gap-1 mb-1", isMine ? "text-white/50" : "text-muted-foreground")}>

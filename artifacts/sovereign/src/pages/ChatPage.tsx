@@ -6,7 +6,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal, AlertCircle } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal, AlertCircle, ShieldCheck, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -37,6 +37,8 @@ interface Message {
   edited_at?: string | null;
   expires_at?: string | null;
   deal_id?: string | null;
+  sender_role?: string | null;
+  managed_celebrity_id?: string | null;
 }
 
 interface Deal {
@@ -77,6 +79,7 @@ export default function ChatPage() {
   const [celebrityProfile, setCelebrityProfile] = useState<Profile | null>(null);
   const [dealCache, setDealCache] = useState<Map<string, Deal>>(new Map());
   const [recipientE2EReady, setRecipientE2EReady] = useState<boolean | null>(null);
+  const [managedCelebrityProfiles, setManagedCelebrityProfiles] = useState<Map<string, Profile>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -85,8 +88,27 @@ export default function ChatPage() {
 
   const t = useCallback((ar: string, en: string) => (isRTL ? ar : en), [isRTL]);
 
-  // Determine the effective sender ID: if manager, use managedCelebrityId; otherwise user.id
-  const effectiveSenderId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user?.id;
+  // Fetch managed celebrity profile for display
+  const fetchManagedCelebrityProfile = useCallback(async (celebrityId: string): Promise<Profile | null> => {
+    if (managedCelebrityProfiles.has(celebrityId)) {
+      return managedCelebrityProfiles.get(celebrityId) || null;
+    }
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', celebrityId)
+        .single();
+      if (data) {
+        const profile = data as Profile;
+        setManagedCelebrityProfiles(prev => new Map(prev).set(celebrityId, profile));
+        return profile;
+      }
+    } catch (error) {
+      console.error('Error fetching managed celebrity profile:', error);
+    }
+    return null;
+  }, [managedCelebrityProfiles]);
 
   // Determine display profile based on role and deal context
   const getDisplayProfile = useCallback((): Profile | null => {
@@ -223,13 +245,9 @@ export default function ChatPage() {
     if (!user || !userId) return;
     setIsLoading(true);
     try {
-      // Build the sender/receiver filter to include managedCelebrityId for managers
+      // Build the sender/receiver filter using only user.id (not managedCelebrityId)
       const senderIds = [user.id];
       const receiverIds = [user.id];
-      if (role === 'manager' && managedCelebrityId) {
-        senderIds.push(managedCelebrityId);
-        receiverIds.push(managedCelebrityId);
-      }
 
       let query = supabase
         .from('messages')
@@ -277,7 +295,7 @@ export default function ChatPage() {
         setIsLoading(false);
       }
     }
-  }, [user?.id, userId, dealId, role, managedCelebrityId, t]);
+  }, [user?.id, userId, dealId, t]);
 
   // Store ref for use in effects
   useEffect(() => {
@@ -296,13 +314,9 @@ export default function ChatPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async (payload) => {
         const msg = payload.new as any;
         if (msg) {
-          // Check if message involves current user or managed celebrity
+          // Check if message involves current user (only user.id, not managedCelebrityId)
           const senderIds = [user.id];
           const receiverIds = [user.id];
-          if (role === 'manager' && managedCelebrityId) {
-            senderIds.push(managedCelebrityId);
-            receiverIds.push(managedCelebrityId);
-          }
           
           const isRelevant = senderIds.some(sid => msg.sender_id === sid) && 
                             receiverIds.some(rid => msg.receiver_id === rid);
@@ -322,7 +336,7 @@ export default function ChatPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [user?.id, userId, dealId, deal, loadMessages, role, managedCelebrityId]);
+  }, [user?.id, userId, dealId, deal, loadMessages]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -468,10 +482,6 @@ export default function ChatPage() {
     let parentId: string | null = null;
     const senderIds = [user.id];
     const receiverIds = [user.id];
-    if (role === 'manager' && managedCelebrityId) {
-      senderIds.push(managedCelebrityId);
-      receiverIds.push(managedCelebrityId);
-    }
     
     let rootQuery = supabase
       .from('messages')
@@ -531,8 +541,10 @@ export default function ChatPage() {
       }
       const finalContent = enc.payload;
 
-      // Determine sender_id: if manager, use managedCelebrityId; otherwise user.id
-      const senderId = effectiveSenderId;
+      // FIX: Always use user.id as sender_id (agent's own identity for E2E encryption)
+      // Add metadata fields: sender_role and managed_celebrity_id
+      const senderRole = role === 'manager' ? 'manager' : null;
+      const managedCelebrityIdField = role === 'manager' && managedCelebrityId ? managedCelebrityId : null;
       
       // Determine receiver_id: the other party (company/sender)
       // If manager is sending as celebrity, receiver is the company who sent the deal
@@ -549,7 +561,7 @@ export default function ChatPage() {
       // Insert message with category 'work' and parent_id pointing to conversation root
       // Include deal_id and celebrity_id from the deal
       const { error } = await supabase.from('messages').insert({
-        sender_id: senderId,
+        sender_id: user.id, // Always use agent's own user.id
         receiver_id: receiverId,
         content: finalContent,
         voice_url: voiceUrl || null,
@@ -559,20 +571,22 @@ export default function ChatPage() {
         parent_id: parentId,
         celebrity_id: (foundDeal || deal)?.celebrity_id || managedCelebrityId || null,
         deal_id: dealId || foundDeal?.id || null,
+        sender_role: senderRole,
+        managed_celebrity_id: managedCelebrityIdField,
       } as any);
       
       if (error) throw error;
 
-      // Push notification - use celebrity name for manager actions
+      // Push notification - use agent's own display name for managers
       let senderName = '';
-      if (role === 'manager' && managedCelebrityId) {
-        // Fetch celebrity profile for notification
-        const { data: celebProfile } = await supabase
+      if (role === 'manager') {
+        // Fetch agent's own profile for notification
+        const { data: agentProfile } = await supabase
           .from('profiles')
           .select('display_name')
-          .eq('id', managedCelebrityId)
+          .eq('id', user.id)
           .single();
-        senderName = celebProfile?.display_name || 'Someone';
+        senderName = agentProfile?.display_name || 'Someone';
       } else {
         const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', user.id).single();
         senderName = senderProfile?.display_name || 'Someone';
@@ -654,6 +668,20 @@ export default function ChatPage() {
                 <Shield className="h-3 w-3 text-emerald-500 inline" />
                 <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
               </p>
+              {/* Show agent badge in header when conversation partner is a manager */}
+              {recipient && messages.length > 0 && messages.some(m => m.sender_role === 'manager' && m.managed_celebrity_id) && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                    <UserCheck className="h-2.5 w-2.5" />
+                    {t('وكيل مفوض', 'Authorized Agent')}
+                  </span>
+                  {recipient && messages.some(m => m.managed_celebrity_id) && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {t('يمثل', 'represents')} {messages.find(m => m.managed_celebrity_id)?.managed_celebrity_id && '...'}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </button>
           <Button
@@ -676,8 +704,8 @@ export default function ChatPage() {
         ) : (
           <div className="space-y-3">
             {messages.map((msg, i) => {
-              // FIX: isMine check - true when message.sender_id equals current user id OR (manager and message.sender_id equals managedCelebrityId)
-              const isMine = msg.sender_id === user?.id || (role === 'manager' && managedCelebrityId && msg.sender_id === managedCelebrityId);
+              // FIX: isMine check - only check msg.sender_id === user.id (no managedCelebrityId condition)
+              const isMine = msg.sender_id === user?.id;
               const showDateSep = i === 0 || formatDate(msg.created_at) !== formatDate(messages[i - 1]?.created_at);
               
               // Check if this message has a deal_id and it's the first message with this deal_id
@@ -685,6 +713,12 @@ export default function ChatPage() {
               const isFirstInDealGroup = hasDealId && (
                 i === 0 || messages[i - 1]?.deal_id !== msg.deal_id
               );
+
+              // Check if message is from a manager (agent)
+              const isFromManager = msg.sender_role === 'manager' && msg.managed_celebrity_id;
+              const managedCelebrityName = isFromManager && msg.managed_celebrity_id 
+                ? managedCelebrityProfiles.get(msg.managed_celebrity_id)?.display_name 
+                : null;
 
               return (
                 <div key={msg.id}>
@@ -714,6 +748,20 @@ export default function ChatPage() {
                           ? 'bg-primary text-primary-foreground rounded-es-sm shadow-[0_1px_2px_rgba(0,0,0,0.05)]' 
                           : 'bg-card border border-border/50 rounded-ee-sm shadow-[0_1px_2px_rgba(0,0,0,0.03)]'
                       )}>
+                        {/* Agent badge for messages from managers */}
+                        {!isMine && isFromManager && (
+                          <div className="mb-1.5 flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                              <ShieldCheck className="h-2.5 w-2.5" />
+                              {t('وكيل مفوض', 'Authorized Agent')}
+                            </span>
+                            {managedCelebrityName && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {t('يمثل', 'represents')} {managedCelebrityName}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         {msg.media_url && msg.media_type === 'image' && (
                           <img src={msg.media_url} alt="" className="rounded-xl max-w-full mb-1.5 cursor-pointer" onClick={() => window.open(msg.media_url!, '_blank')} />
                         )}
