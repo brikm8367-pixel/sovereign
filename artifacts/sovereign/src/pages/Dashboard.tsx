@@ -232,8 +232,8 @@ export default function Dashboard() {
     }
 
     try {
-      // Determine the current user ID for messaging (celebrity ID for managers, own user ID for others)
-      const currentUserId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
+      // FIX: Always use user.id as currentUserId since messages are sent with sender_id = user.id (agent's own identity)
+      const currentUserId = user.id;
 
       console.log('[Dashboard] Fetching conversations for:', currentUserId, 'role:', role);
 
@@ -244,16 +244,8 @@ export default function Dashboard() {
         .order('created_at', { ascending: false })
         .limit(50); // Limit to 50 most recent messages per conversation
 
-      // FIX: Include managedCelebrityId in the query for managers
-      if (role === 'manager' && managedCelebrityId) {
-        // For managers, fetch messages where the manager is involved (user.id) OR the managed celebrity is involved
-        query = query.or(
-          `receiver_id.eq.${user.id},sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId},sender_id.eq.${managedCelebrityId}`
-        );
-      } else {
-        // For celebrities and senders, fetch messages where they are sender or receiver
-        query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
-      }
+      // FIX: Use user.id for all roles including manager - messages are sent with agent's user.id
+      query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
 
       const { data, error } = await query;
 
@@ -262,7 +254,7 @@ export default function Dashboard() {
       const conversationsMap = new Map<string, Conversation>();
       
       for (const msg of (data as any[]) || []) {
-        // FIX: Use the correct currentUserId for determining the other participant
+        // FIX: Use the correct currentUserId (user.id) for determining the other participant
         const otherUserId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
         if (!otherUserId) continue;
 
@@ -293,7 +285,7 @@ export default function Dashboard() {
             existing.last_message = msg.content || '';
             existing.last_message_time = msg.created_at;
           }
-          // FIX: Check unread against currentUserId (which includes managedCelebrityId for managers)
+          // FIX: Check unread against currentUserId (user.id)
           if (!msg.is_read && msg.receiver_id === currentUserId) {
             existing.unread_count += 1;
           }
