@@ -692,7 +692,13 @@ export default function ChatPage() {
 
   const displayProfile = getDisplayProfile();
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center" dir={isRTL ? 'rtl' : 'ltr'}>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const isDealAccepted = deal && deal.status === 'accepted';
 
