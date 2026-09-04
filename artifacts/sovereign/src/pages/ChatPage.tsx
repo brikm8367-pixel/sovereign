@@ -6,7 +6,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal, AlertCircle, ShieldCheck, CheckCheck } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal, AlertCircle, ShieldCheck, CheckCheck, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -80,6 +80,7 @@ export default function ChatPage() {
   const [dealCache, setDealCache] = useState<Map<string, Deal>>(new Map());
   const [recipientE2EReady, setRecipientE2EReady] = useState<boolean | null>(null);
   const [managedCelebrityProfiles, setManagedCelebrityProfiles] = useState<Map<string, Profile>>(new Map());
+  const [ownMessagesCache, setOwnMessagesCache] = useState<Map<string, string>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -271,15 +272,32 @@ export default function ChatPage() {
 
       // Decrypt messages with individual try-catch to prevent blocking
       const decrypted = await Promise.all(((data as Message[]) || []).map(async (msg) => {
+        // For own messages, use cached plaintext if available
+        if (msg.sender_id === user.id && ownMessagesCache.has(msg.id)) {
+          return { ...msg, content: ownMessagesCache.get(msg.id)! };
+        }
+        
         if (isEncryptedMessage(msg.content)) {
           try {
             // Use message.sender_id as the key owner for decryption
             const senderId = msg.sender_id;
             const res = await decryptFromSender(msg.content, senderId);
-            return { ...msg, content: res.success ? res.plaintext : '🔒' };
+            if (res.success) {
+              return { ...msg, content: res.plaintext };
+            }
+            // Decryption failed - return readable fallback
+            return { 
+              ...msg, 
+              content: isRTL ? 'رسالة قديمة غير قابلة للقراءة' : 'Old message unreadable',
+              _decryptionFailed: true
+            };
           } catch (decryptError) {
             console.error('[ChatPage] Decryption failed for message:', msg.id, decryptError);
-            return { ...msg, content: '🔒' };
+            return { 
+              ...msg, 
+              content: isRTL ? 'رسالة قديمة غير قابلة للقراءة' : 'Old message unreadable',
+              _decryptionFailed: true
+            };
           }
         }
         return msg;
@@ -318,7 +336,7 @@ export default function ChatPage() {
         setIsLoading(false);
       }
     }
-  }, [user?.id, userId, dealId, t, managedCelebrityProfiles, fetchManagedCelebrityProfile, role, managedCelebrityId]);
+  }, [user?.id, userId, dealId, t, managedCelebrityProfiles, fetchManagedCelebrityProfile, role, managedCelebrityId, ownMessagesCache, isRTL]);
 
   // Store ref for use in effects
   useEffect(() => {
@@ -581,7 +599,8 @@ export default function ChatPage() {
 
       // Insert message with category 'work' and parent_id pointing to conversation root
       // Include deal_id and celebrity_id from the deal
-      const { error } = await supabase.from('messages').insert({
+      // Use .select().single() to get the inserted message back with its ID
+      const { data: insertedMsg, error } = await supabase.from('messages').insert({
         sender_id: user.id, // Always use agent's own user.id
         receiver_id: receiverId,
         content: finalContent,
@@ -594,9 +613,14 @@ export default function ChatPage() {
         deal_id: dealId || foundDeal?.id || null,
         sender_role: senderRole,
         managed_celebrity_id: managedCelebrityIdField,
-      } as any);
+      } as any).select().single();
       
       if (error) throw error;
+
+      // Cache the plaintext for our own message using the database-generated ID
+      if (insertedMsg?.id) {
+        setOwnMessagesCache(prev => new Map(prev).set(insertedMsg.id, contentToSend));
+      }
 
       // Push notification - use agent's own display name for managers
       let senderName = '';
@@ -735,7 +759,7 @@ export default function ChatPage() {
       </header>
 
       {/* Messages Area */}
-      <main className="flex-1 overflow-y-auto pt-16 pb-20 px-4 max-w-lg mx-auto w-full" ref={scrollRef}>
+      <main className="flex-1 overflow-y-auto pt-16 pb-24 px-4 max-w-lg mx-auto w-full" ref={scrollRef}>
         {/* Pinned Deal Card - Persistent at top when deal is accepted */}
         {isDealAccepted && deal && (
           <div className="sticky top-0 z-10 mb-4 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 py-3">
@@ -755,7 +779,17 @@ export default function ChatPage() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
+            {messages.length === 0 && !deal && (
+              <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <Send className="h-8 w-8 text-primary" />
+                </div>
+                <p className="text-muted-foreground text-base">{t('لا توجد رسائل بعد', 'No messages yet')}</p>
+                <p className="text-sm text-muted-foreground/70 mt-1">{t('ابدأ المحادثة', 'Start the conversation')}</p>
+              </div>
+            )}
+            
             {messages.map((msg, i) => {
               // FIX: isMine check - only check msg.sender_id === user.id (no managedCelebrityId condition)
               const isMine = msg.sender_id === user?.id;
@@ -835,11 +869,14 @@ export default function ChatPage() {
                             <span className="text-sm text-muted-foreground">{isRTL ? 'رسالة صوتية' : 'Voice message'}</span>
                           </div>
                         ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
-                          <p className="whitespace-pre-wrap">{msg.content === '🔒' ? (
-                            <span className="flex items-center gap-1 text-muted-foreground/70 italic text-sm">
-                              <Shield className="h-3 w-3" /> {t('مشفرة', 'Encrypted')}
-                            </span>
-                          ) : msg.content}</p>
+                          <p className="whitespace-pre-wrap">
+                            {msg._decryptionFailed ? (
+                              <span className="flex items-center gap-1.5 text-muted-foreground/60 italic text-sm">
+                                <Info className="h-3.5 w-3.5 flex-shrink-0" />
+                                {msg.content}
+                              </span>
+                            ) : msg.content}
+                          </p>
                         ) : null}
                         <div className={cn('flex items-center gap-1.5 mt-1.5', isMine ? 'justify-end' : '')}>
                           {msg.is_edited && (
@@ -862,16 +899,6 @@ export default function ChatPage() {
                 </div>
               );
             })}
-
-            {messages.length === 0 && !deal && (
-              <div className="flex flex-col items-center justify-center h-64 text-center">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <Send className="h-8 w-8 text-primary" />
-                </div>
-                <p className="text-muted-foreground">{t('لا توجد رسائل بعد', 'No messages yet')}</p>
-                <p className="text-sm text-muted-foreground/70 mt-1">{t('ابدأ المحادثة', 'Start the conversation')}</p>
-              </div>
-            )}
           </div>
         )}
       </main>

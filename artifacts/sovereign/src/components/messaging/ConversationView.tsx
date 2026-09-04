@@ -6,7 +6,7 @@ import { useRole } from '@/hooks/useRole.tsx';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Phone, Video, Image as ImageIcon, X, Check, CheckCheck, Copy, Reply, MoreVertical, Shield, Pencil, Timer, ShieldCheck, UserCheck, Briefcase } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Phone, Video, Image as ImageIcon, X, Check, CheckCheck, Copy, Reply, MoreVertical, Shield, Pencil, Timer, ShieldCheck, UserCheck, Briefcase, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -117,6 +117,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [managedCelebrityProfiles, setManagedCelebrityProfiles] = useState<Map<string, Profile>>(new Map());
   const [deal, setDeal] = useState<any>(null);
+  const [ownMessagesCache, setOwnMessagesCache] = useState<Map<string, string>>(new Map());
 
   interface Profile {
     id: string;
@@ -157,14 +158,31 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
   const decryptThread = async (msgs: ThreadMessage[]): Promise<ThreadMessage[]> => {
     if (!user) return msgs;
     return Promise.all(msgs.map(async (msg) => {
+      // For own messages, use cached plaintext if available
+      if (msg.sender_id === user.id && ownMessagesCache.has(msg.id)) {
+        return { ...msg, content: ownMessagesCache.get(msg.id)! };
+      }
+      
       if (isEncryptedMessage(msg.content)) {
         // FIX: Use message.sender_id as the key owner for decryption
         try {
           const res = await decryptFromSender(msg.content, msg.sender_id);
-          return { ...msg, content: res.success ? res.plaintext : '🔒' };
+          if (res.success) {
+            return { ...msg, content: res.plaintext };
+          }
+          // Decryption failed - return readable fallback
+          return { 
+            ...msg, 
+            content: isRTL ? 'رسالة قديمة غير قابلة للقراءة' : 'Old message unreadable',
+            _decryptionFailed: true
+          };
         } catch (decryptError) {
           console.error('[ConversationView] Decryption failed for message:', msg.id, decryptError);
-          return { ...msg, content: '🔒' };
+          return { 
+            ...msg, 
+            content: isRTL ? 'رسالة قديمة غير قابلة للقراءة' : 'Old message unreadable',
+            _decryptionFailed: true
+          };
         }
       }
       return msg;
@@ -244,7 +262,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       clearTimeout(loadingTimeout);
       setIsLoading(false);
     }
-  }, [message?.id, user?.id, managedCelebrityProfiles, fetchManagedCelebrityProfile]);
+  }, [message?.id, user?.id, managedCelebrityProfiles, fetchManagedCelebrityProfile, ownMessagesCache, isRTL]);
 
   useEffect(() => {
     if (isOpen && message) { setIsLoading(true); loadThread(); }
@@ -438,7 +456,8 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
 
       // Insert message with category 'work' and parent_id pointing to conversation root
       // Include deal_id and celebrity_id from the deal
-      const { error } = await supabase.from('messages').insert({
+      // Use .select().single() to get the inserted message back with its ID
+      const { data: insertedMsg, error } = await supabase.from('messages').insert({
         sender_id: user.id, // Always use agent's own user.id
         receiver_id: receiverId,
         content: encryptedContent,
@@ -451,8 +470,13 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         deal_id: message.deal_id, // Preserve deal_id from parent message
         sender_role: senderRole,
         managed_celebrity_id: managedCelebrityIdField,
-      } as any);
+      } as any).select().single();
       if (error) throw error;
+
+      // Cache the plaintext for our own message using the database-generated ID
+      if (insertedMsg?.id) {
+        setOwnMessagesCache(prev => new Map(prev).set(insertedMsg.id, contentToSend));
+      }
 
       // Push notification (fire and forget) - use agent's own display name for managers
       let senderName = '';
@@ -725,7 +749,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         )}
 
         {/* Messages thread - full height like WhatsApp */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5" onClick={() => { setContextMenu(null); setShowReactions(null); }}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-1" onClick={() => { setContextMenu(null); setShowReactions(null); }}
           style={{ backgroundImage: 'var(--gradient-hero)', backgroundSize: 'cover' }}
         >
           {isLoading ? (
@@ -733,188 +757,203 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           ) : (
-            thread.map((msg, i) => {
-              // FIX: isMine check - only check msg.sender_id === user.id (no managedCelebrityId condition)
-              const isMine = msg.sender_id === user?.id;
-              const showDateSep = i === 0 || dateSeparator(msg.created_at, isRTL) !== dateSeparator(thread[i - 1].created_at, isRTL);
-              const isSendingThis = msg.id === sendingMsgId;
-              const msgReactions = reactions.filter(r => r.message_id === msg.id);
-              const canUnsend = isMine && (Date.now() - new Date(msg.created_at).getTime()) < UNSEND_WINDOW_MS;
-              const canEdit = isMine && (Date.now() - new Date(msg.created_at).getTime()) < EDIT_WINDOW_MS && !msg.voice_url && !msg.media_url;
+            <>
+              {thread.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                    <Send className="h-8 w-8 text-primary" />
+                  </div>
+                  <p className="text-muted-foreground text-base">{t('لا توجد رسائل بعد', 'No messages yet')}</p>
+                  <p className="text-sm text-muted-foreground/70 mt-1">{t('ابدأ المحادثة', 'Start the conversation')}</p>
+                </div>
+              )}
+              
+              {thread.map((msg, i) => {
+                // FIX: isMine check - only check msg.sender_id === user.id (no managedCelebrityId condition)
+                const isMine = msg.sender_id === user?.id;
+                const showDateSep = i === 0 || dateSeparator(msg.created_at, isRTL) !== dateSeparator(thread[i - 1]?.created_at, isRTL);
+                const isSendingThis = msg.id === sendingMsgId;
+                const msgReactions = reactions.filter(r => r.message_id === msg.id);
+                const canUnsend = isMine && (Date.now() - new Date(msg.created_at).getTime()) < UNSEND_WINDOW_MS;
+                const canEdit = isMine && (Date.now() - new Date(msg.created_at).getTime()) < EDIT_WINDOW_MS && !msg.voice_url && !msg.media_url;
 
-              // Check if message is from a manager (agent)
-              const isFromManager = msg.sender_role === 'manager' && msg.managed_celebrity_id;
-              const managedCelebrityName = isFromManager && msg.managed_celebrity_id 
-                ? managedCelebrityProfiles.get(msg.managed_celebrity_id)?.display_name 
-                : null;
+                // Check if message is from a manager (agent)
+                const isFromManager = msg.sender_role === 'manager' && msg.managed_celebrity_id;
+                const managedCelebrityName = isFromManager && msg.managed_celebrity_id 
+                  ? managedCelebrityProfiles.get(msg.managed_celebrity_id)?.display_name 
+                  : null;
 
-              const readStatus = isMine ? (
-                isSendingThis ? (
-                  <Check className="h-3 w-3 text-white/40" />
-                ) : msg.is_read ? (
-                  <CheckCheck className={cn('h-3 w-3', message.category === 'work' ? 'text-blue-300' : 'text-white/70')} />
-                ) : (
-                  <CheckCheck className="h-3 w-3 text-white/40" />
-                )
-              ) : null;
+                const readStatus = isMine ? (
+                  isSendingThis ? (
+                    <Check className="h-3 w-3 text-white/40" />
+                  ) : msg.is_read ? (
+                    <CheckCheck className={cn('h-3 w-3', message.category === 'work' ? 'text-blue-300' : 'text-white/70')} />
+                  ) : (
+                    <CheckCheck className="h-3 w-3 text-white/40" />
+                  )
+                ) : null;
 
-              return (
-                <div key={msg.id}>
-                  {showDateSep && (
-                    <div className="text-center my-3">
-                      <span className="text-[11px] text-muted-foreground bg-card/80 backdrop-blur-sm px-3 py-1 rounded-full font-medium">
-                        {dateSeparator(msg.created_at, isRTL)}
-                      </span>
-                    </div>
-                  )}
-                  {/* Deal Card inline above first message of each deal_id group (only if not already pinned at top) */}
-                  {msg.deal_id && !isDealAccepted && (
-                    i === 0 || thread[i - 1]?.deal_id !== msg.deal_id
-                  ) && (
-                    <DealCardInline 
-                      dealId={msg.deal_id} 
-                      isRTL={isRTL} 
-                      onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
-                      showDetails={showDealDetails} 
-                    />
-                  )}
+                return (
+                  <div key={msg.id}>
+                    {showDateSep && (
+                      <div className="text-center my-3">
+                        <span className="text-[11px] text-muted-foreground bg-card/80 backdrop-blur-sm px-3 py-1 rounded-full font-medium">
+                          {dateSeparator(msg.created_at, isRTL)}
+                        </span>
+                      </div>
+                    )}
+                    {/* Deal Card inline above first message of each deal_id group (only if not already pinned at top) */}
+                    {msg.deal_id && !isDealAccepted && (
+                      i === 0 || thread[i - 1]?.deal_id !== msg.deal_id
+                    ) && (
+                      <DealCardInline 
+                        dealId={msg.deal_id} 
+                        isRTL={isRTL} 
+                        onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
+                        showDetails={showDealDetails} 
+                      />
+                    )}
 
-                  {/* Editing mode */}
-                  {editingMsg === msg.id ? (
-                    <div className={cn('flex mb-1', isMine ? 'justify-end' : 'justify-start')}>
-                      <div className="max-w-[80%] flex flex-col gap-1">
-                        <textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          className="text-sm p-2.5 rounded-xl border-2 border-primary bg-card resize-none min-h-[60px]"
-                          autoFocus
-                        />
-                        <div className="flex gap-1.5 justify-end">
-                          <Button size="sm" variant="ghost" onClick={() => setEditingMsg(null)} className="h-7 text-xs rounded-lg">
-                            {t('إلغاء', 'Cancel')}
-                          </Button>
-                          <Button size="sm" onClick={() => handleEditMessage(msg.id)} className="h-7 text-xs rounded-lg">
-                            {t('حفظ', 'Save')}
-                          </Button>
+                    {/* Editing mode */}
+                    {editingMsg === msg.id ? (
+                      <div className={cn('flex mb-1', isMine ? 'justify-end' : 'justify-start')}>
+                        <div className="max-w-[80%] flex flex-col gap-1">
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="text-sm p-2.5 rounded-xl border-2 border-primary bg-card resize-none min-h-[60px]"
+                            autoFocus
+                          />
+                          <div className="flex gap-1.5 justify-end">
+                            <Button size="sm" variant="ghost" onClick={() => setEditingMsg(null)} className="h-7 text-xs rounded-lg">
+                              {t('إلغاء', 'Cancel')}
+                            </Button>
+                            <Button size="sm" onClick={() => handleEditMessage(msg.id)} className="h-7 text-xs rounded-lg">
+                              {t('حفظ', 'Save')}
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <motion.div
-                      drag="x"
-                      dragConstraints={{ left: -60, right: 60 }}
-                      dragElastic={0.15}
-                      dragSnapToOrigin
-                      onDragEnd={(_, info) => handleSwipe(msg.id, info, isMine)}
-                      className={cn('flex mb-0.5', isMine ? 'justify-end' : 'justify-start')}
-                      onTouchStart={(e) => handleTouchStart(msg.id, e)}
-                      onTouchEnd={handleTouchEnd}
-                      onMouseDown={(e) => handleTouchStart(msg.id, e)}
-                      onMouseUp={handleTouchEnd}
-                      onMouseLeave={handleTouchEnd}
-                    >
-                      <div className="relative max-w-[80%]">
-                        <div className={cn(
-                          'px-3 py-2 rounded-2xl text-[15px] leading-relaxed',
-                          isSendingThis ? 'bg-muted text-muted-foreground'
-                            : isMine ? `${categoryBubbleClass} rounded-ee-sm` : 'bg-card border border-border rounded-es-sm'
-                        )}>
-                          {/* Deal context label for messages in a deal thread */}
-                          {msg.deal_id && !isDealAccepted && (
-                            <div className="absolute -top-2 left-3 right-3 -mx-3 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-t-xl text-[10px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                              <Briefcase className="h-3 w-3" />
-                              {t('بخصوص هذا العرض', 'Regarding this deal')}
-                            </div>
-                          )}
-                          
-                          {/* Agent badge for messages from managers */}
-                          {!isMine && isFromManager && (
-                            <div className="mb-1.5 flex items-center gap-1.5">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                                <ShieldCheck className="h-2.5 w-2.5" />
-                                {t('وكيل مفوض', 'Authorized Agent')}
-                              </span>
-                              {managedCelebrityName && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  {t('يمثل', 'represents')} {managedCelebrityName}
+                    ) : (
+                      <motion.div
+                        drag="x"
+                        dragConstraints={{ left: -60, right: 60 }}
+                        dragElastic={0.15}
+                        dragSnapToOrigin
+                        onDragEnd={(_, info) => handleSwipe(msg.id, info, isMine)}
+                        className={cn('flex mb-0.5', isMine ? 'justify-end' : 'justify-start')}
+                        onTouchStart={(e) => handleTouchStart(msg.id, e)}
+                        onTouchEnd={handleTouchEnd}
+                        onMouseDown={(e) => handleTouchStart(msg.id, e)}
+                        onMouseUp={handleTouchEnd}
+                        onMouseLeave={handleTouchEnd}
+                      >
+                        <div className="relative max-w-[80%]">
+                          <div className={cn(
+                            'px-3 py-2 rounded-2xl text-[15px] leading-relaxed',
+                            isSendingThis ? 'bg-muted text-muted-foreground'
+                              : isMine ? `${categoryBubbleClass} rounded-ee-sm` : 'bg-card border border-border rounded-es-sm'
+                          )}>
+                            {/* Deal context label for messages in a deal thread */}
+                            {msg.deal_id && !isDealAccepted && (
+                              <div className="absolute -top-2 left-3 right-3 -mx-3 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-t-xl text-[10px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                <Briefcase className="h-3 w-3" />
+                                {t('بخصوص هذا العرض', 'Regarding this deal')}
+                              </div>
+                            )}
+                            
+                            {/* Agent badge for messages from managers */}
+                            {!isMine && isFromManager && (
+                              <div className="mb-1.5 flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                                  <ShieldCheck className="h-2.5 w-2.5" />
+                                  {t('وكيل مفوض', 'Authorized Agent')}
+                                </span>
+                                {managedCelebrityName && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {t('يمثل', 'represents')} {managedCelebrityName}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {/* Disappearing message indicator */}
+                            {msg.expires_at && (
+                              <div className={cn("flex items-center gap-1 mb-1", isMine ? "text-white/50" : "text-muted-foreground")}>
+                                <Timer className="h-3 w-3" />
+                                <span className="text-[10px]">{t('مؤقتة', 'Disappearing')}</span>
+                              </div>
+                            )}
+                            {msg.media_url && msg.media_type === 'image' && (
+                              <img src={msg.media_url} alt="" className="rounded-xl max-w-full mb-1.5 cursor-pointer" onClick={() => window.open(msg.media_url!, '_blank')} />
+                            )}
+                            {msg.media_url && msg.media_type === 'video' && (
+                              <video src={msg.media_url} controls className="rounded-xl max-w-full mb-1.5" />
+                            )}
+                            {msg.voice_url ? (
+                              <div className="flex items-center gap-2 p-2 bg-background/50 rounded-xl">
+                                <Mic className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-sm text-muted-foreground">{t('رسالة صوتية', 'Voice message')}</span>
+                              </div>
+                            ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
+                              <p className="whitespace-pre-wrap">
+                                {msg._decryptionFailed ? (
+                                  <span className="flex items-center gap-1.5 text-muted-foreground/60 italic text-sm">
+                                    <Info className="h-3.5 w-3.5 flex-shrink-0" />
+                                    {msg.content}
+                                  </span>
+                                ) : msg.content}
+                              </p>
+                            ) : null}
+                            <div className={cn('flex items-center gap-1 mt-0.5', isMine ? 'justify-end' : '')}>
+                              {msg.is_edited && (
+                                <span className={cn('text-[10px] italic', isMine ? 'text-white/50' : 'text-muted-foreground')}>
+                                  {t('معدّلة', 'Edited')}
                                 </span>
                               )}
-                            </div>
-                          )}
-                          {/* Disappearing message indicator */}
-                          {msg.expires_at && (
-                            <div className={cn("flex items-center gap-1 mb-1", isMine ? "text-white/50" : "text-muted-foreground")}>
-                              <Timer className="h-3 w-3" />
-                              <span className="text-[10px]">{t('مؤقتة', 'Disappearing')}</span>
-                            </div>
-                          )}
-                          {msg.media_url && msg.media_type === 'image' && (
-                            <img src={msg.media_url} alt="" className="rounded-xl max-w-full mb-1.5 cursor-pointer" onClick={() => window.open(msg.media_url!, '_blank')} />
-                          )}
-                          {msg.media_url && msg.media_type === 'video' && (
-                            <video src={msg.media_url} controls className="rounded-xl max-w-full mb-1.5" />
-                          )}
-                          {msg.voice_url ? (
-                            <div className="flex items-center gap-2 p-2 bg-background/50 rounded-xl">
-                              <Mic className="h-5 w-5 text-muted-foreground" />
-                              <span className="text-sm text-muted-foreground">{t('رسالة صوتية', 'Voice message')}</span>
-                            </div>
-                          ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
-                            <p className="whitespace-pre-wrap">{msg.content === '🔒' ? (
-                              <span className="flex items-center gap-1 text-muted-foreground italic text-sm">
-                                <Shield className="h-3 w-3" /> {t('مشفرة', 'Encrypted')}
+                              <span className={cn('text-[10px]', isMine ? 'text-white/50' : 'text-muted-foreground')}>
+                                {fmtTime(msg.created_at)}
                               </span>
-                            ) : msg.content}</p>
-                          ) : null}
-                          <div className={cn('flex items-center gap-1 mt-0.5', isMine ? 'justify-end' : '')}>
-                            {msg.is_edited && (
-                              <span className={cn('text-[10px] italic', isMine ? 'text-white/50' : 'text-muted-foreground')}>
-                                {t('معدّلة', 'Edited')}
-                              </span>
+                              {readStatus}
+                            </div>
+                          </div>
+
+                          {/* Reactions */}
+                          {msgReactions.length > 0 && (
+                            <div className={cn('flex gap-0.5 mt-0.5', isMine ? 'justify-end' : 'justify-start')}>
+                              {[...new Set(msgReactions.map(r => r.reaction))].map(emoji => {
+                                const count = msgReactions.filter(r => r.reaction === emoji).length;
+                                return (
+                                  <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)}
+                                    className="px-1.5 py-0.5 rounded-full bg-card/80 border border-border text-xs flex items-center gap-0.5"
+                                  >
+                                    {emoji}{count > 1 && <span className="text-[10px] text-muted-foreground">{count}</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Reaction picker */}
+                          <AnimatePresence>
+                            {showReactions === msg.id && (
+                              <motion.div initial={{ opacity: 0, scale: 0.8, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8 }}
+                                className={cn('absolute -top-10 flex gap-1 bg-card rounded-full shadow-lg border border-border px-2 py-1 z-50', isMine ? 'end-0' : 'start-0')}
+                              >
+                                {REACTIONS.map(emoji => (
+                                  <button key={emoji} onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
+                                    className="text-lg hover:scale-125 transition-transform p-0.5"
+                                  >{emoji}</button>
+                                ))}
+                              </motion.div>
                             )}
-                            <span className={cn('text-[10px]', isMine ? 'text-white/50' : 'text-muted-foreground')}>
-                              {fmtTime(msg.created_at)}
-                            </span>
-                            {readStatus}
-                          </div>
+                          </AnimatePresence>
                         </div>
-
-                        {/* Reactions */}
-                        {msgReactions.length > 0 && (
-                          <div className={cn('flex gap-0.5 mt-0.5', isMine ? 'justify-end' : 'justify-start')}>
-                            {[...new Set(msgReactions.map(r => r.reaction))].map(emoji => {
-                              const count = msgReactions.filter(r => r.reaction === emoji).length;
-                              return (
-                                <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)}
-                                  className="px-1.5 py-0.5 rounded-full bg-card/80 border border-border text-xs flex items-center gap-0.5"
-                                >
-                                  {emoji}{count > 1 && <span className="text-[10px] text-muted-foreground">{count}</span>}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Reaction picker */}
-                        <AnimatePresence>
-                          {showReactions === msg.id && (
-                            <motion.div initial={{ opacity: 0, scale: 0.8, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8 }}
-                              className={cn('absolute -top-10 flex gap-1 bg-card rounded-full shadow-lg border border-border px-2 py-1 z-50', isMine ? 'end-0' : 'start-0')}
-                            >
-                              {REACTIONS.map(emoji => (
-                                <button key={emoji} onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
-                                  className="text-lg hover:scale-125 transition-transform p-0.5"
-                                >{emoji}</button>
-                              ))}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-              );
-            })
+                      </motion.div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
           )}
           {/* Typing indicator */}
           {isTyping && (
