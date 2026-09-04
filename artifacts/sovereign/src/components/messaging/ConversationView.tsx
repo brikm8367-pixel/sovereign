@@ -185,16 +185,14 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     }, 3000);
 
     try {
-      // Build sender/receiver filter using only user.id (not managedCelebrityId)
-      const senderIds = [user.id];
-      const receiverIds = [user.id];
+      // FIX: Compute partnerId from the message, then use direct query between user.id and partnerId
+      const partnerId = message.sender_id === user.id ? message.receiver_id : message.sender_id;
 
       const [{ data }, { data: rxns }, { data: delMsgs }] = await Promise.all([
-        supabase.from('messages').select('*').or(
-          senderIds.map(sid => 
-            receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
-          ).join(',')
-        ).or(`id.eq.${rootId},parent_id.eq.${rootId}`).order('created_at', { ascending: true }),
+        supabase.from('messages').select('*')
+          .or(`and(sender_id.eq.${user.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${user.id})`)
+          .or(`id.eq.${rootId},parent_id.eq.${rootId}`)
+          .order('created_at', { ascending: true }),
         supabase.from('message_reactions').select('*'),
         supabase.from('deleted_messages').select('message_id').eq('user_id', user.id),
       ]);

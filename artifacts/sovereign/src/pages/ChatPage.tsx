@@ -254,24 +254,11 @@ export default function ChatPage() {
     }, 3000);
 
     try {
-      // FIX: Use the actual userId from URL as the conversation partner
-      // Filter messages where sender_id = user.id AND receiver_id = userId
-      // OR sender_id = userId AND receiver_id = user.id
-      // If current user is manager, ALSO include messages where sender_id = user.id AND receiver_id = managedCelebrityId
-      // OR sender_id = managedCelebrityId AND receiver_id = user.id
-      // But do NOT include managedCelebrityId as a separate sender for normal loading
-      
-      const senderIds = [user.id];
-      const receiverIds = [user.id];
-
+      // FIX: Direct query between user.id and userId (conversation partner from URL)
       let query = supabase
         .from('messages')
         .select('*')
-        .or(
-          senderIds.map(sid => 
-            receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
-          ).join(',')
-        );
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`);
 
       // If manager, also include messages involving the managed celebrity
       if (role === 'manager' && managedCelebrityId) {
@@ -282,7 +269,7 @@ export default function ChatPage() {
 
       // Only apply deal_id filter when dealId exists in the URL
       if (dealId) {
-        query = (query as any).eq('deal_id', dealId);
+        query = query.eq('deal_id', dealId);
       }
 
       const { data, error } = await query.order('created_at', { ascending: true }).limit(100);
