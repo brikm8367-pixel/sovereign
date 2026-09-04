@@ -254,8 +254,13 @@ export default function ChatPage() {
     }, 3000);
 
     try {
-      // Build the sender/receiver filter using only user.id (not managedCelebrityId)
-      // For both managers and companies: only user.id
+      // FIX: Use the actual userId from URL as the conversation partner
+      // Filter messages where sender_id = user.id AND receiver_id = userId
+      // OR sender_id = userId AND receiver_id = user.id
+      // If current user is manager, ALSO include messages where sender_id = user.id AND receiver_id = managedCelebrityId
+      // OR sender_id = managedCelebrityId AND receiver_id = user.id
+      // But do NOT include managedCelebrityId as a separate sender for normal loading
+      
       const senderIds = [user.id];
       const receiverIds = [user.id];
 
@@ -267,6 +272,13 @@ export default function ChatPage() {
             receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
           ).join(',')
         );
+
+      // If manager, also include messages involving the managed celebrity
+      if (role === 'manager' && managedCelebrityId) {
+        query = query.or(
+          `and(sender_id.eq.${user.id},receiver_id.eq.${managedCelebrityId}),and(sender_id.eq.${managedCelebrityId},receiver_id.eq.${user.id})`
+        );
+      }
 
       // Only apply deal_id filter when dealId exists in the URL
       if (dealId) {
@@ -293,7 +305,7 @@ export default function ChatPage() {
         return msg;
       }));
 
-      // Fetch managed celebrity profiles for messages that have managed_celebrity_id
+      // FIX: After loading messages, if any message has managed_celebrity_id, fetch the celebrity profile for badge display
       const celebrityIds = new Set<string>();
       decrypted.forEach(msg => {
         if (msg.managed_celebrity_id) {
@@ -326,7 +338,7 @@ export default function ChatPage() {
         setIsLoading(false);
       }
     }
-  }, [user?.id, userId, dealId, t, managedCelebrityProfiles, fetchManagedCelebrityProfile]);
+  }, [user?.id, userId, dealId, t, managedCelebrityProfiles, fetchManagedCelebrityProfile, role, managedCelebrityId]);
 
   // Store ref for use in effects
   useEffect(() => {
@@ -352,7 +364,14 @@ export default function ChatPage() {
           const isRelevant = senderIds.some(sid => msg.sender_id === sid) && 
                             receiverIds.some(rid => msg.receiver_id === rid);
           
-          if (!isRelevant) return;
+          // Also check if message involves managed celebrity for managers
+          if (role === 'manager' && managedCelebrityId) {
+            const isManagedRelevant = (msg.sender_id === user.id && msg.receiver_id === managedCelebrityId) ||
+                                     (msg.sender_id === managedCelebrityId && msg.receiver_id === user.id);
+            if (!isRelevant && !isManagedRelevant) return;
+          } else if (!isRelevant) {
+            return;
+          }
           
           // If dealId is present, only reload if message matches deal_id
           if (dealId && msg.deal_id !== dealId) return;
@@ -367,7 +386,7 @@ export default function ChatPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [user?.id, userId, dealId, deal, loadMessages]);
+  }, [user?.id, userId, dealId, deal, loadMessages, role, managedCelebrityId]);
 
   // Scroll to bottom
   useEffect(() => {

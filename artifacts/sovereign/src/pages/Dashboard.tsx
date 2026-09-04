@@ -446,12 +446,13 @@ export default function Dashboard() {
 
       console.log('[Dashboard] Sending Ask Talent question for deal:', askTalentDeal.id);
 
+      // FIX: Send question TO the celebrity talent (receiver_id = celebrity_id), not the company
       // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
-          sender_id: celebrityId,
-          receiver_id: askTalentDeal.sender_id,
+          sender_id: user.id, // Agent's own user.id for E2E
+          receiver_id: askTalentDeal.celebrity_id, // Send TO the celebrity talent
           deal_id: askTalentDeal.id,
           content: question,
           category: 'work',
@@ -774,7 +775,20 @@ export default function Dashboard() {
                           
                           {statusConfig.showButton && (
                             <Button
-                              onClick={() => navigate(`/chat/${deal.celebrity_id}?dealId=${deal.id}`)}
+                              onClick={async () => {
+                                // FIX: Check for active manager before navigating
+                                if (deal.celebrity_id) {
+                                  const { data: managerLink } = await supabase
+                                    .from('manager_links')
+                                    .select('manager_id')
+                                    .eq('celebrity_id', deal.celebrity_id)
+                                    .eq('status', 'active')
+                                    .maybeSingle();
+                                  
+                                  const targetUserId = managerLink?.manager_id || deal.celebrity_id;
+                                  navigate(`/chat/${targetUserId}?dealId=${deal.id}`);
+                                }
+                              }}
                               className={cn('h-9 rounded-xl text-xs font-semibold touch-feedback', statusConfig.buttonBg)}
                             >
                               {statusConfig.buttonText}
