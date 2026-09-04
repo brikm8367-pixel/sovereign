@@ -6,7 +6,7 @@ import { useRole } from '@/hooks/useRole.tsx';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Phone, Video, Image as ImageIcon, X, Check, CheckCheck, Copy, Reply, MoreVertical, Shield, Pencil, Timer, ShieldCheck, UserCheck } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Phone, Video, Image as ImageIcon, X, Check, CheckCheck, Copy, Reply, MoreVertical, Shield, Pencil, Timer, ShieldCheck, UserCheck, Briefcase } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -116,6 +116,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [managedCelebrityProfiles, setManagedCelebrityProfiles] = useState<Map<string, Profile>>(new Map());
+  const [deal, setDeal] = useState<any>(null);
 
   interface Profile {
     id: string;
@@ -222,6 +223,17 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       clearTimeout(loadingTimeout);
       setIsLoading(false);
 
+      // Fetch deal if any message has deal_id
+      const dealId = decrypted.find(m => m.deal_id)?.deal_id;
+      if (dealId) {
+        const { data: dealData } = await supabase
+          .from('deal_cards')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+          .eq('id', dealId)
+          .single();
+        if (dealData) setDeal(dealData);
+      }
+
       if (data) {
         const unreadIds = data.filter(m => m.receiver_id === user.id && !m.is_read).map(m => m.id);
         if (unreadIds.length > 0) {
@@ -317,6 +329,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
 
   const otherUserId = message?.sender_id === user?.id ? message?.receiver_id : message?.sender_id;
   const isInactive = isInactiveThread(thread);
+  const isDealAccepted = deal && deal.status === 'accepted';
 
   const uploadMedia = async (file: File): Promise<{ url: string; type: string } | null> => {
     const { data: auth } = await supabase.auth.getUser();
@@ -400,12 +413,6 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       }
       const encryptedContent = enc.success ? enc.payload : contentToSend;
 
-      // Calculate expires_at based on disappear timer
-      let expiresAt: string | null = null;
-      if (disappearTimer) {
-        expiresAt = new Date(Date.now() + disappearTimer).toISOString();
-      }
-
       // FIX: Always use user.id as sender_id (agent's own identity for E2E encryption)
       // Add metadata fields: sender_role and managed_celebrity_id
       const senderRole = role === 'manager' ? 'manager' : null;
@@ -425,6 +432,14 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         if (dealData) receiverId = dealData.sender_id;
       }
 
+      // Calculate expires_at based on disappear timer
+      let expiresAt: string | null = null;
+      if (disappearTimer) {
+        expiresAt = new Date(Date.now() + disappearTimer).toISOString();
+      }
+
+      // Insert message with category 'work' and parent_id pointing to conversation root
+      // Include deal_id and celebrity_id from the deal
       const { error } = await supabase.from('messages').insert({
         sender_id: user.id, // Always use agent's own user.id
         receiver_id: receiverId,
@@ -581,6 +596,8 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     ? 'bg-[hsl(var(--work))] text-white'
     : 'bg-[hsl(var(--audience))] text-white';
 
+  const t = (ar: string, en: string) => (isRTL ? ar : en);
+
   return (
     <>
     <Dialog open={isOpen} onOpenChange={() => { setContextMenu(null); onClose(); }}>
@@ -616,13 +633,22 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                     <UserCheck className="h-2.5 w-2.5" />
-                    {isRTL ? 'وكيل مفوض' : 'Authorized Agent'}
+                    {t('وكيل مفوض', 'Authorized Agent')}
                   </span>
                   {thread.some(m => m.managed_celebrity_id) && (
                     <span className="text-[10px] text-muted-foreground">
-                      {isRTL ? 'يمثل' : 'represents'} {thread.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(thread.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
+                      {t('يمثل', 'represents')} {thread.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(thread.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
                     </span>
                   )}
+                </div>
+              )}
+              {/* Deal status badge in header when deal is accepted */}
+              {isDealAccepted && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                    <CheckCheck className="h-2.5 w-2.5" />
+                    {t('تم قبول العرض', 'Deal Accepted')}
+                  </span>
                 </div>
               )}
             </div>
@@ -648,6 +674,19 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
           </div>
         </div>
 
+        {/* Pinned Deal Card - Persistent at top when deal is accepted */}
+        {isDealAccepted && deal && (
+          <div className="sticky top-0 z-10 border-b border-border/50 bg-card/95 backdrop-blur-sm">
+            <DealCardInline 
+              dealId={deal.id} 
+              isRTL={isRTL} 
+              onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
+              showDetails={showDealDetails} 
+            />
+            <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent mx-4" />
+          </div>
+        )}
+
         {/* Disappearing messages picker */}
         <AnimatePresence>
           {showDisappear && (
@@ -656,7 +695,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
             >
               <div className="flex items-center justify-center gap-2 px-4 py-2.5">
                 <Timer className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">{isRTL ? 'رسائل مؤقتة:' : 'Disappearing:'}</span>
+                <span className="text-xs text-muted-foreground">{t('رسائل مؤقتة:', 'Disappearing:')}</span>
                 {DISAPPEAR_OPTIONS.map(opt => (
                   <button key={opt.value} onClick={() => { setDisappearTimer(disappearTimer === opt.value ? null : opt.value); setShowDisappear(false); }}
                     className={cn("px-3 py-1 rounded-full text-xs font-medium transition-colors",
@@ -670,7 +709,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                   <button onClick={() => { setDisappearTimer(null); setShowDisappear(false); }}
                     className="px-3 py-1 rounded-full text-xs font-medium bg-destructive/10 text-destructive"
                   >
-                    {isRTL ? 'إيقاف' : 'Off'}
+                    {t('إيقاف', 'Off')}
                   </button>
                 )}
               </div>
@@ -682,7 +721,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         {isInactive && thread.length > 0 && (
           <div className="mx-3 mt-2 flex items-center gap-2 p-2.5 rounded-xl bg-primary/5">
             <p className="text-[11px] text-muted-foreground">
-              {isRTL ? 'مضت ساعة — رسالتك التالية ستُخصم من الرصيد' : 'Over an hour — next message deducts a credit'}
+              {t('مضت ساعة — رسالتك التالية ستُخصم من الرصيد', 'Over an hour — next message deducts a credit')}
             </p>
           </div>
         )}
@@ -730,6 +769,18 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                       </span>
                     </div>
                   )}
+                  {/* Deal Card inline above first message of each deal_id group (only if not already pinned at top) */}
+                  {msg.deal_id && !isDealAccepted && (
+                    i === 0 || thread[i - 1]?.deal_id !== msg.deal_id
+                  ) && (
+                    <DealCardInline 
+                      dealId={msg.deal_id} 
+                      isRTL={isRTL} 
+                      onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
+                      showDetails={showDealDetails} 
+                    />
+                  )}
+
                   {/* Editing mode */}
                   {editingMsg === msg.id ? (
                     <div className={cn('flex mb-1', isMine ? 'justify-end' : 'justify-start')}>
@@ -742,10 +793,10 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                         />
                         <div className="flex gap-1.5 justify-end">
                           <Button size="sm" variant="ghost" onClick={() => setEditingMsg(null)} className="h-7 text-xs rounded-lg">
-                            {isRTL ? 'إلغاء' : 'Cancel'}
+                            {t('إلغاء', 'Cancel')}
                           </Button>
                           <Button size="sm" onClick={() => handleEditMessage(msg.id)} className="h-7 text-xs rounded-lg">
-                            {isRTL ? 'حفظ' : 'Save'}
+                            {t('حفظ', 'Save')}
                           </Button>
                         </div>
                       </div>
@@ -770,16 +821,24 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                           isSendingThis ? 'bg-muted text-muted-foreground'
                             : isMine ? `${categoryBubbleClass} rounded-ee-sm` : 'bg-card border border-border rounded-es-sm'
                         )}>
+                          {/* Deal context label for messages in a deal thread */}
+                          {msg.deal_id && !isDealAccepted && (
+                            <div className="absolute -top-2 left-3 right-3 -mx-3 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-t-xl text-[10px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                              <Briefcase className="h-3 w-3" />
+                              {t('بخصوص هذا العرض', 'Regarding this deal')}
+                            </div>
+                          )}
+                          
                           {/* Agent badge for messages from managers */}
                           {!isMine && isFromManager && (
                             <div className="mb-1.5 flex items-center gap-1.5">
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                                 <ShieldCheck className="h-2.5 w-2.5" />
-                                {isRTL ? 'وكيل مفوض' : 'Authorized Agent'}
+                                {t('وكيل مفوض', 'Authorized Agent')}
                               </span>
                               {managedCelebrityName && (
                                 <span className="text-[10px] text-muted-foreground">
-                                  {isRTL ? 'يمثل' : 'represents'} {managedCelebrityName}
+                                  {t('يمثل', 'represents')} {managedCelebrityName}
                                 </span>
                               )}
                             </div>
@@ -788,7 +847,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                           {msg.expires_at && (
                             <div className={cn("flex items-center gap-1 mb-1", isMine ? "text-white/50" : "text-muted-foreground")}>
                               <Timer className="h-3 w-3" />
-                              <span className="text-[10px]">{isRTL ? 'مؤقتة' : 'Disappearing'}</span>
+                              <span className="text-[10px]">{t('مؤقتة', 'Disappearing')}</span>
                             </div>
                           )}
                           {msg.media_url && msg.media_type === 'image' && (
@@ -800,19 +859,19 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                           {msg.voice_url ? (
                             <div className="flex items-center gap-2 p-2 bg-background/50 rounded-xl">
                               <Mic className="h-5 w-5 text-muted-foreground" />
-                              <span className="text-sm text-muted-foreground">{isRTL ? 'رسالة صوتية' : 'Voice message'}</span>
+                              <span className="text-sm text-muted-foreground">{t('رسالة صوتية', 'Voice message')}</span>
                             </div>
                           ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
                             <p className="whitespace-pre-wrap">{msg.content === '🔒' ? (
                               <span className="flex items-center gap-1 text-muted-foreground italic text-sm">
-                                <Shield className="h-3 w-3" /> {isRTL ? 'مشفرة' : 'Encrypted'}
+                                <Shield className="h-3 w-3" /> {t('مشفرة', 'Encrypted')}
                               </span>
                             ) : msg.content}</p>
                           ) : null}
                           <div className={cn('flex items-center gap-1 mt-0.5', isMine ? 'justify-end' : '')}>
                             {msg.is_edited && (
                               <span className={cn('text-[10px] italic', isMine ? 'text-white/50' : 'text-muted-foreground')}>
-                                {isRTL ? 'معدّلة' : 'Edited'}
+                                {t('معدّلة', 'Edited')}
                               </span>
                             )}
                             <span className={cn('text-[10px]', isMine ? 'text-white/50' : 'text-muted-foreground')}>
@@ -882,13 +941,13 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
               onClick={(e) => e.stopPropagation()}
             >
               <button onClick={() => { setShowReactions(contextMenu.msgId); setContextMenu(null); }} className="w-full px-4 py-2 text-sm text-start hover:bg-muted flex items-center gap-3">
-                <span>❤️</span> {isRTL ? 'تفاعل' : 'React'}
+                <span>❤️</span> {t('تفاعل', 'React')}
               </button>
               <button onClick={() => { setReplyContent(`> ${thread.find(m => m.id === contextMenu.msgId)?.content?.substring(0, 50) || ''}\n`); setContextMenu(null); inputRef.current?.focus(); }} className="w-full px-4 py-2 text-sm text-start hover:bg-muted flex items-center gap-3">
-                <Reply className="h-4 w-4" /> {isRTL ? 'رد' : 'Reply'}
+                <Reply className="h-4 w-4" /> {t('رد', 'Reply')}
               </button>
               <button onClick={() => copyMessage(contextMenu.msgId)} className="w-full px-4 py-2 text-sm text-start hover:bg-muted flex items-center gap-3">
-                <Copy className="h-4 w-4" /> {isRTL ? 'نسخ' : 'Copy'}
+                <Copy className="h-4 w-4" /> {t('نسخ', 'Copy')}
               </button>
               {/* Edit option */}
               {(() => {
@@ -896,7 +955,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                 if (msg && msg.sender_id === user?.id && (Date.now() - new Date(msg.created_at).getTime()) < EDIT_WINDOW_MS && !msg.voice_url) {
                   return (
                     <button onClick={() => { setEditingMsg(msg.id); setEditContent(msg.content); setContextMenu(null); }} className="w-full px-4 py-2 text-sm text-start hover:bg-muted flex items-center gap-3">
-                      <Pencil className="h-4 w-4" /> {isRTL ? 'تعديل' : 'Edit'}
+                      <Pencil className="h-4 w-4" /> {t('تعديل', 'Edit')}
                     </button>
                   );
                 }
@@ -908,7 +967,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                 if (msg) setDeleteTarget({ id: msg.id, isMine: msg.sender_id === user?.id, createdAt: msg.created_at });
                 setContextMenu(null);
               }} className="w-full px-4 py-2 text-sm text-start hover:bg-muted flex items-center gap-3 text-destructive">
-                <X className="h-4 w-4" /> {isRTL ? 'حذف' : 'Delete'}
+                <X className="h-4 w-4" /> {t('حذف', 'Delete')}
               </button>
             </motion.div>
           )}
@@ -933,7 +992,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
           <div className="flex items-center justify-center gap-1.5 py-1 bg-primary/5">
             <Timer className="h-3 w-3 text-primary" />
             <span className="text-[11px] text-primary font-medium">
-              {isRTL ? 'الرسائل المؤقتة مفعّلة' : 'Disappearing messages on'} — {DISAPPEAR_OPTIONS.find(o => o.value === disappearTimer)?.label}
+              {t('الرسائل المؤقتة مفعّلة', 'Disappearing messages on')} — {DISAPPEAR_OPTIONS.find(o => o.value === disappearTimer)?.label}
             </span>
           </div>
         )}
@@ -944,7 +1003,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
           {showVoice ? (
             <div className="flex items-center gap-2 p-4 bg-muted/30 rounded-xl">
               <Mic className="h-6 w-6 text-primary" />
-              <span className="text-sm text-muted-foreground">{isRTL ? 'تسجيل صوتي غير متاح' : 'Voice recording not available'}</span>
+              <span className="text-sm text-muted-foreground">{t('تسجيل صوتي غير متاح', 'Voice recording not available')}</span>
               <Button variant="ghost" size="icon" onClick={() => setShowVoice(false)} className="ml-auto">
                 <X className="h-4 w-4" />
               </Button>
@@ -957,7 +1016,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
               <div className="flex-1 relative">
                 <textarea
                   ref={inputRef}
-                  placeholder={isRTL ? 'اكتب رسالة...' : 'Message...'}
+                  placeholder={t('اكتب رسالة...', 'Message...')}
                   value={replyContent}
                   onChange={(e) => { setReplyContent(e.target.value); broadcastTyping(); }}
                   rows={1}
@@ -984,28 +1043,28 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
       <AlertDialogContent className="rounded-2xl">
         <AlertDialogHeader>
-          <AlertDialogTitle>{isRTL ? 'حذف الرسالة' : 'Delete message'}</AlertDialogTitle>
-          <AlertDialogDescription>{isRTL ? 'كيف تريد حذف هذه الرسالة؟' : 'How do you want to delete this message?'}</AlertDialogDescription>
+          <AlertDialogTitle>{t('حذف الرسالة', 'Delete message')}</AlertDialogTitle>
+          <AlertDialogDescription>{t('كيف تريد حذف هذه الرسالة؟', 'How do you want to delete this message?')}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
           {deleteTarget?.isMine && (Date.now() - new Date(deleteTarget.createdAt).getTime()) < UNSEND_WINDOW_MS && (
             <AlertDialogAction onClick={async () => {
               await supabase.from('messages').delete().eq('id', deleteTarget.id);
               setThread(prev => prev.filter(m => m.id !== deleteTarget.id));
-              setDeleteTarget(null); toast.success(isRTL ? 'تم الحذف للجميع' : 'Deleted for everyone');
+              setDeleteTarget(null); toast.success(t('تم الحذف للجميع', 'Deleted for everyone'));
             }} className="bg-destructive text-destructive-foreground rounded-xl">
-              {isRTL ? 'حذف للجميع' : 'Delete for everyone'}
+              {t('حذف للجميع', 'Delete for everyone')}
             </AlertDialogAction>
           )}
           <AlertDialogAction onClick={async () => {
             await supabase.from('deleted_messages').insert({ user_id: user!.id, message_id: deleteTarget!.id } as any);
             setDeletedIds(prev => new Set([...prev, deleteTarget!.id]));
             setThread(prev => prev.filter(m => m.id !== deleteTarget!.id));
-            setDeleteTarget(null); toast.success(isRTL ? 'تم الحذف' : 'Deleted');
+            setDeleteTarget(null); toast.success(t('تم الحذف', 'Deleted'));
           }} className="rounded-xl">
-            {isRTL ? 'حذف لي فقط' : 'Delete for me'}
+            {t('حذف لي فقط', 'Delete for me')}
           </AlertDialogAction>
-          <AlertDialogCancel className="rounded-xl">{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+          <AlertDialogCancel className="rounded-xl">{t('إلغاء', 'Cancel')}</AlertDialogCancel>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -1013,10 +1072,10 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     {showBlockReport && message && (
       <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
         <div className="bg-card rounded-2xl max-w-md w-full mx-4 p-6">
-          <h3 className="font-semibold text-lg mb-4">{isRTL ? 'حظر/إبلاغ' : 'Block/Report'}</h3>
-          <p className="text-muted-foreground mb-6">{isRTL ? 'ميزة الحظر والإبلاغ غير متاحة حالياً' : 'Block/Report feature not available'}</p>
+          <h3 className="font-semibold text-lg mb-4">{t('حظر/إبلاغ', 'Block/Report')}</h3>
+          <p className="text-muted-foreground mb-6">{t('ميزة الحظر والإبلاغ غير متاحة حالياً', 'Block/Report feature not available')}</p>
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setShowBlockReport(false)}>{isRTL ? 'إلغاء' : 'Cancel'}</Button>
+            <Button variant="outline" onClick={() => setShowBlockReport(false)}>{t('إلغاء', 'Cancel')}</Button>
           </div>
         </div>
       </div>

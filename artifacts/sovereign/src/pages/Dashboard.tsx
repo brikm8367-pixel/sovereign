@@ -22,7 +22,11 @@ import {
   Send,
   Sun,
   Moon,
-  MessageSquare
+  MessageSquare,
+  CheckCheck,
+  XCircle,
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DealCardInline } from '@/components/deals/DealCardInline';
@@ -450,7 +454,9 @@ export default function Dashboard() {
           receiver_id: askTalentDeal.sender_id,
           deal_id: askTalentDeal.id,
           content: question,
-          category: 'work'
+          category: 'work',
+          sender_role: 'manager',
+          managed_celebrity_id: managedCelebrityId
         });
 
       if (msgError) throw msgError;
@@ -528,18 +534,49 @@ export default function Dashboard() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [user, fetchPendingDeals, fetchConversations]);
 
-  if (authLoading || (!user && !authLoading)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   // Memoize conversations to prevent unnecessary re-renders
   const memoizedConversations = useMemo(() => conversations, [conversations]);
 
   const t = (ar: string, en: string) => (isRTL ? ar : en);
+
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case 'accepted':
+        return {
+          label: t('تم القبول', 'Accepted'),
+          icon: CheckCheck,
+          bg: 'bg-green-50 dark:bg-green-900/20',
+          border: 'border-green-200 dark:border-green-800',
+          text: 'text-green-700 dark:text-green-400',
+          buttonBg: 'bg-green-600 hover:bg-green-700',
+          buttonText: t('فتح المحادثة', 'Open Chat'),
+          showButton: true
+        };
+      case 'declined':
+        return {
+          label: t('تم الرفض', 'Declined'),
+          icon: XCircle,
+          bg: 'bg-red-50 dark:bg-red-900/20',
+          border: 'border-red-200 dark:border-red-800',
+          text: 'text-red-700 dark:text-red-400',
+          buttonBg: '',
+          buttonText: '',
+          showButton: false
+        };
+      case 'pending':
+      default:
+        return {
+          label: t('قيد المراجعة', 'Under Review'),
+          icon: Clock,
+          bg: 'bg-blue-50 dark:bg-blue-900/20',
+          border: 'border-blue-200 dark:border-blue-800',
+          text: 'text-blue-700 dark:text-blue-400',
+          buttonBg: '',
+          buttonText: '',
+          showButton: false
+        };
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -683,6 +720,77 @@ export default function Dashboard() {
           </div>
         )}
 
+        {role === 'sender' && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-base flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-primary" />
+                {t('عروضي', 'My Offers')}
+                {pendingDeals.length > 0 && (
+                  <span className="bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded-full">
+                    {pendingDeals.length}
+                  </span>
+                )}
+              </h2>
+            </div>
+
+            {isLoadingDeals ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : pendingDeals.length === 0 ? (
+              <div className="text-center py-8 bg-card rounded-xl border border-border">
+                <p className="text-sm text-muted-foreground">
+                  {t('لا توجد عروض بعد', 'No offers yet')}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingDeals.map((deal) => {
+                  const statusConfig = getStatusConfig(deal.status);
+                  const StatusIcon = statusConfig.icon;
+                  
+                  return (
+                    <div key={deal.id} className="bg-card rounded-xl border border-border p-4">
+                      <DealCardInline 
+                        dealId={deal.id} 
+                        isRTL={isRTL} 
+                        onToggleDetails={() => setShowDealDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
+                        showDetails={showDealDetails[deal.id] || false}
+                      />
+                      
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <div className={cn(
+                          'flex items-center justify-between p-3 rounded-xl border',
+                          statusConfig.bg,
+                          statusConfig.border
+                        )}>
+                          <div className="flex items-center gap-2">
+                            <StatusIcon className={cn('h-4 w-4', statusConfig.text)} />
+                            <span className={cn('font-medium text-sm', statusConfig.text)}>
+                              {statusConfig.label}
+                            </span>
+                          </div>
+                          
+                          {statusConfig.showButton && (
+                            <Button
+                              onClick={() => navigate(`/chat/${deal.celebrity_id}?dealId=${deal.id}`)}
+                              className={cn('h-9 rounded-xl text-xs font-semibold touch-feedback', statusConfig.buttonBg)}
+                            >
+                              {statusConfig.buttonText}
+                              <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-base flex items-center gap-2">
@@ -710,7 +818,7 @@ export default function Dashboard() {
           <div className="bg-card rounded-t-2xl max-w-lg w-full max-h-[80vh] p-4 animate-slide-up">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-base">
-                سؤال للموهبة: {askTalentDeal.company_name}
+                {t('سؤال للموهبة:', 'Question for Talent:')} {askTalentDeal.company_name}
               </h3>
               <Button
                 variant="ghost"
@@ -727,7 +835,7 @@ export default function Dashboard() {
 
             <div className="space-y-4">
               <div className="p-3 bg-muted/30 rounded-xl text-xs text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">تفاصيل العرض:</p>
+                <p className="font-medium text-foreground mb-1">{t('تفاصيل العرض:', 'Deal Details:')}</p>
                 <p>{askTalentDeal.company_name} · {askTalentDeal.deal_type}</p>
                 <p className="text-[11px] mt-0.5">{askTalentDeal.budget_range}</p>
               </div>
@@ -735,7 +843,7 @@ export default function Dashboard() {
               <Textarea
                 value={askTalentQuestion}
                 onChange={(e) => setAskTalentQuestion(e.target.value)}
-                placeholder="اكتب سؤالك للموهبة..."
+                placeholder={t('اكتب سؤالك للموهبة...', 'Write your question for the talent...')}
                 className="min-h-[100px] rounded-xl resize-none"
                 disabled={isSubmittingAsk}
               />
@@ -750,7 +858,7 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <Send className="h-4 w-4 mr-2" />
-                    إرسال السؤال
+                    {t('إرسال السؤال', 'Send Question')}
                   </>
                 )}
               </Button>

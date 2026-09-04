@@ -6,7 +6,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal, AlertCircle, ShieldCheck, UserCheck } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal, AlertCircle, ShieldCheck, CheckCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -561,7 +561,7 @@ export default function ChatPage() {
             : 'Recipient has no encryption keys. They need to log into the app to initialize their end-to-end encryption.';
         } else if (enc.reason === 'no_local_keys') {
           errorMsg = isRTL
-            ? 'Vos clés de chiffrement ne sont pas initialisées. Veuillez vous déconnecter et vous reconnecter.'
+            ? 'Vos clés de chiffrement غير مهيأة. يرجى تسجيل الخروج وتسجيل الدخول مرة أخرى.'
             : 'Your encryption keys are not initialized. Please log out and log back in.';
         } else {
           errorMsg = isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent';
@@ -688,6 +688,8 @@ export default function ChatPage() {
 
   if (!user) return null;
 
+  const isDealAccepted = deal && deal.status === 'accepted';
+
   return (
     <div className="min-h-screen bg-background flex flex-col" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Minimal Header - Apple Messages Style */}
@@ -732,6 +734,15 @@ export default function ChatPage() {
                   )}
                 </div>
               )}
+              {/* Deal status badge in header when deal is accepted */}
+              {isDealAccepted && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                    <CheckCheck className="h-2.5 w-2.5" />
+                    {t('تم قبول العرض', 'Deal Accepted')}
+                  </span>
+                </div>
+              )}
             </div>
           </button>
           <Button
@@ -747,6 +758,20 @@ export default function ChatPage() {
 
       {/* Messages Area */}
       <main className="flex-1 overflow-y-auto pt-16 pb-20 px-4 max-w-lg mx-auto w-full" ref={scrollRef}>
+        {/* Pinned Deal Card - Persistent at top when deal is accepted */}
+        {isDealAccepted && deal && (
+          <div className="sticky top-0 z-10 mb-4 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 py-3">
+            <DealCardInline 
+              dealId={deal.id} 
+              isRTL={isRTL} 
+              onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
+              showDetails={showDealDetails} 
+              className="max-w-lg mx-auto"
+            />
+            <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent mt-3 -mx-4 px-4" />
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -780,8 +805,8 @@ export default function ChatPage() {
                     </div>
                   )}
                   
-                  {/* Deal Card inline above first message of each deal_id group */}
-                  {isFirstInDealGroup && msg.deal_id && (
+                  {/* Deal Card inline above first message of each deal_id group (only if not already pinned at top) */}
+                  {isFirstInDealGroup && msg.deal_id && !isDealAccepted && (
                     <DealCardInline 
                       dealId={msg.deal_id} 
                       isRTL={isRTL} 
@@ -793,11 +818,19 @@ export default function ChatPage() {
                   <div className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
                     <div className="max-w-[75%]">
                       <div className={cn(
-                        'px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm',
+                        'px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm relative',
                         isMine 
                           ? 'bg-primary text-primary-foreground rounded-es-sm shadow-[0_1px_2px_rgba(0,0,0,0.05)]' 
                           : 'bg-card border border-border/50 rounded-ee-sm shadow-[0_1px_2px_rgba(0,0,0,0.03)]'
                       )}>
+                        {/* Deal context label for messages in a deal thread */}
+                        {msg.deal_id && !isDealAccepted && (
+                          <div className="absolute -top-2 left-3 right-3 -mx-3 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-t-xl text-[10px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                            <Briefcase className="h-3 w-3" />
+                            {t('بخصوص هذا العرض', 'Regarding this deal')}
+                          </div>
+                        )}
+                        
                         {/* Agent badge for messages from managers */}
                         {!isMine && isFromManager && (
                           <div className="mb-1.5 flex items-center gap-1.5">

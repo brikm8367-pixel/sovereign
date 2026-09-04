@@ -217,7 +217,7 @@ export default function MessageComposer({
             : 'Recipient has no encryption keys. They need to log into the app to initialize their end-to-end encryption.';
         } else if (enc.reason === 'no_local_keys') {
           errorMsg = isRTL
-            ? 'Vos clés de chiffrement ne sont pas initialisées. Veuillez vous déconnecter et vous reconnecter.'
+            ? 'Vos clés de chiffrement غير مهيأة. يرجى تسجيل الخروج وتسجيل الدخول مرة أخرى.'
             : 'Your encryption keys are not initialized. Please log out and log back in.';
         } else {
           errorMsg = isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent';
@@ -388,13 +388,13 @@ export default function MessageComposer({
             {recipientReady === false && (
               <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-full">
                 <AlertCircle className="h-3 w-3" />
-                <span>{isRTL ? 'Chiffrement non prêt' : 'Encryption not ready'}</span>
+                <span>{t('Chiffrement non prêt', 'Encryption not ready')}</span>
               </div>
             )}
             {recipientReady === true && (
               <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 rounded-full">
                 <Shield className="h-3 w-3" />
-                <span>{isRTL ? 'Prêt pour E2E' : 'E2E Ready'}</span>
+                <span>{t('Prêt pour E2E', 'E2E Ready')}</span>
               </div>
             )}
           </div>
