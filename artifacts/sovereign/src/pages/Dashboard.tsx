@@ -56,16 +56,34 @@ interface Message {
   sender_id: string;
   receiver_id: string;
   content: string;
-  category: 'work' | 'audience' | 'direct';
   created_at: string;
-  is_read: boolean;
-  is_edited: boolean;
-  media_url: string | null;
-  media_type: string | null;
-  voice_url: string | null;
-  edited_at: string | null;
-  expires_at: string | null;
-  is_important: boolean;
+  is_read: boolean | null;
+  category: string;
+  parent_id: string | null;
+  voice_url?: string | null;
+  media_url?: string | null;
+  media_type?: string | null;
+  is_edited?: boolean | null;
+  edited_at?: string | null;
+  expires_at?: string | null;
+  deal_id?: string | null;
+}
+
+interface Deal {
+  id: string;
+  deal_type: string | null;
+  company_name: string | null;
+  budget_range: string | null;
+  timeline: string | null;
+  details: string | null;
+  website_url: string | null;
+  budget_cycle: string | null;
+  deliverables: string | null;
+  exclusivity: string | null;
+  why_them: string | null;
+  status: string;
+  celebrity_id: string | null;
+  sender_id: string | null;
 }
 
 interface Conversation {
@@ -222,6 +240,7 @@ export default function Dashboard() {
         .order('created_at', { ascending: false })
         .limit(50); // Limit to 50 most recent messages per conversation
 
+      // FIX: Include managedCelebrityId in the query for managers
       if (role === 'manager' && managedCelebrityId) {
         // For managers, fetch messages where the manager is involved (user.id) OR the managed celebrity is involved
         query = query.or(
@@ -239,6 +258,7 @@ export default function Dashboard() {
       const conversationsMap = new Map<string, Conversation>();
       
       for (const msg of (data as any[]) || []) {
+        // FIX: Use the correct currentUserId for determining the other participant
         const otherUserId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
         if (!otherUserId) continue;
 
@@ -269,6 +289,7 @@ export default function Dashboard() {
             existing.last_message = msg.content || '';
             existing.last_message_time = msg.created_at;
           }
+          // FIX: Check unread against currentUserId (which includes managedCelebrityId for managers)
           if (!msg.is_read && msg.receiver_id === currentUserId) {
             existing.unread_count += 1;
           }

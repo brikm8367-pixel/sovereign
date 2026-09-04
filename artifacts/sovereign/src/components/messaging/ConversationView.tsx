@@ -125,7 +125,8 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     if (!user) return msgs;
     return Promise.all(msgs.map(async (msg) => {
       if (isEncryptedMessage(msg.content)) {
-        const res = await decryptFromSender(msg.content, msg.sender_id === user.id ? msg.receiver_id : msg.sender_id);
+        // FIX: Use message.sender_id as the key owner for decryption
+        const res = await decryptFromSender(msg.content, msg.sender_id);
         return { ...msg, content: res.success ? res.plaintext : '🔒' };
       }
       return msg;
@@ -273,8 +274,10 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     setIsSending(true);
 
     const tempId = `temp-${Date.now()}`;
+    // FIX: isMine check for optimistic message - use effective sender ID
+    const effectiveSenderId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
     const optimisticMsg: ThreadMessage = {
-      id: tempId, sender_id: user.id, receiver_id: otherUserId!,
+      id: tempId, sender_id: effectiveSenderId, receiver_id: otherUserId!,
       content: text || (voiceUrl ? '🎤' : '📷'), created_at: new Date().toISOString(),
       is_read: null, category: message.category as MessageCategory, parent_id: getRootId(message),
       voice_url: voiceUrl || null, media_url: mediaPreview?.url || null,
@@ -343,10 +346,11 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         expiresAt = new Date(Date.now() + disappearTimer).toISOString();
       }
 
-      // Determine sender_id: if manager, use managedCelebrityId; otherwise user.id
+      // FIX: Determine sender_id: if manager, use managedCelebrityId; otherwise user.id
       const effectiveSenderId = role === 'manager' && managedCelebrityId ? managedCelebrityId : user.id;
       
-      // Determine receiver_id: the other party
+      // FIX: Determine receiver_id: the other party
+      // If manager sending as celebrity -> receiver is the company who sent the deal
       let receiverId = otherUserId!;
       if (role === 'manager' && managedCelebrityId && message.deal_id) {
         // Manager sending as celebrity -> receiver is the company who sent the deal
@@ -609,6 +613,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
             </div>
           ) : (
             thread.map((msg, i) => {
+              // FIX: isMine check - true when message.sender_id equals current user id OR (manager and message.sender_id equals managedCelebrityId)
               const isMine = msg.sender_id === user?.id || (role === 'manager' && managedCelebrityId && msg.sender_id === managedCelebrityId);
               const showDateSep = i === 0 || dateSeparator(msg.created_at, isRTL) !== dateSeparator(thread[i - 1].created_at, isRTL);
               const isSendingThis = msg.id === sendingMsgId;

@@ -13,6 +13,8 @@ import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield, Briefcase, Ale
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { encryptForRecipient, ensureUserE2EReady } from '@/utils/e2eManager';
+import { useAuth } from '@/hooks/useAuth';
+import { useRole } from '@/hooks/useRole.tsx';
 
 interface Profile {
   id: string;
@@ -40,6 +42,8 @@ export default function MessageComposer({
   dealTitle
 }: MessageComposerProps) {
   const { isRTL } = useLanguage();
+  const { user } = useAuth();
+  const { role, managedCelebrityId } = useRole();
   const [content, setContent] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string } | null>(null);
@@ -121,12 +125,25 @@ export default function MessageComposer({
       // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
       // This ensures each pair of users has exactly ONE work conversation
       let parentId: string | null = null;
+      
+      // FIX: Build sender/receiver filter to include managedCelebrityId for managers
+      const senderIds = [senderId];
+      const receiverIds = [senderId];
+      if (role === 'manager' && managedCelebrityId) {
+        senderIds.push(managedCelebrityId);
+        receiverIds.push(managedCelebrityId);
+      }
+      
       const { data: rootMsg } = await supabase
         .from('messages')
         .select('id')
         .is('parent_id', null)
         .eq('category', 'work')
-        .or(`and(sender_id.eq.${senderId},receiver_id.eq.${recipient.id}),and(sender_id.eq.${recipient.id},receiver_id.eq.${senderId})`)
+        .or(
+          senderIds.map(sid => 
+            receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
+          ).join(',')
+        )
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -215,10 +232,19 @@ export default function MessageComposer({
       }
       const encryptedContent = enc.payload;
 
+      // FIX: Determine sender_id: if manager, use managedCelebrityId; otherwise user.id
+      const effectiveSenderId = role === 'manager' && managedCelebrityId ? managedCelebrityId : senderId;
+      
+      // FIX: Determine receiver_id: the other party
+      // If manager sending as celebrity -> receiver is the company (recipient.id)
+      // If company sending -> receiver is the celebrity (recipient.id)
+      // In both cases, recipient.id is the other party
+      const receiverId = recipient.id;
+
       // Insert message with deal_id reference if provided
       const { data: insertedMsg, error } = await supabase.from('messages').insert({
-        sender_id: senderId,
-        receiver_id: recipient.id,
+        sender_id: effectiveSenderId,
+        receiver_id: receiverId,
         content: encryptedContent,
         voice_url: null,
         media_url: mediaUrl,
@@ -230,18 +256,31 @@ export default function MessageComposer({
       if (error) throw error;
 
       // Push notification with conversationId
-      const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', senderId).single();
+      let senderName = '';
+      if (role === 'manager' && managedCelebrityId) {
+        // Fetch celebrity profile for notification
+        const { data: celebProfile } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', managedCelebrityId)
+          .single();
+        senderName = celebProfile?.display_name || 'Someone';
+      } else {
+        const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', senderId).single();
+        senderName = senderProfile?.display_name || 'Someone';
+      }
+      
       const notificationType = mediaType ? mediaType : 'work_message';
       
       supabase.functions.invoke('send-push-notification', {
         body: {
-          receiverId: recipient.id,
-          senderName: senderProfile?.display_name || 'Someone',
+          receiverId: receiverId,
+          senderName: senderName,
           messageType: mediaType || 'text',
           content: text,
           notificationType,
           conversationId: insertedMsg?.id || null,
-          senderId,
+          senderId: effectiveSenderId,
           dealId: dealId, // Include dealId in notification
         },
       }).catch(() => {});

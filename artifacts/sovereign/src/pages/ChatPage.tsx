@@ -252,7 +252,9 @@ export default function ChatPage() {
       // Decrypt messages
       const decrypted = await Promise.all(((data as Message[]) || []).map(async (msg) => {
         if (isEncryptedMessage(msg.content)) {
-          const res = await decryptFromSender(msg.content, msg.sender_id === user.id ? msg.receiver_id : msg.sender_id);
+          // Use message.sender_id as the key owner for decryption
+          const senderId = msg.sender_id;
+          const res = await decryptFromSender(msg.content, senderId);
           return { ...msg, content: res.success ? res.plaintext : '🔒' };
         }
         return msg;
@@ -674,7 +676,8 @@ export default function ChatPage() {
         ) : (
           <div className="space-y-3">
             {messages.map((msg, i) => {
-              const isMine = msg.sender_id === effectiveSenderId;
+              // FIX: isMine check - true when message.sender_id equals current user id OR (manager and message.sender_id equals managedCelebrityId)
+              const isMine = msg.sender_id === user?.id || (role === 'manager' && managedCelebrityId && msg.sender_id === managedCelebrityId);
               const showDateSep = i === 0 || formatDate(msg.created_at) !== formatDate(messages[i - 1]?.created_at);
               
               // Check if this message has a deal_id and it's the first message with this deal_id
