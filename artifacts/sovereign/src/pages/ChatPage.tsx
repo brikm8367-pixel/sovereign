@@ -10,7 +10,7 @@ import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X,
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { encryptForRecipient, decryptFromSender, isEncryptedMessage, ensureUserE2EReady } from '@/utils/e2eManager';
+import { encryptForRecipient, decryptFromSender, isEncryptedMessage, ensureUserE2EReady, storeOwnMessagePlaintext, getOwnMessagePlaintext } from '@/utils/e2eManager';
 import { resumeAudioContext } from '@/utils/sounds';
 import { DealCardInline } from '@/components/deals/DealCardInline';
 
@@ -272,9 +272,12 @@ export default function ChatPage() {
 
       // Decrypt messages with individual try-catch to prevent blocking
       const decrypted = await Promise.all(((data as Message[]) || []).map(async (msg) => {
-        // For own messages, use cached plaintext if available
-        if (msg.sender_id === user.id && ownMessagesCache.has(msg.id)) {
-          return { ...msg, content: ownMessagesCache.get(msg.id)! };
+        // For own messages, check IndexedDB cache first
+        if (msg.sender_id === user.id) {
+          const cached = await getOwnMessagePlaintext(msg.id);
+          if (cached) {
+            return { ...msg, content: cached };
+          }
         }
         
         if (isEncryptedMessage(msg.content)) {
@@ -619,7 +622,7 @@ export default function ChatPage() {
 
       // Cache the plaintext for our own message using the database-generated ID
       if (insertedMsg?.id) {
-        setOwnMessagesCache(prev => new Map(prev).set(insertedMsg.id, contentToSend));
+        await storeOwnMessagePlaintext(insertedMsg.id, contentToSend);
       }
 
       // Push notification - use agent's own display name for managers

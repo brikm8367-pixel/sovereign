@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Message, MessageCategory } from './InboxSection';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { encryptForRecipient, decryptFromSender, isEncryptedMessage } from '@/utils/e2eManager';
+import { encryptForRecipient, decryptFromSender, isEncryptedMessage, storeOwnMessagePlaintext, getOwnMessagePlaintext } from '@/utils/e2eManager';
 import { initScreenshotDetection, onScreenshot, notifyScreenshot } from '@/utils/screenshotDetection';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -158,9 +158,12 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
   const decryptThread = async (msgs: ThreadMessage[]): Promise<ThreadMessage[]> => {
     if (!user) return msgs;
     return Promise.all(msgs.map(async (msg) => {
-      // For own messages, use cached plaintext if available
-      if (msg.sender_id === user.id && ownMessagesCache.has(msg.id)) {
-        return { ...msg, content: ownMessagesCache.get(msg.id)! };
+      // For own messages, check IndexedDB cache first
+      if (msg.sender_id === user.id) {
+        const cached = await getOwnMessagePlaintext(msg.id);
+        if (cached) {
+          return { ...msg, content: cached };
+        }
       }
       
       if (isEncryptedMessage(msg.content)) {
@@ -475,7 +478,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
 
       // Cache the plaintext for our own message using the database-generated ID
       if (insertedMsg?.id) {
-        setOwnMessagesCache(prev => new Map(prev).set(insertedMsg.id, contentToSend));
+        await storeOwnMessagePlaintext(insertedMsg.id, contentToSend);
       }
 
       // Push notification (fire and forget) - use agent's own display name for managers

@@ -1,8 +1,3 @@
-/**
- * E2E Key Manager — handles key generation, encrypted-at-rest storage,
- * per-device key registration, and message encrypt/decrypt with detailed status.
- * Includes retry mechanism and recovery flow for improved reliability.
- */
 import { supabase } from '@/integrations/supabase/client';
 import {
   generateKeyPair,
@@ -16,6 +11,7 @@ import {
 } from './encryption';
 import { getOrCreateDeviceSecret, getOrCreateDeviceId, encryptSessionState, decryptSessionState } from './cryptoHelpers';
 import { setCloudSyncHandler, getSession } from './signalProtocol';
+import { set, get } from 'idb-keyval';
 
 export type EncryptResult =
   | { success: true; payload: string }
@@ -27,6 +23,7 @@ export type DecryptResult =
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 300;
+const OWN_MESSAGE_KEY_PREFIX = 'directly_own_msg_';
 
 async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -38,6 +35,26 @@ async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promis
     }
   }
   throw new Error('Max retries exceeded');
+}
+
+// Store sender's own plaintext copy in IndexedDB for later display
+export async function storeOwnMessagePlaintext(messageId: string, plaintext: string): Promise<void> {
+  try {
+    await set(`${OWN_MESSAGE_KEY_PREFIX}${messageId}`, plaintext);
+  } catch (err) {
+    console.warn('[E2E] Failed to store own message plaintext', err);
+  }
+}
+
+// Retrieve sender's own plaintext copy from IndexedDB
+export async function getOwnMessagePlaintext(messageId: string): Promise<string | null> {
+  try {
+    const value = await get(`${OWN_MESSAGE_KEY_PREFIX}${messageId}`);
+    return value ?? null;
+  } catch (err) {
+    console.warn('[E2E] Failed to get own message plaintext', err);
+    return null;
+  }
 }
 
 // Initialize E2E keys on login. Encrypted at rest. Registers public key in device_keys
@@ -74,16 +91,24 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
     });
 
     // Backwards compatibility: ensure profiles.public_key has *some* key so older
-    // recipients (that read profiles.public_key) can still encrypt to us. Use upsert
-    // to handle case where profile row doesn't exist yet (should not happen but safe).
+    // recipients (that read profiles.public_key) can still encrypt to us.
+    // Only set if profile currently has no public_key — do not overwrite existing.
     await withRetry(async () => {
-      const { error } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
-        .upsert(
-          { id: userId, public_key: keys!.publicKey },
-          { onConflict: 'id' }
-        );
-      if (error) throw error;
+        .select('public_key')
+        .eq('id', userId)
+        .single();
+      
+      if (!profile?.public_key) {
+        const { error } = await supabase
+          .from('profiles')
+          .upsert(
+            { id: userId, public_key: keys!.publicKey },
+            { onConflict: 'id' }
+          );
+        if (error) throw error;
+      }
     });
 
     // Restore cloud sessions if password is provided
