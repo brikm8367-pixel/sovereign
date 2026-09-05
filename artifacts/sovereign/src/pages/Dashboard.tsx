@@ -674,6 +674,7 @@ export default function Dashboard() {
                       isRTL={isRTL} 
                       onToggleDetails={() => setShowDealDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
                       showDetails={showDealDetails[deal.id] || false}
+                      showStatusBadge={false} // Main home page: no status badge
                     />
                     
                     {managedCelebrityId && (
@@ -742,59 +743,17 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {pendingDeals.map((deal) => {
-                  const statusConfig = getStatusConfig(deal.status);
-                  const StatusIcon = statusConfig.icon;
-                  
-                  return (
-                    <div key={deal.id} className="bg-card rounded-2xl border border-border p-4 space-y-3">
-                      <DealCardInline 
-                        dealId={deal.id} 
-                        isRTL={isRTL} 
-                        onToggleDetails={() => setShowDealDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
-                        showDetails={showDealDetails[deal.id] || false}
-                      />
-                      
-                      <div className="pt-3 border-t border-border">
-                        <div className={cn(
-                          'flex items-center justify-between p-3 rounded-xl border',
-                          statusConfig.bg,
-                          statusConfig.border
-                        )}>
-                          <div className="flex items-center gap-2">
-                            <StatusIcon className={cn('h-4 w-4', statusConfig.text)} />
-                            <span className={cn('font-medium text-sm', statusConfig.text)}>
-                              {statusConfig.label}
-                            </span>
-                          </div>
-                          
-                          {statusConfig.showButton && (
-                            <Button
-                              onClick={async () => {
-                                // FIX: Check for active manager before navigating
-                                if (deal.celebrity_id) {
-                                  const { data: managerLink } = await supabase
-                                    .from('manager_links')
-                                    .select('manager_id')
-                                    .eq('celebrity_id', deal.celebrity_id)
-                                    .eq('status', 'active')
-                                    .maybeSingle();
-                                  
-                                  const targetUserId = managerLink?.manager_id || deal.celebrity_id;
-                                  navigate(`/chat/${targetUserId}?dealId=${deal.id}`);
-                                }
-                              }}
-                              className={cn('h-11 rounded-xl text-xs font-semibold touch-feedback', statusConfig.buttonBg)}
-                            >
-                              {statusConfig.buttonText}
-                              <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {pendingDeals.map((deal) => (
+                  <div key={deal.id} className="bg-card rounded-2xl border border-border p-4 space-y-3">
+                    <DealCardInline 
+                      dealId={deal.id} 
+                      isRTL={isRTL} 
+                      onToggleDetails={() => setShowDealDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
+                      showDetails={showDealDetails[deal.id] || false}
+                      showStatusBadge={true} // My Offers page: SHOW status badge prominently
+                    />
+                  </div>
+                ))}
               </div>
             )}
           </div>

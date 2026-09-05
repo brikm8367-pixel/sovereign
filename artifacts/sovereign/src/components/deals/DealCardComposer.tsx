@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -11,6 +12,7 @@ import { Loader2, Briefcase, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { validateDealCard } from '@/utils/dealValidation';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
   open: boolean;
@@ -69,7 +71,7 @@ function ChoiceBtn({ active, onClick, children, className }: {
       type="button"
       onClick={onClick}
       className={cn(
-        'p-2.5 rounded-xl border text-xs font-medium text-start transition-all duration-150',
+        'p-2.5 rounded-xl border text-xs font-medium text-start transition-all duration-150 h-11',
         active
           ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
           : 'border-border hover:bg-muted/60 text-foreground/80',
@@ -82,7 +84,16 @@ function ChoiceBtn({ active, onClick, children, className }: {
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold mb-2 text-muted-foreground uppercase tracking-wide">{children}</p>;
+  return <p className="text-sm font-medium text-muted-foreground">{children}</p>;
+}
+
+function SectionHeader({ label, required }: { label: string; required?: boolean }) {
+  return (
+    <div className="flex items-center gap-1">
+      <SectionLabel>{label}</SectionLabel>
+      {required && <span className="text-destructive text-sm">*</span>}
+    </div>
+  );
 }
 
 export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityName, onSent }: Props) {
@@ -96,6 +107,8 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
   const [timeline,          setTimeline]          = useState('');
   const [commitments,       setCommitments]       = useState<string[]>([]);
   const [pitch,             setPitch]             = useState('');
+  const [companyName,       setCompanyName]       = useState('');
+  const [websiteUrl,        setWebsiteUrl]        = useState('');
 
   // Meta state
   const [sending,       setSending]       = useState(false);
@@ -119,7 +132,7 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
   const reset = () => {
     setDealType(''); setBudget(''); setPaymentStructure(''); setTimeline('');
-    setCommitments([]); setPitch('');
+    setCommitments([]); setPitch(''); setCompanyName(''); setWebsiteUrl('');
   };
 
   const toggleCommitment = (id: string) => {
@@ -132,6 +145,8 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
     if (!user) return;
     if (!dealType) { toast.error(isRTL ? 'اختر نوع العرض' : 'Choose a deal type'); return; }
     if (!budget)   { toast.error(isRTL ? 'حدد الميزانية' : 'Specify the budget'); return; }
+    if (!companyName.trim()) { toast.error(isRTL ? 'أدخل اسم الشركة' : 'Enter company name'); return; }
+    if (!websiteUrl.trim()) { toast.error(isRTL ? 'أدخل الموقع الإلكتروني' : 'Enter website URL'); return; }
     if (hasPending) {
       toast.error(isRTL ? 'لديك عرض قيد المراجعة — انتظر الرد أولاً' : 'You have a pending deal — wait for a reply first');
       return;
@@ -143,11 +158,11 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
       budgetRange: budget,
       pitch,
       timeline,
-      campaignDescription: pitch, // Use pitch as campaignDescription for validation
+      campaignDescription: pitch,
       deliverables: '',
       whyThem: '',
-      companyName: 'Deal Card', // Placeholder for required field
-      websiteUrl: 'https://example.com', // Placeholder for required field
+      companyName,
+      websiteUrl,
     });
 
     if (!validation.valid) {
@@ -186,6 +201,8 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
       budget_range: budgetLabel,
       timeline:    timeline || null,
       details:     detailsPayload,
+      company_name: companyName,
+      website_url: websiteUrl,
     });
 
     setSending(false);
@@ -203,24 +220,56 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
   const pitchLeft = 300 - pitch.length;
   const pitchColor = pitchLeft < 30 ? 'text-destructive' : pitchLeft < 80 ? 'text-amber-500' : 'text-muted-foreground';
 
+  const t = (ar: string, en: string) => (isRTL ? ar : en);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-2xl max-w-md max-h-[92vh] overflow-y-auto pb-20 safe-area-inset-bottom">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-primary" />
-            {isRTL ? 'بطاقة عرض عمل' : 'Deal Card'}
+            {t('بطاقة عرض عمل', 'Deal Card')}
           </DialogTitle>
           <DialogDescription>
-            {(isRTL ? 'عرض منظّم إلى ' : 'Structured offer to ')}{celebrityName ? `@${celebrityName}` : ''}
+            {t('عرض منظّم إلى ', 'Structured offer to ')}{celebrityName ? `@${celebrityName}` : ''}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 py-1">
+        <div className="space-y-5 py-1 px-1">
+
+          {/* Company Info Section */}
+          <div className="space-y-4">
+            <SectionHeader label={t('معلومات الشركة', 'Company Information')} required />
+            
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">{t('اسم الشركة', 'Company Name')}</label>
+              <Input
+                value={companyName}
+                onChange={e => setCompanyName(e.target.value)}
+                placeholder={t('مثال: شركة التقنية الحديثة', 'e.g. Modern Tech Inc.')}
+                className="h-11 px-3 py-2 rounded-xl border-border"
+                maxLength={100}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">{t('الموقع الإلكتروني', 'Website URL')}</label>
+              <Input
+                type="url"
+                value={websiteUrl}
+                onChange={e => setWebsiteUrl(e.target.value)}
+                placeholder="https://example.com"
+                className="h-11 px-3 py-2 rounded-xl border-border"
+                maxLength={200}
+              />
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-border/50" />
 
           {/* 1 — Deal type */}
-          <div>
-            <SectionLabel>{isRTL ? 'نوع العرض' : 'Deal type'}</SectionLabel>
+          <div className="space-y-3">
+            <SectionHeader label={t('نوع العرض', 'Deal Type')} required />
             <div className="grid grid-cols-3 gap-2">
               {DEAL_TYPES.map(t => (
                 <ChoiceBtn key={t.id} active={dealType === t.id} onClick={() => setDealType(t.id)}>
@@ -231,8 +280,8 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
           </div>
 
           {/* 2 — Budget */}
-          <div>
-            <SectionLabel>{isRTL ? 'الميزانية الصافية' : 'Net budget'}</SectionLabel>
+          <div className="space-y-3">
+            <SectionHeader label={t('الميزانية الصافية', 'Net Budget')} required />
             <div className="grid grid-cols-2 gap-2">
               {BUDGETS.map(b => (
                 <ChoiceBtn key={b.id} active={budget === b.id} onClick={() => setBudget(b.id)}>
@@ -243,8 +292,8 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
           </div>
 
           {/* 3 — Payment structure */}
-          <div>
-            <SectionLabel>{isRTL ? 'هيكل الدفع' : 'Payment structure'}</SectionLabel>
+          <div className="space-y-3">
+            <SectionHeader label={t('هيكل الدفع', 'Payment Structure')} />
             <div className="grid grid-cols-2 gap-2">
               {PAYMENT_STRUCTURES.map(p => (
                 <ChoiceBtn key={p.id} active={paymentStructure === p.id} onClick={() => setPaymentStructure(p.id)}>
@@ -255,8 +304,8 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
           </div>
 
           {/* 4 — Timeline */}
-          <div>
-            <SectionLabel>{isRTL ? 'الجدول الزمني' : 'Timeline'}</SectionLabel>
+          <div className="space-y-3">
+            <SectionHeader label={t('الجدول الزمني', 'Timeline')} />
             <div className="grid grid-cols-2 gap-2">
               {TIMELINES.map(t => (
                 <ChoiceBtn key={t.id} active={timeline === t.id} onClick={() => setTimeline(t.id)}>
@@ -267,8 +316,8 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
           </div>
 
           {/* 5 — Commitments (multi-select) */}
-          <div>
-            <SectionLabel>{isRTL ? 'الالتزامات الرئيسية' : 'Main commitments'}</SectionLabel>
+          <div className="space-y-3">
+            <SectionHeader label={t('الالتزامات الرئيسية', 'Main Commitments')} />
             <div className="flex flex-wrap gap-2">
               {COMMITMENTS.map(c => (
                 <button
@@ -276,7 +325,7 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
                   type="button"
                   onClick={() => toggleCommitment(c.id)}
                   className={cn(
-                    'px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-150',
+                    'px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-150 h-8',
                     commitments.includes(c.id)
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border hover:bg-muted/60 text-foreground/70',
@@ -289,39 +338,37 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
           </div>
 
           {/* 6 — Pitch Box */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <SectionLabel>{isRTL ? 'Pitch Box' : 'Pitch Box'}</SectionLabel>
-              <span className={cn('text-[10px] font-medium', pitchColor)}>{pitchLeft}</span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <SectionHeader label={t('Pitch Box', 'Pitch Box')} />
+              <span className={cn('text-xs font-medium', pitchColor)}>{pitchLeft} {t('حرف متبقي', 'chars left')}</span>
             </div>
             <Textarea
-              placeholder={isRTL
-                ? 'لماذا هذا المشهور تحديداً؟ ما قيمة التعاون للطرفين؟ (≤ 300 حرف)'
-                : 'Why this celebrity specifically? What\'s the value for both sides? (≤ 300 chars)'}
+              placeholder={t('لماذا هذا المشهور تحديداً؟ ما قيمة التعاون للطرفين؟ (≤ 300 حرف)', 'Why this celebrity specifically? What\'s the value for both sides? (≤ 300 chars)')}
               value={pitch}
               maxLength={300}
               onChange={e => setPitch(e.target.value)}
-              className="rounded-xl resize-none text-sm leading-relaxed"
+              className="h-28 rounded-xl resize-none text-sm leading-relaxed border-border px-3 py-2"
               rows={3}
             />
           </div>
 
           {hasPending && (
-            <p className="text-[11px] text-amber-600 text-center bg-amber-500/5 rounded-xl py-2 px-3">
-              {isRTL
-                ? 'لديك عرض قيد المراجعة — لا يمكن الإرسال حتى يتم الرد.'
-                : 'You have a pending deal — cannot send until it gets a reply.'}
-            </p>
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+              <p className="text-xs text-amber-700 dark:text-amber-400 text-center">
+                {t('لديك عرض قيد المراجعة — لا يمكن الإرسال حتى يتم الرد.', 'You have a pending deal — cannot send until it gets a reply.')}
+              </p>
+            </div>
           )}
 
           <Button
             onClick={submit}
-            disabled={sending || checking || hasPending || !dealType || !budget}
-            className="w-full h-12 rounded-xl font-semibold text-base"
+            disabled={sending || checking || hasPending || !dealType || !budget || !companyName.trim() || !websiteUrl.trim()}
+            className="w-full h-11 rounded-xl font-semibold text-base"
           >
             {sending
               ? <Loader2 className="h-5 w-5 animate-spin" />
-              : <><Check className="h-4 w-4 me-2" />{isRTL ? 'إرسال العرض' : 'Send Deal'}</>}
+              : <><Check className="h-4 w-4 me-2" />{t('إرسال العرض', 'Send Deal')}</>}
           </Button>
 
         </div>

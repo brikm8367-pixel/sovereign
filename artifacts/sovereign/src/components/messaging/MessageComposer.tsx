@@ -428,14 +428,14 @@ export default function MessageComposer({
             <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-13 w-13 rounded-xl touch-feedback" disabled={recipientReady === false}>
               <ImageIcon className="h-5 w-5" />
             </Button>
-            <Button variant="outline" onClick={onClose} className="flex-1 h-13 text-base rounded-xl touch-feedback">
+            <Button variant="outline" onClick={onClose} className="flex-1 h-11 rounded-xl touch-feedback">
               {t('إلغاء', 'Cancel')}
             </Button>
             {/* Send button - ALWAYS VISIBLE, only disabled when no content can be sent or recipient not ready */}
             <Button
               onClick={() => sendMessage(content)}
               disabled={(!content.trim() && !mediaPreview) || isSending || recipientReady === false}
-              className="flex-1 h-13 text-base rounded-xl touch-feedback bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="flex-1 h-11 rounded-xl touch-feedback bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {isSending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
