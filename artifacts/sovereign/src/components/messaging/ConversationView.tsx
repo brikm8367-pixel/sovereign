@@ -608,7 +608,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
         <div className="text-center p-8">
           <Video className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">Call screen component not available</p>
-          <Button onClick={() => setActiveCall(null)} className="mt-4">End Call</Button>
+          <Button onClick={() => setActiveCall(null)} className="mt-4 h-11 rounded-xl">End Call</Button>
         </div>
       </div>
     );
@@ -629,7 +629,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       <DialogContent className="w-full max-w-lg h-[100dvh] sm:h-[92vh] flex flex-col p-0 gap-0 sm:rounded-3xl rounded-none border-0 sm:border sm:border-primary/10">
         {/* Header */}
         <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-border bg-card sm:rounded-t-3xl">
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-10 w-10 rounded-xl touch-feedback shrink-0">
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-11 w-11 rounded-xl touch-feedback shrink-0">
             {isRTL ? <ArrowRight className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
           </Button>
           <button
@@ -643,7 +643,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
               </AvatarFallback>
             </Avatar>
             <div className="text-start min-w-0">
-              <p className="font-semibold text-[15px] truncate leading-tight">{otherName}</p>
+              <p className="font-semibold text-base truncate leading-tight">{otherName}</p>
               {isTyping ? (
                 <p className="text-xs text-primary font-medium animate-pulse">{isRTL ? 'يكتب...' : 'typing...'}</p>
               ) : (
@@ -656,7 +656,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
               {/* Show agent badge in header when conversation partner is a manager */}
               {thread.some(m => m.sender_role === 'manager' && m.sender_id !== user.id && m.managed_celebrity_id) && (
                 <div className="flex items-center gap-1.5 mt-1">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                     <UserCheck className="h-2.5 w-2.5" />
                     {t('وكيل مفوض', 'Authorized Agent')}
                   </span>
@@ -670,7 +670,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
               {/* Deal status badge in header when deal is accepted */}
               {isDealAccepted && (
                 <div className="flex items-center gap-1.5 mt-1">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
                     <CheckCheck className="h-2.5 w-2.5" />
                     {t('تم قبول العرض', 'Deal Accepted')}
                   </span>
@@ -680,20 +680,20 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
           </button>
           <div className="flex items-center gap-0.5 shrink-0">
             {/* Disappearing messages toggle */}
-            <Button variant="ghost" size="icon" onClick={() => setShowDisappear(!showDisappear)} className={cn("h-9 w-9 rounded-xl", disappearTimer && "text-primary")}>
+            <Button variant="ghost" size="icon" onClick={() => setShowDisappear(!showDisappear)} className={cn("h-10 w-10 rounded-xl", disappearTimer && "text-primary")}>
               <Timer className="h-4 w-4" />
             </Button>
             {canCall && message.category === 'work' && (
               <>
-                <Button variant="ghost" size="icon" onClick={() => setActiveCall({ type: 'audio' })} className="h-9 w-9 rounded-xl touch-feedback">
+                <Button variant="ghost" size="icon" onClick={() => setActiveCall({ type: 'audio' })} className="h-10 w-10 rounded-xl touch-feedback">
                   <Phone className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => setActiveCall({ type: 'video' })} className="h-9 w-9 rounded-xl touch-feedback">
+                <Button variant="ghost" size="icon" onClick={() => setActiveCall({ type: 'video' })} className="h-10 w-10 rounded-xl touch-feedback">
                   <Video className="h-4 w-4" />
                 </Button>
               </>
             )}
-            <Button variant="ghost" size="icon" onClick={() => setShowBlockReport(true)} className="h-9 w-9 rounded-xl touch-feedback">
+            <Button variant="ghost" size="icon" onClick={() => setShowBlockReport(true)} className="h-10 w-10 rounded-xl touch-feedback">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </div>
@@ -800,7 +800,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                   <div key={msg.id}>
                     {showDateSep && (
                       <div className="text-center my-3">
-                        <span className="text-[11px] text-muted-foreground bg-card/80 backdrop-blur-sm px-3 py-1 rounded-full font-medium">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] text-muted-foreground bg-card/80 backdrop-blur-sm font-medium">
                           {dateSeparator(msg.created_at, isRTL)}
                         </span>
                       </div>
@@ -828,10 +828,10 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                             autoFocus
                           />
                           <div className="flex gap-1.5 justify-end">
-                            <Button size="sm" variant="ghost" onClick={() => setEditingMsg(null)} className="h-7 text-xs rounded-lg">
+                            <Button size="sm" variant="ghost" onClick={() => setEditingMsg(null)} className="h-9 text-xs rounded-lg">
                               {t('إلغاء', 'Cancel')}
                             </Button>
-                            <Button size="sm" onClick={() => handleEditMessage(msg.id)} className="h-7 text-xs rounded-lg">
+                            <Button size="sm" onClick={() => handleEditMessage(msg.id)} className="h-9 text-xs rounded-lg">
                               {t('حفظ', 'Save')}
                             </Button>
                           </div>
@@ -868,7 +868,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                             {/* Agent badge for messages from managers */}
                             {!isMine && isFromManager && (
                               <div className="mb-1.5 flex items-center gap-1.5">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                                   <ShieldCheck className="h-2.5 w-2.5" />
                                   {t('وكيل مفوض', 'Authorized Agent')}
                                 </span>
@@ -1060,7 +1060,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                   value={replyContent}
                   onChange={(e) => { setReplyContent(e.target.value); broadcastTyping(); }}
                   rows={1}
-                  className="w-full resize-none text-[15px] rounded-2xl border border-border bg-muted/30 px-4 py-2.5 min-h-[42px] max-h-28 focus:outline-none focus:border-primary transition-colors"
+                  className="w-full resize-none text-[15px] rounded-2xl border border-border bg-muted/30 px-4 py-2.5 min-h-11 max-h-28 focus:outline-none focus:border-primary transition-colors"
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendReply(replyContent); } }}
                 />
               </div>
@@ -1115,7 +1115,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
           <h3 className="font-semibold text-lg mb-4">{t('حظر/إبلاغ', 'Block/Report')}</h3>
           <p className="text-muted-foreground mb-6">{t('ميزة الحظر والإبلاغ غير متاحة حالياً', 'Block/Report feature not available')}</p>
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setShowBlockReport(false)}>{t('إلغاء', 'Cancel')}</Button>
+            <Button variant="outline" onClick={() => setShowBlockReport(false)} className="h-11 rounded-xl">{t('إلغاء', 'Cancel')}</Button>
           </div>
         </div>
       </div>

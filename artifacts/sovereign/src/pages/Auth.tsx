@@ -225,20 +225,20 @@ export default function Auth() {
         </div>
 
         {/* Card */}
-        <div className="bg-card rounded-2xl p-6 border border-border shadow-lg">
-          <h1 className="text-xl font-semibold text-center mb-1">
+        <div className="bg-card rounded-2xl p-6 border border-border shadow-lg space-y-5">
+          <h1 className="text-xl font-semibold text-center">
             {isLogin
               ? (isRTL ? 'مرحباً بعودتك' : 'Welcome back')
               : (isRTL ? 'ابدأ رحلتك' : 'Start your journey')}
           </h1>
-          <p className="text-xs text-muted-foreground text-center mb-6">
+          <p className="text-xs text-muted-foreground text-center">
             {isLogin
               ? (isRTL ? 'رسائلك بانتظارك — كل شيء في مكانه.' : 'Your messages are waiting — everything in its place.')
               : (isRTL ? 'حسابك على وشك الاكتمال.' : 'Your account is almost ready.')}
           </p>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 space-y-2">
+            <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 space-y-2">
               <p className="text-sm text-destructive text-center">{error}</p>
               {needsEmailConfirm && (
                 <button
@@ -266,7 +266,7 @@ export default function Auth() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="John Doe"
-                  className="h-11"
+                  className="h-11 px-3 py-2"
                   autoComplete="name"
                   disabled={isLoading}
                 />
@@ -283,7 +283,7 @@ export default function Auth() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="h-11"
+                className="h-11 px-3 py-2"
                 autoComplete="email"
                 disabled={isLoading}
               />
@@ -300,7 +300,7 @@ export default function Auth() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="h-11 pe-10"
+                  className="h-11 px-3 py-2 pe-10"
                   autoComplete={isLogin ? 'current-password' : 'new-password'}
                   disabled={isLoading}
                 />
@@ -327,7 +327,7 @@ export default function Auth() {
             )}
 
             {resetSent && (
-              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 mt-2">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 mt-2">
                 <p className="text-sm text-emerald-600 dark:text-emerald-400 text-center">
                   Check your email — we sent you a recovery link.
                 </p>

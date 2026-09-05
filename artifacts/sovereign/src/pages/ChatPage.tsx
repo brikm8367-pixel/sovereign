@@ -691,12 +691,12 @@ export default function ChatPage() {
     <div className="min-h-screen bg-background flex flex-col" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Minimal Header - Apple Messages Style */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50 safe-area-inset-top">
-        <div className="max-w-lg mx-auto flex h-16 items-center justify-between px-4">
+        <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate('/home')}
-            className="h-10 w-10 rounded-xl touch-feedback shrink-0"
+            className="h-11 w-11 rounded-xl touch-feedback shrink-0"
             aria-label={t('العودة', 'Back')}
           >
             {isRTL ? <ArrowRight className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
@@ -720,7 +720,7 @@ export default function ChatPage() {
               {/* Show agent badge in header when conversation partner is a manager */}
               {messages.length > 0 && messages.some(m => m.sender_role === 'manager' && m.sender_id !== user.id && m.managed_celebrity_id) && (
                 <div className="flex items-center gap-1.5 mt-1">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                     <UserCheck className="h-2.5 w-2.5" />
                     {t('وكيل مفوض', 'Authorized Agent')}
                   </span>
@@ -734,7 +734,7 @@ export default function ChatPage() {
               {/* Deal status badge in header when deal is accepted */}
               {isDealAccepted && (
                 <div className="flex items-center gap-1.5 mt-1">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
                     <CheckCheck className="h-2.5 w-2.5" />
                     {t('تم قبول العرض', 'Deal Accepted')}
                   </span>
@@ -745,7 +745,7 @@ export default function ChatPage() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-10 w-10 rounded-xl touch-feedback shrink-0"
+            className="h-11 w-11 rounded-xl touch-feedback shrink-0"
             aria-label={t('سؤال الموهبة', 'Ask Talent')}
           >
             <MoreHorizontal className="h-5 w-5" />
@@ -806,7 +806,7 @@ export default function ChatPage() {
                 <div key={msg.id}>
                   {showDateSep && (
                     <div className="text-center my-4">
-                      <span className="text-[11px] text-muted-foreground bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full font-medium">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] text-muted-foreground bg-background/80 backdrop-blur-sm font-medium">
                         {formatDate(msg.created_at)}
                       </span>
                     </div>
@@ -841,7 +841,7 @@ export default function ChatPage() {
                         {/* Agent badge for messages from managers */}
                         {!isMine && isFromManager && (
                           <div className="mb-1.5 flex items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                               <ShieldCheck className="h-2.5 w-2.5" />
                               {t('وكيل مفوض', 'Authorized Agent')}
                             </span>
@@ -935,7 +935,7 @@ export default function ChatPage() {
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 rows={1}
-                className="w-full resize-none text-[15px] rounded-2xl border border-border/50 bg-card px-4 py-3 min-h-[48px] max-h-32 focus:outline-none focus:border-primary/50 transition-colors pr-14"
+                className="w-full resize-none text-[15px] rounded-2xl border border-border/50 bg-card px-4 py-3 min-h-11 max-h-32 focus:outline-none focus:border-primary/50 transition-colors pr-14"
                 onKeyDown={(e) => { 
                   if (e.key === 'Enter' && !e.shiftKey) { 
                     e.preventDefault(); 

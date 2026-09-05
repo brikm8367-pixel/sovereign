@@ -586,7 +586,7 @@ export default function Dashboard() {
               variant="ghost"
               size="icon"
               onClick={toggleTheme}
-              className="h-10 w-10 rounded-xl touch-feedback"
+              className="h-11 w-11 rounded-xl touch-feedback"
             >
               {theme === 'dark' ? (
                 <Sun className="h-5 w-5" />
@@ -598,7 +598,7 @@ export default function Dashboard() {
               variant="ghost"
               size="icon"
               onClick={() => navigate('/profile')}
-              className="h-10 w-10 rounded-xl touch-feedback"
+              className="h-11 w-11 rounded-xl touch-feedback"
             >
               <User className="h-5 w-5" />
             </Button>
@@ -606,9 +606,9 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-lg mx-auto pt-16 pb-20 px-4">
+      <main className="max-w-lg mx-auto pt-16 pb-20 px-4 space-y-6">
         {role === 'manager' && managedCelebrities.length > 0 && (
-          <div className="mb-4">
+          <div className="space-y-3">
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-2">
               {managedCelebrities.map((celeb) => (
                 <button
@@ -642,13 +642,13 @@ export default function Dashboard() {
         )}
 
         {role === 'manager' && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
               <h2 className="font-semibold text-base flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-primary" />
                 العروض المعلقة
                 {pendingDeals.length > 0 && (
-                  <span className="bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
                     {pendingDeals.length}
                   </span>
                 )}
@@ -660,7 +660,7 @@ export default function Dashboard() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : pendingDeals.length === 0 ? (
-              <div className="text-center py-8 bg-card rounded-xl border border-border">
+              <div className="p-4 bg-card rounded-2xl border border-border text-center">
                 <p className="text-sm text-muted-foreground">
                   {managedCelebrityId ? 'لا توجد عروض معلقة' : 'اختر موهبة لعرض عروضها'}
                 </p>
@@ -668,7 +668,7 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {pendingDeals.map((deal) => (
-                  <div key={deal.id} className="bg-card rounded-xl border border-border p-4">
+                  <div key={deal.id} className="bg-card rounded-2xl border border-border p-4 space-y-3">
                     <DealCardInline 
                       dealId={deal.id} 
                       isRTL={isRTL} 
@@ -677,11 +677,11 @@ export default function Dashboard() {
                     />
                     
                     {managedCelebrityId && (
-                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+                      <div className="flex items-center gap-2 pt-3 border-t border-border">
                         <Button
                           onClick={() => handleInterested(deal.id)}
                           disabled={isProcessing}
-                          className="flex-1 h-9 rounded-xl bg-green-600 hover:bg-green-700 text-xs font-semibold touch-feedback"
+                          className="flex-1 h-11 rounded-xl bg-green-600 hover:bg-green-700 text-xs font-semibold touch-feedback"
                         >
                           <Check className="h-3.5 w-3.5 mr-1" />
                           قبول
@@ -690,7 +690,7 @@ export default function Dashboard() {
                           onClick={() => handleReject(deal.id)}
                           disabled={isProcessing}
                           variant="outline"
-                          className="flex-1 h-9 rounded-xl border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold touch-feedback"
+                          className="flex-1 h-11 rounded-xl border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold touch-feedback"
                         >
                           <X className="h-3.5 w-3.5 mr-1" />
                           رفض
@@ -702,7 +702,7 @@ export default function Dashboard() {
                           }}
                           disabled={isProcessing}
                           variant="outline"
-                          className="flex-1 h-9 rounded-xl border-blue-300 text-blue-600 hover:bg-blue-50 text-xs font-semibold touch-feedback"
+                          className="flex-1 h-11 rounded-xl border-blue-300 text-blue-600 hover:bg-blue-50 text-xs font-semibold touch-feedback"
                         >
                           <MessageSquare className="h-3.5 w-3.5 mr-1" />
                           {t('سؤال الموهبة', 'Ask Talent')}
@@ -717,13 +717,13 @@ export default function Dashboard() {
         )}
 
         {role === 'sender' && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
               <h2 className="font-semibold text-base flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-primary" />
                 {t('عروضي', 'My Offers')}
                 {pendingDeals.length > 0 && (
-                  <span className="bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
                     {pendingDeals.length}
                   </span>
                 )}
@@ -735,7 +735,7 @@ export default function Dashboard() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : pendingDeals.length === 0 ? (
-              <div className="text-center py-8 bg-card rounded-xl border border-border">
+              <div className="p-4 bg-card rounded-2xl border border-border text-center">
                 <p className="text-sm text-muted-foreground">
                   {t('لا توجد عروض بعد', 'No offers yet')}
                 </p>
@@ -747,7 +747,7 @@ export default function Dashboard() {
                   const StatusIcon = statusConfig.icon;
                   
                   return (
-                    <div key={deal.id} className="bg-card rounded-xl border border-border p-4">
+                    <div key={deal.id} className="bg-card rounded-2xl border border-border p-4 space-y-3">
                       <DealCardInline 
                         dealId={deal.id} 
                         isRTL={isRTL} 
@@ -755,7 +755,7 @@ export default function Dashboard() {
                         showDetails={showDealDetails[deal.id] || false}
                       />
                       
-                      <div className="mt-3 pt-3 border-t border-border">
+                      <div className="pt-3 border-t border-border">
                         <div className={cn(
                           'flex items-center justify-between p-3 rounded-xl border',
                           statusConfig.bg,
@@ -784,7 +784,7 @@ export default function Dashboard() {
                                   navigate(`/chat/${targetUserId}?dealId=${deal.id}`);
                                 }
                               }}
-                              className={cn('h-9 rounded-xl text-xs font-semibold touch-feedback', statusConfig.buttonBg)}
+                              className={cn('h-11 rounded-xl text-xs font-semibold touch-feedback', statusConfig.buttonBg)}
                             >
                               {statusConfig.buttonText}
                               <ArrowRight className="h-3.5 w-3.5 ml-1" />
@@ -800,8 +800,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div>
-          <div className="flex items-center justify-between mb-3">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
             <h2 className="font-semibold text-base flex items-center gap-2">
               <MessageCircle className="h-4 w-4 text-primary" />
               المحادثات
@@ -824,8 +824,8 @@ export default function Dashboard() {
 
       {askTalentDeal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center">
-          <div className="bg-card rounded-t-2xl max-w-lg w-full max-h-[80vh] p-4 animate-slide-up">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-card rounded-t-2xl max-w-lg w-full max-h-[80vh] p-4 space-y-4 animate-slide-up">
+            <div className="flex items-center justify-between">
               <h3 className="font-semibold text-base">
                 {t('سؤال للموهبة:', 'Question for Talent:')} {askTalentDeal.company_name}
               </h3>
@@ -836,13 +836,13 @@ export default function Dashboard() {
                   setAskTalentDeal(null);
                   setAskTalentQuestion('');
                 }}
-                className="h-8 w-8 rounded-full touch-feedback"
+                className="h-10 w-10 rounded-full touch-feedback"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="p-3 bg-muted/30 rounded-xl text-xs text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">{t('تفاصيل العرض:', 'Deal Details:')}</p>
                 <p>{askTalentDeal.company_name} · {askTalentDeal.deal_type}</p>
