@@ -438,13 +438,16 @@ export default function Dashboard() {
 
       console.log('[Dashboard] Sending Ask Talent question for deal:', askTalentDeal.id);
 
-      // FIX: Send question TO the celebrity talent (receiver_id = celebrity_id), not the company
+      // FIX: Use managedCelebrityId first, then fallback to askTalentDeal.celebrity_id
+      // Log the exact receiver_id being used
+      console.log('[Dashboard] Ask Talent receiver_id:', celebrityId, '(managedCelebrityId:', managedCelebrityId, ', deal.celebrity_id:', askTalentDeal.celebrity_id, ')');
+
       // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
           sender_id: user.id, // Agent's own user.id for E2E
-          receiver_id: askTalentDeal.celebrity_id, // Send TO the celebrity talent
+          receiver_id: celebrityId, // Use managedCelebrityId first, fallback to deal.celebrity_id
           deal_id: askTalentDeal.id,
           content: question,
           category: 'work',
