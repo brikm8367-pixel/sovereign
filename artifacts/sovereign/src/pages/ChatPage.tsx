@@ -516,15 +516,6 @@ export default function ChatPage() {
       }
     }
 
-    // RELAXED: If we have a dealId from URL or from message thread, allow sending regardless of deal status
-    // Only block if NO dealId at all (legacy direct message without any deal context)
-    const effectiveDealId = dealId || foundDeal?.id;
-    if (!effectiveDealId && !hasDeal) {
-      toast.error(isRTL ? 'لا يمكن بدء محادثة بدون عرض عمل' : 'Cannot start a conversation without a deal');
-      setIsSending(false);
-      return;
-    }
-
     // Always use 'work' category
     const category = 'work';
 
@@ -546,6 +537,7 @@ export default function ChatPage() {
       );
 
     // Scope root message to the deal: use dealId from URL, or foundDeal.id if inferred
+    const effectiveDealId = dealId || foundDeal?.id;
     if (effectiveDealId) {
       rootQuery = (rootQuery as any).eq('deal_id', effectiveDealId);
     }
