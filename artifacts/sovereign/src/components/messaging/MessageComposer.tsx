@@ -234,19 +234,10 @@ export default function MessageComposer({
       const managedCelebrityIdField = role === 'manager' && managedCelebrityId ? managedCelebrityId : null;
       
       // Determine receiver_id based on role:
-      // - If manager: send to deal.sender_id (the company) - but we need to fetch the deal
       // - If company: check if celebrity has active manager, if so send to manager, else send to celebrity
       let receiverId = recipient.id;
       
-      if (role === 'manager' && managedCelebrityId && dealId) {
-        // Manager sending as celebrity -> receiver is the company who sent the deal
-        const { data: dealData } = await supabase
-          .from('deal_cards')
-          .select('sender_id')
-          .eq('id', dealId)
-          .single();
-        if (dealData) receiverId = dealData.sender_id;
-      } else if (role !== 'manager' && dealId) {
+      if (role !== 'manager' && dealId) {
         // Company sending -> check if celebrity has active manager
         const { data: dealData } = await supabase
           .from('deal_cards')
