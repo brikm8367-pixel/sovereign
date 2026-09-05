@@ -40,7 +40,7 @@ interface DealCardInlineProps {
   onToggleDetails: () => void;
   showDetails: boolean;
   className?: string;
-  showStatusBadge?: boolean; // New prop to control status badge visibility
+  showStatusBadge?: boolean;
 }
 
 const t = (isRTL: boolean, ar: string, en: string) => isRTL ? ar : en;
@@ -76,16 +76,57 @@ const getStatusConfig = (status: string, isRTL: boolean) => {
 };
 
 const getDealTypeConfig = (type: string | null, isRTL: boolean) => {
-  const types: Record<string, { label: string; color: string }> = {
-    sponsorship: { label: t(isRTL, 'رعاية', 'Sponsorship'), color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' },
-    appearance: { label: t(isRTL, 'ظهور إعلاني', 'Brand Appearance'), color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800' },
-    event: { label: t(isRTL, 'حضور فعالية', 'Event Attendance'), color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' },
-    collab: { label: t(isRTL, 'تعاون محتوى', 'Content Collab'), color: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-800' },
-    endorsement: { label: t(isRTL, 'ترويج منتج', 'Product Endorsement'), color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800' },
-    other: { label: t(isRTL, 'أخرى', 'Other'), color: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' },
+  const types: Record<string, { label: string; color: string; description: string }> = {
+    sponsorship: { 
+      label: t(isRTL, 'رعاية', 'Sponsorship'), 
+      description: t(isRTL, 'رعاية علامة تجارية أو حدث', 'Brand or event sponsorship'),
+      color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' 
+    },
+    appearance: { 
+      label: t(isRTL, 'ظهور إعلاني', 'Brand Appearance'), 
+      description: t(isRTL, 'ظهور في إعلان أو حملة', 'Appearance in ad or campaign'),
+      color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800' 
+    },
+    event: { 
+      label: t(isRTL, 'حضور فعالية', 'Event Attendance'), 
+      description: t(isRTL, 'حضور فعالية أو مؤتمر', 'Attend event or conference'),
+      color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' 
+    },
+    collab: { 
+      label: t(isRTL, 'تعاون محتوى', 'Content Collab'), 
+      description: t(isRTL, 'إنشاء محتوى مشترك', 'Create joint content'),
+      color: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-800' 
+    },
+    endorsement: { 
+      label: t(isRTL, 'ترويج منتج', 'Product Endorsement'), 
+      description: t(isRTL, 'ترويج منتج أو خدمة', 'Promote product or service'),
+      color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800' 
+    },
+    other: { 
+      label: t(isRTL, 'أخرى', 'Other'), 
+      description: t(isRTL, 'نوع عرض آخر', 'Other deal type'),
+      color: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' 
+    },
   };
   return types[type || 'other'] || types.other;
 };
+
+function FieldRow({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn('space-y-1', className)}>
+      <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
+      <div className="text-sm text-foreground whitespace-pre-wrap break-words">{children}</div>
+    </div>
+  );
+}
+
+function Chip({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <Badge variant="outline" className={cn('rounded-full px-2.5 py-1 text-xs font-medium h-5', className)}>
+      {children}
+    </Badge>
+  );
+}
 
 export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, className, showStatusBadge = false }: DealCardInlineProps) {
   const [deal, setDeal] = useState<Deal | null>(null);
@@ -167,44 +208,28 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
       {/* Header with Company Name and Status Badge */}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex-1 min-w-0">
-          {deal.company_name && (
-            <p className="font-semibold text-base text-foreground truncate mb-1">
-              {deal.company_name}
-            </p>
-          )}
-          {!deal.company_name && deal.deal_type && (
-            <p className="font-semibold text-base text-foreground truncate mb-1">
-              {deal.deal_type}
-            </p>
-          )}
+          <FieldRow label={t(isRTL, 'اسم الشركة', 'Company Name')}>
+            {deal.company_name || t(isRTL, 'غير محدد', 'Not specified')}
+          </FieldRow>
           
           {/* Chips row: Deal Type, Budget, Timeline */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge 
-              variant="outline" 
-              className={cn('rounded-full px-2.5 py-1 text-xs font-medium h-5', dealTypeConfig.color)}
-            >
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <Chip className={dealTypeConfig.color}>
               {dealTypeConfig.label}
-            </Badge>
+            </Chip>
             
             {deal.budget_range && (
-              <Badge 
-                variant="outline" 
-                className="rounded-full px-2.5 py-1 text-xs font-medium h-5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
-              >
+              <Chip className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
                 <DollarSign className="h-3 w-3 inline mr-1" />
                 {deal.budget_range}
-              </Badge>
+              </Chip>
             )}
             
             {deal.timeline && (
-              <Badge 
-                variant="outline" 
-                className="rounded-full px-2.5 py-1 text-xs font-medium h-5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800"
-              >
+              <Chip className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800">
                 <Calendar className="h-3 w-3 inline mr-1" />
                 {deal.timeline}
-              </Badge>
+              </Chip>
             )}
           </div>
         </div>
@@ -230,112 +255,83 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         </div>
       </div>
 
-      {showDetails && (
-        <div className="space-y-4 pt-4 border-t border-border/50">
-          {/* Description / Pitch Section */}
-          {deal.details && (
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                {t(isRTL, 'الوصف', 'Description')}
-              </p>
-              <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">
-                {deal.details}
-              </p>
-            </div>
-          )}
-
-          {/* Details Grid */}
-          <div className="space-y-3">
-            {deal.website_url && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
-                <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-full">
-                  <Globe className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                    {t(isRTL, 'الموقع الإلكتروني', 'Website')}
-                  </p>
-                  <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary truncate block hover:underline">
-                    {deal.website_url}
-                  </a>
-                </div>
-              </div>
-            )}
-
-            {deal.budget_cycle && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                  <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                    {t(isRTL, 'دورة الميزانية', 'Budget Cycle')}
-                  </p>
-                  <p className="font-medium text-foreground truncate">{deal.budget_cycle}</p>
-                </div>
-              </div>
-            )}
-
-            {deal.exclusivity && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
-                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
-                  <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                    {t(isRTL, 'الحصرية', 'Exclusivity')}
-                  </p>
-                  <p className="font-medium text-foreground truncate">{deal.exclusivity}</p>
-                </div>
-              </div>
-            )}
-
-            {deal.deliverables && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
-                <div className="p-2 bg-pink-100 dark:bg-pink-900/30 rounded-full">
-                  <FileText className="h-4 w-4 text-pink-600 dark:text-pink-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                    {t(isRTL, 'المخرجات', 'Deliverables')}
-                  </p>
-                  <p className="font-medium text-foreground truncate">{deal.deliverables}</p>
-                </div>
-              </div>
-            )}
-
-            {deal.why_them && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
-                <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-full">
-                  <UserCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                    {t(isRTL, 'لماذا هم', 'Why Them')}
-                  </p>
-                  <p className="font-medium text-foreground truncate">{deal.why_them}</p>
-                </div>
-              </div>
-            )}
-
-            {deal.status && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
-                <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-full">
-                  <Briefcase className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                    {t(isRTL, 'الحالة', 'Status')}
-                  </p>
-                  <Badge variant="outline" className={cn('rounded-full px-2.5 py-1 text-xs font-medium h-5', statusConfig.bg, statusConfig.text, statusConfig.border)}>
-                    {statusConfig.label}
-                  </Badge>
-                </div>
-              </div>
-            )}
+      {/* Always show all fields - no conditional rendering based on showDetails */}
+      <div className="space-y-4 pt-4 border-t border-border/50">
+        {/* Deal Type with description */}
+        <FieldRow label={t(isRTL, 'نوع العرض', 'Deal Type')}>
+          <div className="flex items-center gap-2">
+            <Chip className={dealTypeConfig.color}>
+              {dealTypeConfig.label}
+            </Chip>
+            <span className="text-xs text-muted-foreground">{dealTypeConfig.description}</span>
           </div>
-        </div>
-      )}
+        </FieldRow>
+
+        {/* Budget Range */}
+        {deal.budget_range && (
+          <FieldRow label={t(isRTL, 'الميزانية', 'Budget')}>
+            <span className="font-medium">{deal.budget_range}</span>
+          </FieldRow>
+        )}
+
+        {/* Budget Cycle */}
+        {deal.budget_cycle && (
+          <FieldRow label={t(isRTL, 'دورة الميزانية', 'Budget Cycle')}>
+            {deal.budget_cycle}
+          </FieldRow>
+        )}
+
+        {/* Timeline */}
+        {deal.timeline && (
+          <FieldRow label={t(isRTL, 'الجدول الزمني', 'Timeline')}>
+            {deal.timeline}
+          </FieldRow>
+        )}
+
+        {/* Website URL */}
+        {deal.website_url && (
+          <FieldRow label={t(isRTL, 'الموقع الإلكتروني', 'Website')}>
+            <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline break-all">
+              {deal.website_url}
+            </a>
+          </FieldRow>
+        )}
+
+        {/* Exclusivity */}
+        {deal.exclusivity && (
+          <FieldRow label={t(isRTL, 'الحصرية', 'Exclusivity')}>
+            {deal.exclusivity}
+          </FieldRow>
+        )}
+
+        {/* Deliverables */}
+        {deal.deliverables && (
+          <FieldRow label={t(isRTL, 'المخرجات', 'Deliverables')}>
+            {deal.deliverables}
+          </FieldRow>
+        )}
+
+        {/* Why Them */}
+        {deal.why_them && (
+          <FieldRow label={t(isRTL, 'لماذا هم', 'Why Them')}>
+            {deal.why_them}
+          </FieldRow>
+        )}
+
+        {/* Description / Pitch */}
+        {deal.details && (
+          <FieldRow label={t(isRTL, 'الوصف', 'Description')}>
+            {deal.details}
+          </FieldRow>
+        )}
+
+        {/* Status */}
+        <FieldRow label={t(isRTL, 'الحالة', 'Status')}>
+          <Badge variant="outline" className={cn('rounded-full px-2.5 py-1 text-xs font-medium h-5', statusConfig.bg, statusConfig.text, statusConfig.border)}>
+            {statusConfig.label}
+          </Badge>
+        </FieldRow>
+      </div>
     </div>
   );
 }
