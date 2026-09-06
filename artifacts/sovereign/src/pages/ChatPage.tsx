@@ -668,8 +668,8 @@ export default function ChatPage() {
   const formatDate = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     const days = Math.floor(diff / 86400000);
-    if (days === 0) return t.dashboard.home;
-    if (days === 1) return t.dashboard.home;
+    if (days === 0) return t.dashboard.today;
+    if (days === 1) return t.dashboard.yesterday;
     return new Intl.DateTimeFormat(isRTL ? 'ar' : 'en', { dateStyle: 'medium' }).format(new Date(dateStr));
   };
 
@@ -720,11 +720,11 @@ export default function ChatPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                     <UserCheck className="h-2.5 w-2.5" />
-                    {t.dashboard.askTalent}
+                    {t.dashboard.authorizedAgent}
                   </span>
                   {messages.some(m => m.managed_celebrity_id) && (
                     <span className="text-[10px] text-muted-foreground">
-                      {t.dashboard.askTalent} {messages.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(messages.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
+                      {t.dashboard.represents} {messages.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(messages.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
                     </span>
                   )}
                 </div>
@@ -778,8 +778,8 @@ export default function ChatPage() {
                 <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <Send className="h-8 w-8 text-primary" />
                 </div>
-                <p className="text-muted-foreground text-base">{t.dashboard.noOffersYet}</p>
-                <p className="text-sm text-muted-foreground/70 mt-1">{t.dashboard.noOffersYet}</p>
+                <p className="text-muted-foreground text-base">{t.dashboard.noMessages}</p>
+                <p className="text-sm text-muted-foreground/70 mt-1">{t.dashboard.startConversation}</p>
               </div>
             )}
             
@@ -832,7 +832,7 @@ export default function ChatPage() {
                         {msg.deal_id && !isDealAccepted && (
                           <div className="absolute -top-2 left-3 right-3 -mx-3 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-t-xl text-[10px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
                             <Briefcase className="h-3 w-3" />
-                            {t.dashboard.dealDetails}
+                            {t.dashboard.regardingDeal}
                           </div>
                         )}
                         
@@ -841,11 +841,11 @@ export default function ChatPage() {
                           <div className="mb-1.5 flex items-center gap-1.5">
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                               <ShieldCheck className="h-2.5 w-2.5" />
-                              {t.dashboard.askTalent}
+                              {t.dashboard.authorizedAgent}
                             </span>
                             {managedCelebrityName && (
                               <span className="text-[10px] text-muted-foreground">
-                                {t.dashboard.askTalent} {managedCelebrityName}
+                                {t.dashboard.represents} {managedCelebrityName}
                               </span>
                             )}
                           </div>
@@ -859,7 +859,7 @@ export default function ChatPage() {
                         {msg.voice_url ? (
                           <div className="flex items-center gap-2 p-2 bg-background/50 rounded-xl">
                             <Mic className="h-5 w-5 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">{t.dashboard.loading}</span>
+                            <span className="text-sm text-muted-foreground">{t.dashboard.voiceMessage}</span>
                           </div>
                         ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
                           <p className="whitespace-pre-wrap">
@@ -874,7 +874,7 @@ export default function ChatPage() {
                         <div className={cn('flex items-center gap-1.5 mt-1.5', isMine ? 'justify-end' : '')}>
                           {msg.is_edited && (
                             <span className={cn('text-[10px] italic', isMine ? 'text-primary-foreground/50' : 'text-muted-foreground')}>
-                              {t.dashboard.loading}
+                              {t.dashboard.edited}
                             </span>
                           )}
                           <span className={cn('text-[10px]', isMine ? 'text-primary-foreground/50' : 'text-muted-foreground')}>
@@ -916,20 +916,20 @@ export default function ChatPage() {
         {showVoice ? (
           <div className="flex items-center gap-2 p-4 bg-muted/30 rounded-xl">
             <Mic className="h-6 w-6 text-primary" />
-            <span className="text-sm text-muted-foreground">{t.dashboard.loading}</span>
+            <span className="text-sm text-muted-foreground">{t.dashboard.recordingUnavailable}</span>
             <Button variant="ghost" size="icon" onClick={() => setShowVoice(false)} className="ml-auto">
               <X className="h-4 w-4" />
             </Button>
           </div>
         ) : (
           <div className="flex items-end gap-2">
-            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t.dashboard.loading}>
+            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t.dashboard.attachMedia}>
               <ImageIcon className="h-5 w-5 text-muted-foreground" />
             </Button>
             <div className="flex-1 relative">
               <textarea
                 ref={inputRef}
-                placeholder={t.dashboard.loading}
+                placeholder={t.dashboard.typeMessage}
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 rows={1}
@@ -963,11 +963,11 @@ export default function ChatPage() {
               disabled={isSending || (!replyContent.trim() && !mediaPreview) || recipientE2EReady === false} 
               size="icon" 
               className="h-12 w-12 rounded-full shrink-0 touch-feedback bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:hover:bg-primary"
-              aria-label={t.dashboard.loading}
+              aria-label={t.dashboard.send}
             >
               {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setShowVoice(true)} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t.dashboard.loading}>
+            <Button variant="ghost" size="icon" onClick={() => setShowVoice(true)} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t.dashboard.voiceMessage}>
               <Mic className="h-5 w-5 text-muted-foreground" />
             </Button>
           </div>
