@@ -64,7 +64,7 @@ export default function ChatPage() {
   const dealId = searchParams.get('dealId');
   const { user } = useAuth();
   const { role, managedCelebrityId } = useRole();
-  const { isRTL } = useLanguage();
+  const { isRTL, t } = useLanguage();
   const navigate = useNavigate();
 
   const [messages, setMessages] = useState<Message[]>([]);
