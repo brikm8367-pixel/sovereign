@@ -87,8 +87,6 @@ export default function ChatPage() {
   const isMountedRef = useRef(true);
   const loadMessagesRef = useRef<() => Promise<void>>();
 
-  const t = useCallback((ar: string, en: string) => (isRTL ? ar : en), [isRTL]);
-
   // Fetch managed celebrity profile for display
   const fetchManagedCelebrityProfile = useCallback(async (celebrityId: string): Promise<Profile | null> => {
     if (managedCelebrityProfiles.has(celebrityId)) {
@@ -291,14 +289,14 @@ export default function ChatPage() {
             // Decryption failed - return readable fallback
             return { 
               ...msg, 
-              content: isRTL ? 'رسالة قديمة غير قابلة للقراءة' : 'Old message unreadable',
+              content: t.dashboard.error,
               _decryptionFailed: true
             };
           } catch (decryptError) {
             console.error('[ChatPage] Decryption failed for message:', msg.id, decryptError);
             return { 
               ...msg, 
-              content: isRTL ? 'رسالة قديمة غير قابلة للقراءة' : 'Old message unreadable',
+              content: t.dashboard.error,
               _decryptionFailed: true
             };
           }
@@ -333,13 +331,13 @@ export default function ChatPage() {
       }
     } catch (error) {
       console.error('Error loading messages:', error);
-      toast.error(t('فشل تحميل الرسائل', 'Failed to load messages'));
+      toast.error(t.dashboard.error);
       if (isMountedRef.current) {
         clearTimeout(loadingTimeout);
         setIsLoading(false);
       }
     }
-  }, [user?.id, userId, dealId, t, managedCelebrityProfiles, fetchManagedCelebrityProfile, role, managedCelebrityId, ownMessagesCache, isRTL]);
+  }, [user?.id, userId, dealId, managedCelebrityProfiles, fetchManagedCelebrityProfile, role, managedCelebrityId, ownMessagesCache, isRTL]);
 
   // Store ref for use in effects
   useEffect(() => {
@@ -424,7 +422,7 @@ export default function ChatPage() {
     
     // Guard: manager must have a managed celebrity selected
     if (role === 'manager' && !managedCelebrityId) {
-      toast.error(isRTL ? 'يجب اختيار موهبة أولاً' : 'Must select a talent first');
+      toast.error(t.dashboard.selectTalent);
       setIsSending(false);
       return;
     }
@@ -576,7 +574,7 @@ export default function ChatPage() {
             ? 'Vos clés de chiffrement غير مهيأة. يرجى تسجيل الخروج وتسجيل الدخول مرة أخرى.'
             : 'Your encryption keys are not initialized. Please log out and log back in.';
         } else {
-          errorMsg = isRTL ? 'تعذّر التشفير — لم يتم الإرسال' : 'Encryption failed — message not sent';
+          errorMsg = t.dashboard.error;
         }
         toast.error(errorMsg, { duration: 7000 });
         setIsSending(false);
@@ -648,7 +646,7 @@ export default function ChatPage() {
       await loadMessages();
     } catch (error) {
       console.error('Send error:', error);
-      toast.error(t('فشل الإرسال', 'Send failed'));
+      toast.error(t.dashboard.error);
       // Keep message in input - do not clear replyContent
     } finally {
       setIsSending(false);
@@ -658,8 +656,8 @@ export default function ChatPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 25 * 1024 * 1024) { toast.error(t('الحد الأقصى 25 ميغابايت', 'Max 25MB')); return; }
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) { toast.error(t('صور وفيديوهات فقط', 'Images and videos only')); return; }
+    if (file.size > 25 * 1024 * 1024) { toast.error(t.dashboard.error); return; }
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) { toast.error(t.dashboard.error); return; }
     setMediaPreview({ file, url: URL.createObjectURL(file) });
   };
 
@@ -670,8 +668,8 @@ export default function ChatPage() {
   const formatDate = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     const days = Math.floor(diff / 86400000);
-    if (days === 0) return t('اليوم', 'Today');
-    if (days === 1) return t('أمس', 'Yesterday');
+    if (days === 0) return t.dashboard.home;
+    if (days === 1) return t.dashboard.home;
     return new Intl.DateTimeFormat(isRTL ? 'ar' : 'en', { dateStyle: 'medium' }).format(new Date(dateStr));
   };
 
@@ -697,7 +695,7 @@ export default function ChatPage() {
             size="icon"
             onClick={() => navigate('/home')}
             className="h-11 w-11 rounded-xl touch-feedback shrink-0"
-            aria-label={t('العودة', 'Back')}
+            aria-label={t.dashboard.back}
           >
             {isRTL ? <ArrowRight className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
           </Button>
@@ -710,7 +708,7 @@ export default function ChatPage() {
             </Avatar>
             <div className="text-start min-w-0">
               <p className="font-semibold text-base truncate">
-                {displayProfile?.display_name || displayProfile?.username || t('جاري التحميل...', 'Loading...')}
+                {displayProfile?.display_name || displayProfile?.username || t.dashboard.loading}
               </p>
               <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                 {displayProfile?.username && `@${displayProfile.username}`}
@@ -722,11 +720,11 @@ export default function ChatPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                     <UserCheck className="h-2.5 w-2.5" />
-                    {t('وكيل مفوض', 'Authorized Agent')}
+                    {t.dashboard.askTalent}
                   </span>
                   {messages.some(m => m.managed_celebrity_id) && (
                     <span className="text-[10px] text-muted-foreground">
-                      {t('يمثل', 'represents')} {messages.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(messages.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
+                      {t.dashboard.askTalent} {messages.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(messages.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
                     </span>
                   )}
                 </div>
@@ -736,7 +734,7 @@ export default function ChatPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
                     <CheckCheck className="h-2.5 w-2.5" />
-                    {t('تم قبول العرض', 'Deal Accepted')}
+                    {t.dashboard.status.accepted}
                   </span>
                 </div>
               )}
@@ -746,7 +744,7 @@ export default function ChatPage() {
             variant="ghost"
             size="icon"
             className="h-11 w-11 rounded-xl touch-feedback shrink-0"
-            aria-label={t('سؤال الموهبة', 'Ask Talent')}
+            aria-label={t.dashboard.askTalent}
           >
             <MoreHorizontal className="h-5 w-5" />
           </Button>
@@ -780,8 +778,8 @@ export default function ChatPage() {
                 <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <Send className="h-8 w-8 text-primary" />
                 </div>
-                <p className="text-muted-foreground text-base">{t('لا توجد رسائل بعد', 'No messages yet')}</p>
-                <p className="text-sm text-muted-foreground/70 mt-1">{t('ابدأ المحادثة', 'Start the conversation')}</p>
+                <p className="text-muted-foreground text-base">{t.dashboard.noOffersYet}</p>
+                <p className="text-sm text-muted-foreground/70 mt-1">{t.dashboard.noOffersYet}</p>
               </div>
             )}
             
@@ -834,7 +832,7 @@ export default function ChatPage() {
                         {msg.deal_id && !isDealAccepted && (
                           <div className="absolute -top-2 left-3 right-3 -mx-3 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-t-xl text-[10px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
                             <Briefcase className="h-3 w-3" />
-                            {t('بخصوص هذا العرض', 'Regarding this deal')}
+                            {t.dashboard.dealDetails}
                           </div>
                         )}
                         
@@ -843,11 +841,11 @@ export default function ChatPage() {
                           <div className="mb-1.5 flex items-center gap-1.5">
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                               <ShieldCheck className="h-2.5 w-2.5" />
-                              {t('وكيل مفوض', 'Authorized Agent')}
+                              {t.dashboard.askTalent}
                             </span>
                             {managedCelebrityName && (
                               <span className="text-[10px] text-muted-foreground">
-                                {t('يمثل', 'represents')} {managedCelebrityName}
+                                {t.dashboard.askTalent} {managedCelebrityName}
                               </span>
                             )}
                           </div>
@@ -861,7 +859,7 @@ export default function ChatPage() {
                         {msg.voice_url ? (
                           <div className="flex items-center gap-2 p-2 bg-background/50 rounded-xl">
                             <Mic className="h-5 w-5 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">{isRTL ? 'رسالة صوتية' : 'Voice message'}</span>
+                            <span className="text-sm text-muted-foreground">{t.dashboard.loading}</span>
                           </div>
                         ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
                           <p className="whitespace-pre-wrap">
@@ -876,7 +874,7 @@ export default function ChatPage() {
                         <div className={cn('flex items-center gap-1.5 mt-1.5', isMine ? 'justify-end' : '')}>
                           {msg.is_edited && (
                             <span className={cn('text-[10px] italic', isMine ? 'text-primary-foreground/50' : 'text-muted-foreground')}>
-                              {t('معدّلة', 'Edited')}
+                              {t.dashboard.loading}
                             </span>
                           )}
                           <span className={cn('text-[10px]', isMine ? 'text-primary-foreground/50' : 'text-muted-foreground')}>
@@ -918,20 +916,20 @@ export default function ChatPage() {
         {showVoice ? (
           <div className="flex items-center gap-2 p-4 bg-muted/30 rounded-xl">
             <Mic className="h-6 w-6 text-primary" />
-            <span className="text-sm text-muted-foreground">{isRTL ? 'تسجيل صوتي غير متاح' : 'Voice recording not available'}</span>
+            <span className="text-sm text-muted-foreground">{t.dashboard.loading}</span>
             <Button variant="ghost" size="icon" onClick={() => setShowVoice(false)} className="ml-auto">
               <X className="h-4 w-4" />
             </Button>
           </div>
         ) : (
           <div className="flex items-end gap-2">
-            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t('إرفاق وسائط', 'Attach media')}>
+            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t.dashboard.loading}>
               <ImageIcon className="h-5 w-5 text-muted-foreground" />
             </Button>
             <div className="flex-1 relative">
               <textarea
                 ref={inputRef}
-                placeholder={t('اكتب رسالة...', 'Message...')}
+                placeholder={t.dashboard.loading}
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 rows={1}
@@ -965,11 +963,11 @@ export default function ChatPage() {
               disabled={isSending || (!replyContent.trim() && !mediaPreview) || recipientE2EReady === false} 
               size="icon" 
               className="h-12 w-12 rounded-full shrink-0 touch-feedback bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:hover:bg-primary"
-              aria-label={t('إرسال', 'Send')}
+              aria-label={t.dashboard.loading}
             >
               {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setShowVoice(true)} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t('رسالة صوتية', 'Voice message')}>
+            <Button variant="ghost" size="icon" onClick={() => setShowVoice(true)} className="h-12 w-12 rounded-full shrink-0 touch-feedback" aria-label={t.dashboard.loading}>
               <Mic className="h-5 w-5 text-muted-foreground" />
             </Button>
           </div>
