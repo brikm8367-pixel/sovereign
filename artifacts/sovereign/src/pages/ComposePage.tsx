@@ -85,12 +85,12 @@ export const ComposePage = () => {
 
   // Currency options
   const CURRENCIES = [
-    { value: 'USD', label: '$', name: { ar: 'دولار أمريكي', en: 'US Dollar' } },
-    { value: 'EUR', label: '€', name: { ar: 'يورو', en: 'Euro' } },
-    { value: 'GBP', label: '£', name: { ar: 'جنيه إسترليني', en: 'British Pound' } },
-    { value: 'AED', label: 'د.إ', name: { ar: 'درهم إماراتي', en: 'UAE Dirham' } },
-    { value: 'SAR', label: 'ر.س', name: { ar: 'ريال سعودي', en: 'Saudi Riyal' } },
-    { value: 'KWD', label: 'د.ك', name: { ar: 'دينار كويتي', en: 'Kuwaiti Dinar' } },
+    { value: 'USD', label: '$', flag: '🇺🇸', name: { ar: 'دولار أمريكي', en: 'US Dollar' } },
+    { value: 'EUR', label: '€', flag: '🇪🇺', name: { ar: 'يورو', en: 'Euro' } },
+    { value: 'GBP', label: '£', flag: '🇬🇧', name: { ar: 'جنيه إسترليني', en: 'British Pound' } },
+    { value: 'AED', label: 'د.إ', flag: '🇦🇪', name: { ar: 'درهم إماراتي', en: 'UAE Dirham' } },
+    { value: 'SAR', label: 'ر.س', flag: '🇸🇦', name: { ar: 'ريال سعودي', en: 'Saudi Riyal' } },
+    { value: 'KWD', label: 'د.ك', flag: '🇰🇼', name: { ar: 'دينار كويتي', en: 'Kuwaiti Dinar' } },
   ];
 
   // Deal type options
@@ -208,7 +208,7 @@ export const ComposePage = () => {
               <X className="h-5 w-5" />
             </button>
             <h1 className="text-lg font-semibold flex-1 text-center">
-              {isRTL ? 'عرض جديد' : 'New Offer'}
+              {t.compose.newOffer}
             </h1>
             <div className="w-10" />
           </div>
@@ -239,10 +239,10 @@ export const ComposePage = () => {
                 </div>
                 <div>
                   <h2 className="font-semibold text-lg text-foreground">
-                    {isRTL ? 'تفاصيل العرض' : 'Offer Details'}
+                    {t.compose.offerDetails}
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    {isRTL ? 'املأ المعلومات لإرسال عرض احترافي' : 'Fill in the details to send a professional offer'}
+                    {t.compose.fillDetails}
                   </p>
                 </div>
               </div>
@@ -251,14 +251,14 @@ export const ComposePage = () => {
                 {/* Company Name */}
                 <div>
                   <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {isRTL ? 'اسم الشركة *' : 'Company Name *'}
+                    {t.compose.companyName}
                   </label>
                   <div className="relative">
                     <Building2 className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <Input
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder={isRTL ? 'مثال: شركة أكمي' : 'e.g. Acme Inc.'}
+                      placeholder={t.compose.companyNamePlaceholder}
                       className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
                       required
                     />
@@ -268,7 +268,7 @@ export const ComposePage = () => {
                 {/* Website URL */}
                 <div>
                   <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {isRTL ? 'الموقع الإلكتروني *' : 'Website URL *'}
+                    {t.compose.websiteUrl}
                   </label>
                   <div className="relative">
                     <Globe className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -276,7 +276,7 @@ export const ComposePage = () => {
                       type="url"
                       value={websiteUrl}
                       onChange={(e) => setWebsiteUrl(e.target.value)}
-                      placeholder="https://example.com"
+                      placeholder={t.compose.websiteUrlPlaceholder}
                       className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
                       required
                     />
@@ -286,7 +286,7 @@ export const ComposePage = () => {
                 {/* Budget Range - Choice Buttons */}
                 <div>
                   <label className="block text-sm font-medium mb-2 text-foreground">
-                    {isRTL ? 'الميزانية *' : 'Budget *'}
+                    {t.compose.budget}
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     {BUDGETS.map((budget) => (
@@ -329,7 +329,10 @@ export const ComposePage = () => {
                             : "border-border bg-background hover:border-primary/50 text-foreground"
                         )}
                       >
-                        {currency.label}
+                        <span className="flex items-center gap-1.5">
+                          {currency.flag}
+                          {currency.label}
+                        </span>
                         {selectedCurrency === currency.value && (
                           <Check className="absolute top-1 right-1 h-3.5 w-3.5 text-primary" />
                         )}
@@ -341,7 +344,7 @@ export const ComposePage = () => {
                 {/* Budget Cycle - Toggle Buttons */}
                 <div>
                   <label className="block text-sm font-medium mb-2 text-foreground">
-                    {isRTL ? 'دورة الميزانية *' : 'Budget Cycle *'}
+                    {t.compose.budgetCycle}
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     {[
@@ -391,7 +394,7 @@ export const ComposePage = () => {
                 {/* Deal Type - Choice Buttons */}
                 <div>
                   <label className="block text-sm font-medium mb-2 text-foreground">
-                    {isRTL ? 'نوع الصفقة *' : 'Deal Type *'}
+                    {t.compose.dealType}
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     {DEAL_TYPES.map((type) => (
@@ -438,12 +441,12 @@ export const ComposePage = () => {
                 {/* Campaign Description */}
                 <div>
                   <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {isRTL ? 'وصف الحملة *' : 'Campaign Description *'}
+                    {t.compose.campaignDescription}
                   </label>
                   <Textarea
                     value={campaignDescription}
                     onChange={(e) => setCampaignDescription(e.target.value)}
-                    placeholder={isRTL ? 'صف الحملة بالتفصيل...' : 'Describe the campaign in detail...'}
+                    placeholder={t.compose.campaignDescriptionPlaceholder}
                     className="h-28 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
                     rows={4}
                     required
@@ -453,12 +456,12 @@ export const ComposePage = () => {
                 {/* Deliverables (optional) */}
                 <div>
                   <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {isRTL ? 'المخرجات (اختياري)' : 'Deliverables (optional)'}
+                    {t.compose.deliverables}
                   </label>
                   <Textarea
                     value={deliverables}
                     onChange={(e) => setDeliverables(e.target.value)}
-                    placeholder={isRTL ? 'اذكر المخرجات المتوقعة...' : 'List expected deliverables...'}
+                    placeholder={t.compose.deliverablesPlaceholder}
                     className="h-24 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
                     rows={3}
                   />
@@ -467,7 +470,7 @@ export const ComposePage = () => {
                 {/* Timeline - Choice Buttons */}
                 <div>
                   <label className="block text-sm font-medium mb-2 text-foreground">
-                    {isRTL ? 'الجدول الزمني *' : 'Timeline *'}
+                    {t.compose.timeline}
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     {TIMELINE_OPTIONS.map((timeline) => (
@@ -495,7 +498,7 @@ export const ComposePage = () => {
                 {/* Exclusivity - Toggle Buttons */}
                 <div>
                   <label className="block text-sm font-medium mb-2 text-foreground">
-                    {isRTL ? 'الحصرية *' : 'Exclusivity *'}
+                    {t.compose.exclusivity}
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     {[
@@ -525,12 +528,12 @@ export const ComposePage = () => {
                 {/* Why Them (optional) */}
                 <div>
                   <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {isRTL ? 'لماذا هم؟ (اختياري)' : 'Why Them? (optional)'}
+                    {t.compose.whyThem}
                   </label>
                   <Textarea
                     value={whyThem}
                     onChange={(e) => setWhyThem(e.target.value)}
-                    placeholder={isRTL ? 'لماذا هذه الشخصية المثالية؟' : 'Why is this celebrity the right fit?'}
+                    placeholder={t.compose.whyThemPlaceholder}
                     className="h-24 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
                     rows={3}
                   />
@@ -545,12 +548,12 @@ export const ComposePage = () => {
                 {sending ? (
                   <>
                     <svg className="animate-spin -ml-1 mr-2 h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                    {isRTL ? 'جاري الإرسال...' : 'Sending...'}
+                    {t.compose.sending}
                   </>
                 ) : (
                   <>
                     <Briefcase className="h-5 w-5" />
-                    {isRTL ? 'إرسال العرض' : 'Send Offer'}
+                    {t.compose.sendOffer}
                   </>
                 )}
               </Button>
