@@ -4,14 +4,28 @@ import { ar } from './ar';
 import { en } from './en';
 import { fr } from './fr';
 import { es } from './es';
+import { de } from './de';
+import { tr } from './tr';
+import { pt } from './pt';
 
-const translations: Record<Language, Translations> = { ar, en, fr, es };
+const translations: Record<Language, Translations> = { ar, en, fr, es, de, tr, pt };
+
+export const LANGUAGE_OPTIONS = [
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
+  { code: 'en', name: 'English', nativeName: 'English' },
+  { code: 'fr', name: 'French', nativeName: 'Français' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch' },
+  { code: 'tr', name: 'Turkish', nativeName: 'Türkçe' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
+] as const;
 
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: Translations;
   isRTL: boolean;
+  availableLanguages: typeof LANGUAGE_OPTIONS;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -33,6 +47,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     setLanguage,
     t: translations[language],
     isRTL: language === 'ar',
+    availableLanguages: LANGUAGE_OPTIONS,
   };
 
   return (
