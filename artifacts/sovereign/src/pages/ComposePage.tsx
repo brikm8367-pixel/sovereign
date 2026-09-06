@@ -314,7 +314,7 @@ export const ComposePage = () => {
                 {/* Currency Selector */}
                 <div>
                   <label className="block text-sm font-medium mb-2 text-foreground">
-                    {t('compose.currency', { ar: 'العملة', en: 'Currency' })}
+                    {t.compose.currency}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {CURRENCIES.map((currency) => (
@@ -373,14 +373,14 @@ export const ComposePage = () => {
                 {budgetCycle === 'other' && (
                   <div>
                     <label className="block text-sm font-medium mb-1.5 text-foreground">
-                      {t('compose.otherBudgetCycleLabel', { ar: 'حدد دورة الميزانية', en: 'Specify budget cycle' })}
+                      {t.compose.otherBudgetCycleLabel}
                     </label>
                     <div className="relative">
                       <DollarSign className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input
                         value={customBudgetCycle}
                         onChange={(e) => setCustomBudgetCycle(e.target.value)}
-                        placeholder={t('compose.otherBudgetCyclePlaceholder', { ar: 'مثال: لكل فيديو، شهرياً، ربع سنوي', en: 'e.g. per video, monthly, quarterly' })}
+                        placeholder={t.compose.otherBudgetCyclePlaceholder}
                         className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
                         required
                       />
@@ -420,14 +420,14 @@ export const ComposePage = () => {
                 {selectedDealType === 'other' && (
                   <div>
                     <label className="block text-sm font-medium mb-1.5 text-foreground">
-                      {t('compose.otherDealTypeLabel', { ar: 'حدد نوع الصفقة', en: 'Specify deal type' })}
+                      {t.compose.otherDealTypeLabel}
                     </label>
                     <div className="relative">
                       <FileText className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input
                         value={customDealType}
                         onChange={(e) => setCustomDealType(e.target.value)}
-                        placeholder={t('compose.otherDealTypePlaceholder', { ar: 'مثال: بث مباشر، بودكاست، ظهور في حدث', en: 'e.g. Live stream, podcast, event appearance' })}
+                        placeholder={t.compose.otherDealTypePlaceholder}
                         className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
                         required
                       />
