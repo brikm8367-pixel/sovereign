@@ -14,7 +14,7 @@ import { validateDealCard } from '@/utils/dealValidation';
 import { cn } from '@/lib/utils';
 
 export const ComposePage = () => {
-  const { isRTL } = useLanguage();
+  const { isRTL, t } = useLanguage();
   const { user, loading: authLoading } = useAuth();
   const { role } = useRole();
   const navigate = useNavigate();
@@ -26,13 +26,18 @@ export const ComposePage = () => {
   const [companyName, setCompanyName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [selectedBudget, setSelectedBudget] = useState<string>('');
-  const [budgetCycle, setBudgetCycle] = useState<'per_post' | 'per_campaign'>('per_post');
+  const [budgetCycle, setBudgetCycle] = useState<'per_post' | 'per_campaign' | 'other'>('per_post');
   const [selectedDealType, setSelectedDealType] = useState<string>('');
   const [campaignDescription, setCampaignDescription] = useState('');
   const [deliverables, setDeliverables] = useState('');
   const [selectedTimeline, setSelectedTimeline] = useState<string>('');
   const [exclusivity, setExclusivity] = useState<'exclusive' | 'non_exclusive'>('non_exclusive');
   const [whyThem, setWhyThem] = useState('');
+  
+  // Nouveaux états pour les champs "autre" et devise
+  const [customDealType, setCustomDealType] = useState('');
+  const [customBudgetCycle, setCustomBudgetCycle] = useState('');
+  const [selectedCurrency, setSelectedCurrency] = useState<'USD' | 'EUR' | 'GBP' | 'AED' | 'SAR' | 'KWD'>('USD');
   
   const [sending, setSending] = useState(false);
   const [recipientProfile, setRecipientProfile] = useState<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null>(null);
@@ -76,6 +81,16 @@ export const ComposePage = () => {
     { value: '5k_10k', label: { ar: '5000$ - 10000$', en: '$5k - $10k' }, description: { ar: 'ميزانية متوسطة', en: 'Medium budget' } },
     { value: '10k_50k', label: { ar: '10000$ - 50000$', en: '$10k - $50k' }, description: { ar: 'ميزانية كبيرة', en: 'Large budget' } },
     { value: 'over_50k', label: { ar: 'أكثر من 50000$', en: 'Over $50k' }, description: { ar: 'ميزانية ضخمة', en: 'Huge budget' } },
+  ];
+
+  // Currency options
+  const CURRENCIES = [
+    { value: 'USD', label: '$', name: { ar: 'دولار أمريكي', en: 'US Dollar' } },
+    { value: 'EUR', label: '€', name: { ar: 'يورو', en: 'Euro' } },
+    { value: 'GBP', label: '£', name: { ar: 'جنيه إسترليني', en: 'British Pound' } },
+    { value: 'AED', label: 'د.إ', name: { ar: 'درهم إماراتي', en: 'UAE Dirham' } },
+    { value: 'SAR', label: 'ر.س', name: { ar: 'ريال سعودي', en: 'Saudi Riyal' } },
+    { value: 'KWD', label: 'د.ك', name: { ar: 'دينار كويتي', en: 'Kuwaiti Dinar' } },
   ];
 
   // Deal type options
@@ -125,8 +140,8 @@ export const ComposePage = () => {
         company_name: companyName.trim(),
         website_url: websiteUrl.trim(),
         budget_range: selectedBudget,
-        budget_cycle: budgetCycle,
-        deal_type: selectedDealType,
+        budget_cycle: budgetCycle === 'other' ? customBudgetCycle : budgetCycle,
+        deal_type: selectedDealType === 'other' ? customDealType : selectedDealType,
         details: campaignDescription.trim(),
         deliverables: deliverables.trim() || null,
         timeline: selectedTimeline,
@@ -147,6 +162,9 @@ export const ComposePage = () => {
       setSelectedTimeline('');
       setExclusivity('non_exclusive');
       setWhyThem('');
+      setCustomDealType('');
+      setCustomBudgetCycle('');
+      setSelectedCurrency('USD');
       navigate('/offers');
     } catch (err) {
       console.error(err);
@@ -178,7 +196,9 @@ export const ComposePage = () => {
   // ===== MODE DEAL =====
   if (isDealMode) {
     // Validation des champs requis pour le bouton
-    const isFormValid = companyName.trim() && websiteUrl.trim() && selectedBudget && selectedDealType && campaignDescription.trim() && selectedTimeline;
+    const isFormValid = companyName.trim() && websiteUrl.trim() && selectedBudget && selectedDealType && campaignDescription.trim() && selectedTimeline && 
+      (selectedDealType !== 'other' || customDealType.trim()) &&
+      (budgetCycle !== 'other' || customBudgetCycle.trim());
 
     return (
       <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -291,6 +311,33 @@ export const ComposePage = () => {
                   </div>
                 </div>
 
+                {/* Currency Selector */}
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-foreground">
+                    {t('compose.currency', { ar: 'العملة', en: 'Currency' })}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {CURRENCIES.map((currency) => (
+                      <button
+                        key={currency.value}
+                        type="button"
+                        onClick={() => setSelectedCurrency(currency.value as 'USD' | 'EUR' | 'GBP' | 'AED' | 'SAR' | 'KWD')}
+                        className={cn(
+                          "relative px-4 py-2 rounded-full text-sm font-medium transition-all touch-feedback border",
+                          selectedCurrency === currency.value
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-background hover:border-primary/50 text-foreground"
+                        )}
+                      >
+                        {currency.label}
+                        {selectedCurrency === currency.value && (
+                          <Check className="absolute top-1 right-1 h-3.5 w-3.5 text-primary" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Budget Cycle - Toggle Buttons */}
                 <div>
                   <label className="block text-sm font-medium mb-2 text-foreground">
@@ -300,11 +347,12 @@ export const ComposePage = () => {
                     {[
                       { value: 'per_post', label: { ar: 'لكل منشور', en: 'Per Post' } },
                       { value: 'per_campaign', label: { ar: 'لكل حملة', en: 'Per Campaign' } },
+                      { value: 'other', label: { ar: 'أخرى', en: 'Other' } },
                     ].map((cycle) => (
                       <button
                         key={cycle.value}
                         type="button"
-                        onClick={() => setBudgetCycle(cycle.value as 'per_post' | 'per_campaign')}
+                        onClick={() => setBudgetCycle(cycle.value as 'per_post' | 'per_campaign' | 'other')}
                         className={cn(
                           "relative h-11 rounded-xl border-2 font-medium transition-all touch-feedback",
                           budgetCycle === cycle.value
@@ -320,6 +368,25 @@ export const ComposePage = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* Custom Budget Cycle Input */}
+                {budgetCycle === 'other' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5 text-foreground">
+                      {t('compose.otherBudgetCycleLabel', { ar: 'حدد دورة الميزانية', en: 'Specify budget cycle' })}
+                    </label>
+                    <div className="relative">
+                      <DollarSign className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input
+                        value={customBudgetCycle}
+                        onChange={(e) => setCustomBudgetCycle(e.target.value)}
+                        placeholder={t('compose.otherBudgetCyclePlaceholder', { ar: 'مثال: لكل فيديو، شهرياً، ربع سنوي', en: 'e.g. per video, monthly, quarterly' })}
+                        className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Deal Type - Choice Buttons */}
                 <div>
@@ -348,6 +415,25 @@ export const ComposePage = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* Custom Deal Type Input */}
+                {selectedDealType === 'other' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5 text-foreground">
+                      {t('compose.otherDealTypeLabel', { ar: 'حدد نوع الصفقة', en: 'Specify deal type' })}
+                    </label>
+                    <div className="relative">
+                      <FileText className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input
+                        value={customDealType}
+                        onChange={(e) => setCustomDealType(e.target.value)}
+                        placeholder={t('compose.otherDealTypePlaceholder', { ar: 'مثال: بث مباشر، بودكاست، ظهور في حدث', en: 'e.g. Live stream, podcast, event appearance' })}
+                        className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Campaign Description */}
                 <div>

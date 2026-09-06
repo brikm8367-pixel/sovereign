@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { DealCardInline } from '@/components/deals/DealCardInline';
 import MessageComposer from '@/components/messaging/MessageComposer';
 import { initE2EKeys, ensureUserE2EReady } from '@/utils/e2eManager';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 
 interface Deal {
   id: string;
@@ -582,6 +583,7 @@ export default function Dashboard() {
             {role === 'manager' ? 'لوحة الوكيل' : 'الرئيسية'}
           </h1>
           <div className="flex items-center gap-2">
+            <LanguageSwitcher />
             <Button
               variant="ghost"
               size="icon"
