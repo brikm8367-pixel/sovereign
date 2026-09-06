@@ -86,6 +86,20 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isMountedRef = useRef(true);
   const loadMessagesRef = useRef<() => Promise<void>>();
+  // Refs for realtime callback to access current values without stale closures
+  const userIdRef = useRef(userId);
+  const dealIdRef = useRef(dealId);
+  const dealRef = useRef(deal);
+  const userRef = useRef(user);
+  const roleRef = useRef(role);
+  const managedCelebrityIdRef = useRef(managedCelebrityId);
+
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
+  useEffect(() => { dealIdRef.current = dealId; }, [dealId]);
+  useEffect(() => { dealRef.current = deal; }, [deal]);
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { roleRef.current = role; }, [role]);
+  useEffect(() => { managedCelebrityIdRef.current = managedCelebrityId; }, [managedCelebrityId]);
 
   // Fetch managed celebrity profile for display
   const fetchManagedCelebrityProfile = useCallback(async (celebrityId: string): Promise<Profile | null> => {
@@ -348,44 +362,107 @@ export default function ChatPage() {
     loadMessages();
   }, [loadMessages]);
 
-  // Realtime subscription
+  // Realtime subscription - fixed for instant updates
   useEffect(() => {
     if (!user || !userId) return;
+    
+    const currentUser = user;
+    const currentUserId = userId;
+    const currentDealId = dealId;
+    const currentDeal = deal;
+    const currentRole = role;
+    const currentManagedCelebrityId = managedCelebrityId;
+
+    // Build filter for the conversation: messages between current user and userId
+    const filter = `or(and(sender_id.eq.${currentUser.id},receiver_id.eq.${currentUserId}),and(sender_id.eq.${currentUserId},receiver_id.eq.${currentUser.id}))`;
+    
     const channel = supabase
-      .channel(`chat-${user.id}-${userId}-${dealId || 'all'}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async (payload) => {
-        const msg = payload.new as any;
-        if (msg) {
-          // Check if message involves current user (only user.id, not managedCelebrityId)
-          const senderIds = [user.id];
-          const receiverIds = [user.id];
-          
-          const isRelevant = senderIds.some(sid => msg.sender_id === sid) && 
-                            receiverIds.some(rid => msg.receiver_id === rid);
-          
-          // Also check if message involves managed celebrity for managers
-          if (role === 'manager' && managedCelebrityId) {
-            const isManagedRelevant = (msg.sender_id === user.id && msg.receiver_id === managedCelebrityId) ||
-                                     (msg.sender_id === managedCelebrityId && msg.receiver_id === user.id);
-            if (!isRelevant && !isManagedRelevant) return;
-          } else if (!isRelevant) {
-            return;
+      .channel(`chat-${currentUser.id}-${currentUserId}-${currentDealId || 'all'}-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter,
+        },
+        async (payload) => {
+          const newMsg = payload.new as Message;
+          if (!newMsg) return;
+
+          // Additional filtering for deal_id if needed (done in JS since filter is limited)
+          if (currentDealId && newMsg.deal_id !== currentDealId) return;
+          if (!currentDealId && currentDeal && newMsg.deal_id !== currentDeal.id) return;
+
+          // Check if message involves managed celebrity for managers
+          if (currentRole === 'manager' && currentManagedCelebrityId) {
+            const isManagedRelevant = 
+              (newMsg.sender_id === currentUser.id && newMsg.receiver_id === currentManagedCelebrityId) ||
+              (newMsg.sender_id === currentManagedCelebrityId && newMsg.receiver_id === currentUser.id);
+            const isDirectRelevant = 
+              (newMsg.sender_id === currentUser.id && newMsg.receiver_id === currentUserId) ||
+              (newMsg.sender_id === currentUserId && newMsg.receiver_id === currentUser.id);
+            if (!isManagedRelevant && !isDirectRelevant) return;
           }
-          
-          // If dealId is present, only reload if message matches deal_id
-          if (dealId && msg.deal_id !== dealId) return;
-          // If no dealId but we have an inferred deal, only reload if message matches that deal_id
-          if (!dealId && deal && msg.deal_id !== deal.id) return;
-          console.log('[ChatPage] Realtime message received, reloading');
-          await loadMessages();
+
+          console.log('[ChatPage] Realtime INSERT received:', newMsg.id);
+
+          // Optimistically append the new message immediately
+          setMessages(prev => {
+            // Avoid duplicates
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            
+            // Decrypt if needed before adding
+            const addMessage = async () => {
+              let processedMsg = newMsg;
+              if (isEncryptedMessage(newMsg.content)) {
+                try {
+                  const res = await decryptFromSender(newMsg.content, newMsg.sender_id);
+                  if (res.success) {
+                    processedMsg = { ...newMsg, content: res.plaintext };
+                  } else {
+                    processedMsg = { ...newMsg, content: t.dashboard.error, _decryptionFailed: true };
+                  }
+                } catch {
+                  processedMsg = { ...newMsg, content: t.dashboard.error, _decryptionFailed: true };
+                }
+              }
+              // Also fetch managed celebrity profile if needed
+              if (processedMsg.managed_celebrity_id && !managedCelebrityProfiles.has(processedMsg.managed_celebrity_id)) {
+                await fetchManagedCelebrityProfile(processedMsg.managed_celebrity_id);
+              }
+              setMessages(prevMsgs => {
+                if (prevMsgs.some(m => m.id === processedMsg.id)) return prevMsgs;
+                return [...prevMsgs, processedMsg].sort((a, b) => 
+                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                );
+              });
+            };
+            
+            // Fire and forget for decryption/profile fetch
+            addMessage();
+            
+            // Return immediately with the raw message for instant UI update
+            return [...prev, newMsg].sort((a, b) => 
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+          });
+
+          // Also trigger a full reload for consistency (mark as read, etc.)
+          if (loadMessagesRef.current) {
+            await loadMessagesRef.current();
+          }
         }
-      })
-      .subscribe();
+      )
+      .subscribe((status) => {
+        console.log('[ChatPage] Realtime subscription status:', status);
+      });
 
     return () => {
-      void supabase.removeChannel(channel);
+      console.log('[ChatPage] Cleaning up realtime subscription');
+      supabase.removeChannel(channel);
     };
-  }, [user?.id, userId, dealId, deal, loadMessages, role, managedCelebrityId]);
+  }, [user?.id, userId, dealId, deal, role, managedCelebrityId, managedCelebrityProfiles, fetchManagedCelebrityProfile]);
 
   // Scroll to bottom
   useEffect(() => {
