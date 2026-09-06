@@ -107,7 +107,7 @@ interface Conversation {
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const { role, managedCelebrityId, managedCelebrities, switchCelebrity, switching } = useRole();
-  const { isRTL } = useLanguage();
+  const { isRTL, t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   
@@ -342,7 +342,7 @@ export default function Dashboard() {
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
           deal_id: dealId,
-          content: 'تم قبول العرض',
+          content: t.dashboard.offerAccepted,
           category: 'work'
         });
 
@@ -358,13 +358,13 @@ export default function Dashboard() {
 
       if (updateError) throw updateError;
 
-      toast.success('تم قبول العرض بنجاح');
+      toast.success(t.dashboard.offerAccepted);
       console.log('[Dashboard] Deal accepted successfully');
       await fetchPendingDeals();
       
     } catch (error: any) {
       console.error('Error accepting deal:', error);
-      toast.error('فشل قبول العرض: ' + (error.message || ''));
+      toast.error(t.dashboard.acceptFailed + ': ' + (error.message || ''));
     } finally {
       setIsProcessing(false);
     }
@@ -404,19 +404,19 @@ export default function Dashboard() {
           sender_id: celebrityId,
           receiver_id: deal.sender_id,
           deal_id: dealId,
-          content: 'تم رفض العرض',
+          content: t.dashboard.offerRejected,
           category: 'work'
         });
 
       if (msgError) throw msgError;
 
-      toast.success('تم رفض العرض بنجاح');
+      toast.success(t.dashboard.offerRejected);
       console.log('[Dashboard] Deal rejected successfully');
       await fetchPendingDeals();
       
     } catch (error: any) {
       console.error('Error rejecting deal:', error);
-      toast.error('فشل رفض العرض: ' + (error.message || ''));
+      toast.error(t.dashboard.rejectFailed + ': ' + (error.message || ''));
     } finally {
       setIsProcessing(false);
     }
@@ -427,7 +427,7 @@ export default function Dashboard() {
     
     const question = askTalentQuestion.trim();
     if (!question) {
-      toast.error('الرجاء كتابة سؤال');
+      toast.error(t.dashboard.writeQuestion);
       return;
     }
 
@@ -458,7 +458,7 @@ export default function Dashboard() {
 
       if (msgError) throw msgError;
 
-      toast.success('تم إرسال السؤال بنجاح');
+      toast.success(t.dashboard.questionSent);
       console.log('[Dashboard] Ask Talent question sent successfully');
       setAskTalentDeal(null);
       setAskTalentQuestion('');
@@ -466,7 +466,7 @@ export default function Dashboard() {
       
     } catch (error: any) {
       console.error('Error sending question:', error);
-      toast.error('فشل إرسال السؤال: ' + (error.message || ''));
+      toast.error(t.dashboard.questionFailed + ': ' + (error.message || ''));
     } finally {
       setIsSubmittingAsk(false);
     }
@@ -534,24 +534,22 @@ export default function Dashboard() {
   // Memoize conversations to prevent unnecessary re-renders
   const memoizedConversations = useMemo(() => conversations, [conversations]);
 
-  const t = (ar: string, en: string) => (isRTL ? ar : en);
-
   const getStatusConfig = (status: string) => {
     switch (status) {
       case 'accepted':
         return {
-          label: t('تم القبول', 'Accepted'),
+          label: t.dashboard.status.accepted,
           icon: CheckCheck,
           bg: 'bg-green-50 dark:bg-green-900/20',
           border: 'border-green-200 dark:border-green-800',
           text: 'text-green-700 dark:text-green-400',
           buttonBg: 'bg-green-600 hover:bg-green-700',
-          buttonText: t('فتح المحادثة', 'Open Chat'),
+          buttonText: t.dashboard.status.openChat,
           showButton: true
         };
       case 'declined':
         return {
-          label: t('تم الرفض', 'Declined'),
+          label: t.dashboard.status.declined,
           icon: XCircle,
           bg: 'bg-red-50 dark:bg-red-900/20',
           border: 'border-red-200 dark:border-red-800',
@@ -563,7 +561,7 @@ export default function Dashboard() {
       case 'pending':
       default:
         return {
-          label: t('قيد المراجعة', 'Under Review'),
+          label: t.dashboard.status.pending,
           icon: Clock,
           bg: 'bg-blue-50 dark:bg-blue-900/20',
           border: 'border-blue-200 dark:border-blue-800',
@@ -580,7 +578,7 @@ export default function Dashboard() {
       <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
         <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
           <h1 className="font-bold text-lg">
-            {role === 'manager' ? 'لوحة الوكيل' : 'الرئيسية'}
+            {role === 'manager' ? t.dashboard.agentDashboard : t.dashboard.home}
           </h1>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
@@ -648,7 +646,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-base flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-primary" />
-                العروض المعلقة
+                {t.dashboard.pendingOffers}
                 {pendingDeals.length > 0 && (
                   <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
                     {pendingDeals.length}
@@ -664,7 +662,7 @@ export default function Dashboard() {
             ) : pendingDeals.length === 0 ? (
               <div className="p-4 bg-card rounded-2xl border border-border text-center">
                 <p className="text-sm text-muted-foreground">
-                  {managedCelebrityId ? 'لا توجد عروض معلقة' : 'اختر موهبة لعرض عروضها'}
+                  {managedCelebrityId ? t.dashboard.noPendingOffers : t.dashboard.selectTalent}
                 </p>
               </div>
             ) : (
@@ -687,7 +685,7 @@ export default function Dashboard() {
                           className="flex-1 h-11 rounded-xl bg-green-600 hover:bg-green-700 text-xs font-semibold touch-feedback"
                         >
                           <Check className="h-3.5 w-3.5 mr-1" />
-                          قبول
+                          {t.dashboard.accept}
                         </Button>
                         <Button
                           onClick={() => handleReject(deal.id)}
@@ -696,7 +694,7 @@ export default function Dashboard() {
                           className="flex-1 h-11 rounded-xl border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold touch-feedback"
                         >
                           <X className="h-3.5 w-3.5 mr-1" />
-                          رفض
+                          {t.dashboard.reject}
                         </Button>
                         <Button
                           onClick={() => {
@@ -708,7 +706,7 @@ export default function Dashboard() {
                           className="flex-1 h-11 rounded-xl border-blue-300 text-blue-600 hover:bg-blue-50 text-xs font-semibold touch-feedback"
                         >
                           <MessageSquare className="h-3.5 w-3.5 mr-1" />
-                          {t('سؤال الموهبة', 'Ask Talent')}
+                          {t.dashboard.askTalent}
                         </Button>
                       </div>
                     )}
@@ -724,7 +722,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-base flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-primary" />
-                {t('عروضي', 'My Offers')}
+                {t.dashboard.myOffers}
                 {pendingDeals.length > 0 && (
                   <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
                     {pendingDeals.length}
@@ -740,7 +738,7 @@ export default function Dashboard() {
             ) : pendingDeals.length === 0 ? (
               <div className="p-4 bg-card rounded-2xl border border-border text-center">
                 <p className="text-sm text-muted-foreground">
-                  {t('لا توجد عروض بعد', 'No offers yet')}
+                  {t.dashboard.noOffersYet}
                 </p>
               </div>
             ) : (
@@ -765,7 +763,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-base flex items-center gap-2">
               <MessageCircle className="h-4 w-4 text-primary" />
-              المحادثات
+              {t.dashboard.conversations}
             </h2>
           </div>
 
@@ -788,7 +786,7 @@ export default function Dashboard() {
           <div className="bg-card rounded-t-2xl max-w-lg w-full max-h-[80vh] p-4 space-y-4 animate-slide-up">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-base">
-                {t('سؤال للموهبة:', 'Question for Talent:')} {askTalentDeal.company_name}
+                {t.dashboard.questionForTalent} {askTalentDeal.company_name}
               </h3>
               <Button
                 variant="ghost"
@@ -805,7 +803,7 @@ export default function Dashboard() {
 
             <div className="space-y-3">
               <div className="p-3 bg-muted/30 rounded-xl text-xs text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">{t('تفاصيل العرض:', 'Deal Details:')}</p>
+                <p className="font-medium text-foreground mb-1">{t.dashboard.dealDetails}</p>
                 <p>{askTalentDeal.company_name} · {askTalentDeal.deal_type}</p>
                 <p className="text-[11px] mt-0.5">{askTalentDeal.budget_range}</p>
               </div>
@@ -813,7 +811,7 @@ export default function Dashboard() {
               <Textarea
                 value={askTalentQuestion}
                 onChange={(e) => setAskTalentQuestion(e.target.value)}
-                placeholder={t('اكتب سؤالك للموهبة...', 'Write your question for the talent...')}
+                placeholder={t.dashboard.writeQuestion}
                 className="min-h-[100px] rounded-xl resize-none"
                 disabled={isSubmittingAsk}
               />
@@ -828,7 +826,7 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <Send className="h-4 w-4 mr-2" />
-                    {t('إرسال السؤال', 'Send Question')}
+                    {t.dashboard.sendQuestion}
                   </>
                 )}
               </Button>
