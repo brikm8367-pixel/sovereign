@@ -45,6 +45,7 @@ interface ThreadMessage {
   expires_at?: string | null;
   sender_role?: string | null;
   managed_celebrity_id?: string | null;
+  deal_id?: string | null;
 }
 
 interface Reaction {
@@ -249,7 +250,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       if (dealId) {
         const { data: dealData } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
           .eq('id', dealId)
           .single();
         if (dealData) setDeal(dealData);

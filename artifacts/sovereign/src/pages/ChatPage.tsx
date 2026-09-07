@@ -56,6 +56,7 @@ interface Deal {
   status: string;
   celebrity_id: string | null;
   sender_id: string | null;
+  budget_currency: string | null;
 }
 
 export default function ChatPage() {
@@ -188,7 +189,7 @@ export default function ChatPage() {
     const fetchDeal = async () => {
       const { data, error } = await supabase
         .from('deal_cards')
-        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
         .eq('id', dealId)
         .single();
       if (!error && data) {
@@ -208,7 +209,7 @@ export default function ChatPage() {
     try {
       const { data, error } = await supabase
         .from('deal_cards')
-        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
         .eq('id', dealId)
         .single();
 
@@ -239,7 +240,7 @@ export default function ChatPage() {
 
       const { data, error } = await supabase
         .from('deal_cards')
-        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+        .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
         .in('message_id', messageIds)
         .eq('status', 'accepted')
         .order('created_at', { ascending: false })
@@ -533,7 +534,7 @@ export default function ChatPage() {
         // Fetch deal details for pinned card display
         const { data: dealData } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
           .eq('id', dealId)
           .single();
         if (dealData) {
@@ -553,7 +554,7 @@ export default function ChatPage() {
       if (validMessageIds.length > 0) {
         const { data: dealFromMessage } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
           .in('message_id', validMessageIds)
           .eq('status', 'accepted')
           .order('created_at', { ascending: false })
@@ -574,7 +575,7 @@ export default function ChatPage() {
         
         const { data: acceptedDeal } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
           .eq('status', 'accepted')
           .not('message_id', 'is', null)
           .or(`and(sender_id.eq.${user.id},celebrity_id.eq.${userId}),and(sender_id.eq.${userId},celebrity_id.eq.${user.id}),and(sender_id.eq.${userId},celebrity_id.eq.${managedCelebId})`)

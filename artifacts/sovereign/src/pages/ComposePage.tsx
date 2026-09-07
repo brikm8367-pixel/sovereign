@@ -112,8 +112,8 @@ export const ComposePage = () => {
   ];
 
   const handleSendDeal = async () => {
-    // Validation des champs requis
-    if (!companyName.trim() || !websiteUrl.trim() || !selectedBudget || !selectedDealType || !campaignDescription.trim() || !selectedTimeline || !celebrityId || !user) return;
+    // Validation des champs requis - deliverables maintenant requis
+    if (!companyName.trim() || !websiteUrl.trim() || !selectedBudget || !selectedDealType || !campaignDescription.trim() || !deliverables.trim() || !selectedTimeline || !celebrityId || !user) return;
     
     // Smart validation & spam detection
     const validation = validateDealCard({
@@ -148,6 +148,7 @@ export const ComposePage = () => {
         exclusivity: exclusivity,
         why_them: whyThem.trim() || null,
         status: 'pending',
+        budget_currency: selectedCurrency,
       } as any);
       if (error) throw error;
       toast.success(isRTL ? 'تم إرسال العرض' : 'Offer sent');
@@ -195,8 +196,8 @@ export const ComposePage = () => {
 
   // ===== MODE DEAL =====
   if (isDealMode) {
-    // Validation des champs requis pour le bouton
-    const isFormValid = companyName.trim() && websiteUrl.trim() && selectedBudget && selectedDealType && campaignDescription.trim() && selectedTimeline && 
+    // Validation des champs requis pour le bouton - deliverables maintenant requis
+    const isFormValid = companyName.trim() && websiteUrl.trim() && selectedBudget && selectedDealType && campaignDescription.trim() && deliverables.trim() && selectedTimeline && 
       (selectedDealType !== 'other' || customDealType.trim()) &&
       (budgetCycle !== 'other' || customBudgetCycle.trim());
 
@@ -533,18 +534,26 @@ export const ComposePage = () => {
                     />
                   </div>
 
-                  {/* Deliverables (optional) */}
+                  {/* Deliverables (required) - avec astérisque rouge et compteur de caractères */}
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      {tLocal('المخرجات المطلوبة (اختياري)', 'Required Deliverables (Optional)')}
+                    <label className="block text-sm font-medium text-foreground mb-1.5 flex items-center gap-1">
+                      {tLocal('المخرجات المطلوبة', 'Required Deliverables')}
+                      <span className="text-destructive" aria-hidden="true">*</span>
                     </label>
-                    <Textarea
-                      value={deliverables}
-                      onChange={(e) => setDeliverables(e.target.value)}
-                      placeholder={tLocal('مثال: 3 منشورات فيد، 5 ستوريز، 1 ريلز، رابط في البايو لمدة أسبوع', 'e.g., 3 feed posts, 5 stories, 1 reel, link in bio for 1 week')}
-                      className="h-24 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
-                      rows={3}
-                    />
+                    <div className="relative">
+                      <Textarea
+                        value={deliverables}
+                        onChange={(e) => setDeliverables(e.target.value)}
+                        placeholder={tLocal('مثال: 3 منشورات فيد، 5 ستوريز، 1 ريلز، رابط في البايو لمدة أسبوع', 'e.g., 3 feed posts, 5 stories, 1 reel, link in bio for 1 week')}
+                        className="h-24 rounded-xl border-2 focus:border-primary resize-none bg-background p-4 pr-20"
+                        rows={3}
+                        maxLength={200}
+                        required
+                      />
+                      <div className="absolute bottom-2 end-2 text-xs text-muted-foreground">
+                        {200 - deliverables.length} / 200
+                      </div>
+                    </div>
                   </div>
 
                   {/* Why Them (optional) */}

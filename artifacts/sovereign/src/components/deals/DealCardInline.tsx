@@ -32,6 +32,7 @@ interface Deal {
   status: string;
   celebrity_id: string | null;
   sender_id: string | null;
+  budget_currency: string | null;
 }
 
 interface DealCardInlineProps {
@@ -150,7 +151,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
       try {
         const { data, error: fetchError } = await supabase
           .from('deal_cards')
-          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id')
+          .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
           .eq('id', dealId)
           .single();
         
@@ -251,6 +252,16 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
             icon={DollarSign}
           >
             <span className="font-semibold text-primary">{deal.budget_range}</span>
+          </FieldRow>
+        )}
+
+        {/* Budget Currency */}
+        {deal.budget_currency && (
+          <FieldRow 
+            label={t(isRTL, 'العملة', 'Currency')} 
+            icon={DollarSign}
+          >
+            {deal.budget_currency}
           </FieldRow>
         )}
 

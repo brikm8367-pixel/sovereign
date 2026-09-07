@@ -25,6 +25,7 @@ interface Deal {
   status: string;
   celebrity_id: string | null;
   sender_id: string | null;
+  budget_currency: string | null;
 }
 
 export default function OffersPage() {
@@ -257,6 +258,16 @@ export default function OffersPage() {
                           icon={DollarSign}
                         >
                           <span className="font-semibold text-primary">{deal.budget_range}</span>
+                        </FieldRow>
+                      )}
+
+                      {/* Budget Currency */}
+                      {deal.budget_currency && (
+                        <FieldRow 
+                          label={t('العملة', 'Currency')} 
+                          icon={DollarSign}
+                        >
+                          {deal.budget_currency}
                         </FieldRow>
                       )}
 
