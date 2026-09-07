@@ -93,14 +93,14 @@ export const ComposePage = () => {
     { value: 'KWD', label: 'د.ك', flag: '🇰🇼', name: { ar: 'دينار كويتي', en: 'Kuwaiti Dinar' } },
   ];
 
-  // Deal type options
+  // Deal type options - updated to match DealCardInline
   const DEAL_TYPES = [
-    { value: 'instagram_post', label: { ar: 'منشور انستغرام', en: 'Instagram Post' }, description: { ar: 'منشور واحد على انستغرام', en: 'Single Instagram post' } },
-    { value: 'instagram_story', label: { ar: 'ستوري انستغرام', en: 'Instagram Story' }, description: { ar: 'ستوري على انستغرام', en: 'Instagram story' } },
-    { value: 'instagram_reel', label: { ar: 'ريلز انستغرام', en: 'Instagram Reel' }, description: { ar: 'فيديو ريلز على انستغرام', en: 'Instagram Reel video' } },
-    { value: 'tiktok_video', label: { ar: 'فيديو تيك توك', en: 'TikTok Video' }, description: { ar: 'فيديو على تيك توك', en: 'TikTok video' } },
-    { value: 'youtube_video', label: { ar: 'فيديو يوتيوب', en: 'YouTube Video' }, description: { ar: 'فيديو على يوتيوب', en: 'YouTube video' } },
-    { value: 'other', label: { ar: 'أخرى', en: 'Other' }, description: { ar: 'نوع آخر من التعاون', en: 'Other collaboration type' } },
+    { value: 'sponsorship', label: { ar: 'رعاية', en: 'Sponsorship' }, description: { ar: 'رعاية علامة تجارية أو حدث', en: 'Brand or event sponsorship' } },
+    { value: 'appearance', label: { ar: 'ظهور إعلاني', en: 'Brand Appearance' }, description: { ar: 'ظهور في إعلان أو حملة', en: 'Appearance in ad or campaign' } },
+    { value: 'event', label: { ar: 'حضور فعالية', en: 'Event Attendance' }, description: { ar: 'حضور حدث أو مؤتمر', en: 'Attend event or conference' } },
+    { value: 'collab', label: { ar: 'تعاون محتوى', en: 'Content Collab' }, description: { ar: 'إنشاء محتوى مشترك', en: 'Create joint content' } },
+    { value: 'endorsement', label: { ar: 'ترويج منتج', en: 'Product Endorsement' }, description: { ar: 'ترويج منتج أو خدمة', en: 'Promote product or service' } },
+    { value: 'other', label: { ar: 'أخرى', en: 'Other' }, description: { ar: 'نوع عرض آخر', en: 'Other deal type' } },
   ];
 
   // Timeline options

@@ -218,7 +218,9 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <Building2 className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div className="p-2 bg-primary/10 rounded-xl shrink-0">
+              <Building2 className="h-5 w-5 text-primary" />
+            </div>
             <h3 className="font-semibold text-lg text-foreground truncate">
               {deal.company_name || t(isRTL, 'غير محدد', 'Not specified')}
             </h3>
