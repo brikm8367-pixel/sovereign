@@ -11,3 +11,4 @@ SOVEREIGN_TECH_REPORT*.md
 .env
 .env
 node_modules/
+.env
