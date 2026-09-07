@@ -25,6 +25,9 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 300;
 const OWN_MESSAGE_KEY_PREFIX = 'directly_own_msg_';
 
+// Module-level cache for failed decryption attempts
+const failedDecryptionCache = new Set<string>();
+
 async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -70,6 +73,21 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
     let keys = await getStoredKeysSecure(passphrase);
 
     if (!keys) {
+      keys = await generateKeyPair();
+      await storeKeysSecure(keys.publicKey, keys.privateKey, passphrase);
+    }
+
+    // Test roundtrip to verify key pair matches
+    const testString = 'e2e-test-roundtrip';
+    try {
+      const encrypted = await encryptMessage(testString, keys.privateKey, keys.publicKey);
+      const decrypted = await decryptMessage(encrypted, keys.privateKey, keys.publicKey);
+      if (decrypted !== testString) {
+        throw new Error('Roundtrip test failed: decrypted text does not match');
+      }
+    } catch (err) {
+      console.warn('[E2E] Key pair roundtrip test failed, regenerating keys', err);
+      await clearKeysSecure();
       keys = await generateKeyPair();
       await storeKeysSecure(keys.publicKey, keys.privateKey, passphrase);
     }
@@ -195,6 +213,14 @@ async function restoreCloudSessions(userId: string, password: string) {
 // Returns null if no key exists — caller must handle this (no auto-provisioning).
 export async function getRecipientPublicKey(recipientId: string): Promise<string | null> {
   try {
+    // First check profiles.public_key
+    const { data: profile } = await supabase.from('profiles').select('public_key').eq('id', recipientId).single();
+    if (profile?.public_key) return profile.public_key;
+  } catch (err) {
+    console.warn('[E2E] getRecipientPublicKey profiles query failed', err);
+  }
+  try {
+    // Fallback to device_keys
     const result = (await withRetry(() =>
       (supabase as any)
         .from('device_keys')
@@ -208,12 +234,6 @@ export async function getRecipientPublicKey(recipientId: string): Promise<string
     if (result?.data?.public_key) return result.data.public_key;
   } catch (err) {
     console.warn('[E2E] getRecipientPublicKey device_keys query failed', err);
-  }
-  try {
-    const { data } = await supabase.from('profiles').select('public_key').eq('id', recipientId).single();
-    if (data?.public_key) return data.public_key;
-  } catch (err) {
-    console.warn('[E2E] getRecipientPublicKey profiles query failed', err);
   }
   return null;
 }
@@ -271,6 +291,11 @@ export async function encryptForRecipient(content: string, recipientId: string):
 }
 
 export async function decryptFromSender(content: string, senderId: string): Promise<DecryptResult> {
+  // Check cache for previously failed decryption
+  if (failedDecryptionCache.has(content)) {
+    return { success: false, reason: 'decryption_failed' };
+  }
+
   if (!isEncryptedMessage(content)) return { success: false, reason: 'not_encrypted' };
 
   const keys = await getStoredKeysSecure();
@@ -305,6 +330,8 @@ export async function decryptFromSender(content: string, senderId: string): Prom
       /* ignore */
     }
     console.error('[E2E] decryption_failed', err);
+    // Add to cache to avoid repeated attempts
+    failedDecryptionCache.add(content);
     return { success: false, reason: 'decryption_failed' };
   }
 }
