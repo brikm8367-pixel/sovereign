@@ -15,7 +15,7 @@ import { set, get } from 'idb-keyval';
 
 export type EncryptResult =
   | { success: true; payload: string }
-  | { success: false; reason: 'no_local_keys' | 'recipient_no_e2e' | 'encryption_failed' };
+  | { success: false; reason: 'no_local_keys' | 'recipient_no_e2e' | 'encryption_failed'; error?: string };
 
 export type DecryptResult =
   | { success: true; plaintext: string }
@@ -266,7 +266,7 @@ export async function encryptForRecipient(content: string, recipientId: string):
     return { success: true, payload };
   } catch (err) {
     console.error('[E2E] encryption_failed', err);
-    return { success: false, reason: 'encryption_failed' };
+    return { success: false, reason: 'encryption_failed', error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 

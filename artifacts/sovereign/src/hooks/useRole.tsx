@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
-export type UserRole = 'celebrity' | 'sender' | 'manager';
+export type UserRole = 'celebrity' | 'sender' | 'manager' | 'company';
 export type AccountType = 'celebrity' | 'sender';
 
 export type ManagedCelebrity = {
