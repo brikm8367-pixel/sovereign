@@ -70,6 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    // Safety timeout: force loading to false after 10 seconds to prevent stuck loading screen
+    const safetyTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('[Auth] Safety timeout reached, forcing loading=false');
+        setLoading(false);
+      }
+    }, 10000);
 
     const initializeAuth = async () => {
       try {
@@ -116,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
