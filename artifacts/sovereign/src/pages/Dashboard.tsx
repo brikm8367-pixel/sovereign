@@ -359,7 +359,14 @@ export default function Dashboard() {
 
       if (updateError) throw updateError;
 
-      toast.success(t.dashboard.offerAccepted);
+      // Role-specific toast
+      if (role === 'manager') {
+        toast.success(isRTL ? 'تم قبول العرض للموهبة التي تديرها' : 'Offer accepted for talent you manage');
+      } else if (role === 'sender') {
+        toast.success(isRTL ? 'تم تحديث حالة عرضك' : 'Your offer status updated');
+      } else {
+        toast.success(isRTL ? 'تم قبول العرض' : 'Offer accepted');
+      }
       console.log('[Dashboard] Deal accepted successfully');
       await fetchPendingDeals();
       
@@ -411,7 +418,14 @@ export default function Dashboard() {
 
       if (msgError) throw msgError;
 
-      toast.success(t.dashboard.offerRejected);
+      // Role-specific toast
+      if (role === 'manager') {
+        toast.success(isRTL ? 'تم رفض العرض للموهبة التي تديرها' : 'Offer declined for talent you manage');
+      } else if (role === 'sender') {
+        toast.success(isRTL ? 'تم تحديث حالة عرضك' : 'Your offer status updated');
+      } else {
+        toast.success(isRTL ? 'تم رفض العرض' : 'Offer declined');
+      }
       console.log('[Dashboard] Deal rejected successfully');
       await fetchPendingDeals();
       
@@ -459,7 +473,12 @@ export default function Dashboard() {
 
       if (msgError) throw msgError;
 
-      toast.success(t.dashboard.questionSent);
+      // Role-specific toast
+      if (role === 'manager') {
+        toast.success(isRTL ? 'تم إرسال السؤال للموهبة التي تديرها' : 'Question sent to talent you manage');
+      } else {
+        toast.success(isRTL ? 'تم إرسال السؤال' : 'Question sent');
+      }
       console.log('[Dashboard] Ask Talent question sent successfully');
       setAskTalentDeal(null);
       setAskTalentQuestion('');
@@ -746,48 +765,6 @@ export default function Dashboard() {
                         </Button>
                       </div>
                     )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {role === 'sender' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-base flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-primary" />
-                {t.dashboard.myOffers}
-                {pendingDeals.length > 0 && (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                    {pendingDeals.length}
-                  </span>
-                )}
-              </h2>
-            </div>
-
-            {isLoadingDeals ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : pendingDeals.length === 0 ? (
-              <div className="p-4 bg-card rounded-2xl border border-border text-center">
-                <p className="text-sm text-muted-foreground">
-                  {t.dashboard.noOffersYet}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingDeals.map((deal) => (
-                  <div key={deal.id} className="bg-card rounded-2xl border border-border p-4 space-y-3">
-                    <DealCardInline 
-                      dealId={deal.id} 
-                      isRTL={isRTL} 
-                      onToggleDetails={() => setShowDealDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
-                      showDetails={showDealDetails[deal.id] || false}
-                      showStatusBadge={true} // My Offers page: SHOW status badge prominently
-                    />
                   </div>
                 ))}
               </div>

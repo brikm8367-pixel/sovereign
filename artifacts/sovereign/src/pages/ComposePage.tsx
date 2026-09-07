@@ -83,7 +83,16 @@ export const ComposePage = () => {
     { value: 'over_50k', label: { ar: 'أكثر من 50000$', en: 'Over $50k' }, description: { ar: 'ميزانية ضخمة', en: 'Huge budget' } },
   ];
 
-  // Currency options
+  // Currency options with flags
+  const CURRENCY_FLAGS: Record<string, string> = {
+    USD: '🇺🇸',
+    EUR: '🇪🇺',
+    GBP: '🇬🇧',
+    AED: '🇦🇪',
+    SAR: '🇸🇦',
+    KWD: '🇰🇼',
+  };
+
   const CURRENCIES = [
     { value: 'USD', label: '$', flag: '🇺🇸', name: { ar: 'دولار أمريكي', en: 'US Dollar' } },
     { value: 'EUR', label: '€', flag: '🇪🇺', name: { ar: 'يورو', en: 'Euro' } },
@@ -151,7 +160,12 @@ export const ComposePage = () => {
         budget_currency: selectedCurrency,
       } as any);
       if (error) throw error;
-      toast.success(isRTL ? 'تم إرسال العرض' : 'Offer sent');
+      // Role-specific toast
+      if (role === 'sender') {
+        toast.success(isRTL ? 'تم إرسال عرضك' : 'Your offer sent');
+      } else {
+        toast.success(isRTL ? 'تم إرسال العرض' : 'Offer sent');
+      }
       // Reset form
       setCompanyName('');
       setWebsiteUrl('');

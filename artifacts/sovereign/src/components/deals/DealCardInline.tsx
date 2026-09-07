@@ -46,6 +46,15 @@ interface DealCardInlineProps {
 
 const t = (isRTL: boolean, ar: string, en: string) => isRTL ? ar : en;
 
+const CURRENCY_FLAGS: Record<string, string> = {
+  USD: '🇺🇸',
+  EUR: '🇪🇺',
+  GBP: '🇬🇧',
+  AED: '🇦🇪',
+  SAR: '🇸🇦',
+  KWD: '🇰🇼',
+};
+
 const getStatusConfig = (status: string, isRTL: boolean) => {
   switch (status) {
     case 'accepted':
@@ -63,6 +72,14 @@ const getStatusConfig = (status: string, isRTL: boolean) => {
         bg: 'bg-red-100 dark:bg-red-900/30',
         text: 'text-red-700 dark:text-red-400',
         border: 'border-red-200 dark:border-red-800',
+      };
+    case 'seen':
+      return {
+        label: t(isRTL, 'شوهدت', 'Seen'),
+        variant: 'secondary' as const,
+        bg: 'bg-blue-100 dark:bg-blue-900/30',
+        text: 'text-blue-700 dark:text-blue-400',
+        border: 'border-blue-200 dark:border-blue-800',
       };
     case 'pending':
     default:
@@ -235,12 +252,14 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         </div>
         
         {/* Prominent Status Badge */}
-        <Badge 
-          variant="outline" 
-          className={cn('rounded-full px-3 py-1.5 text-xs font-semibold h-7 shrink-0', statusConfig.bg, statusConfig.text, statusConfig.border)}
-        >
-          {statusConfig.label}
-        </Badge>
+        {showStatusBadge && (
+          <Badge 
+            variant="outline" 
+            className={cn('rounded-full px-3 py-1.5 text-xs font-semibold h-7 shrink-0', statusConfig.bg, statusConfig.text, statusConfig.border)}
+          >
+            {statusConfig.label}
+          </Badge>
+        )}
       </div>
 
       {/* Main Details Section */}
@@ -261,7 +280,10 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
             label={t(isRTL, 'العملة', 'Currency')} 
             icon={DollarSign}
           >
-            {deal.budget_currency}
+            <span className="flex items-center gap-1.5">
+              {CURRENCY_FLAGS[deal.budget_currency] || ''}
+              {deal.budget_currency}
+            </span>
           </FieldRow>
         )}
 
@@ -341,24 +363,6 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
             </FieldRow>
           </>
         )}
-      </div>
-
-      {/* Action Buttons Section */}
-      <div className="mt-5 pt-4 border-t border-border/50 space-y-2">
-        <Button
-          variant="default"
-          className={cn('w-full sm:w-auto h-11 rounded-xl font-semibold text-sm touch-feedback', 'bg-primary text-primary-foreground hover:bg-primary/90')}
-          onClick={onToggleDetails}
-        >
-          {showDetails ? t(isRTL, 'إخفاء التفاصيل', 'Hide details') : t(isRTL, 'إظهار التفاصيل', 'View details')}
-        </Button>
-        
-        <Button
-          variant="outline"
-          className={cn('w-full sm:w-auto h-11 rounded-xl font-semibold text-sm touch-feedback', 'border border-border bg-background hover:bg-muted/50')}
-        >
-          {t(isRTL, 'رد', 'Reply')}
-        </Button>
       </div>
     </div>
   );

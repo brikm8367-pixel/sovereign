@@ -36,6 +36,7 @@ export default function OffersPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDetails, setShowDetails] = useState<Record<string, boolean>>({});
+  const [selectedTab, setSelectedTab] = useState<'all' | 'sent' | 'seen' | 'accepted' | 'declined'>('all');
 
   // Redirect managers to home
   useEffect(() => {
@@ -98,6 +99,15 @@ export default function OffersPage() {
 
   const t = (ar: string, en: string) => (isRTL ? ar : en);
 
+  const CURRENCY_FLAGS: Record<string, string> = {
+    USD: '🇺🇸',
+    EUR: '🇪🇺',
+    GBP: '🇬🇧',
+    AED: '🇦🇪',
+    SAR: '🇸🇦',
+    KWD: '🇰🇼',
+  };
+
   const getStatusConfig = (status: string) => {
     switch (status) {
       case 'accepted':
@@ -113,6 +123,13 @@ export default function OffersPage() {
           bg: 'bg-red-100 dark:bg-red-900/30',
           text: 'text-red-700 dark:text-red-400',
           border: 'border-red-200 dark:border-red-800',
+        };
+      case 'seen':
+        return {
+          label: t('شوهدت', 'Seen'),
+          bg: 'bg-blue-100 dark:bg-blue-900/30',
+          text: 'text-blue-700 dark:text-blue-400',
+          border: 'border-blue-200 dark:border-blue-800',
         };
       case 'pending':
       default:
@@ -181,6 +198,31 @@ export default function OffersPage() {
     return <div className="border-t border-border/50 my-3" />;
   }
 
+  // Filter deals based on selected tab
+  const filteredDeals = deals.filter(deal => {
+    switch (selectedTab) {
+      case 'sent':
+        return true; // all sent deals
+      case 'seen':
+        return deal.status === 'seen';
+      case 'accepted':
+        return deal.status === 'accepted';
+      case 'declined':
+        return deal.status === 'declined';
+      case 'all':
+      default:
+        return true;
+    }
+  });
+
+  const tabs = [
+    { id: 'all', label: { ar: 'الكل', en: 'All' } },
+    { id: 'sent', label: { ar: 'مرسلة', en: 'Sent' } },
+    { id: 'seen', label: { ar: 'شوهدت', en: 'Seen' } },
+    { id: 'accepted', label: { ar: 'مقبولة', en: 'Accepted' } },
+    { id: 'declined', label: { ar: 'مرفوضة', en: 'Declined' } },
+  ];
+
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
       <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
@@ -197,12 +239,32 @@ export default function OffersPage() {
       </header>
 
       <main className="max-w-lg mx-auto pt-16 pb-20 px-4 space-y-6">
+        {/* Status Tabs */}
+        <div className="overflow-x-auto pb-2 -mx-4 px-4">
+          <div className="flex gap-2 min-w-max">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedTab(tab.id as typeof selectedTab)}
+                className={cn(
+                  'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all touch-feedback',
+                  selectedTab === tab.id
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                {isRTL ? tab.label.ar : tab.label.en}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="space-y-4">
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : deals.length === 0 ? (
+          ) : filteredDeals.length === 0 ? (
             <div className="p-6 bg-card rounded-2xl border border-border text-center">
               <p className="text-sm text-muted-foreground">
                 {t('لا توجد عروض بعد', 'No offers yet')}
@@ -213,7 +275,7 @@ export default function OffersPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {deals.map((deal) => {
+              {filteredDeals.map((deal) => {
                 const statusConfig = getStatusConfig(deal.status);
                 const dealTypeConfig = getDealTypeConfig(deal.deal_type);
                 const isExpanded = showDetails[deal.id] || false;
@@ -267,7 +329,10 @@ export default function OffersPage() {
                           label={t('العملة', 'Currency')} 
                           icon={DollarSign}
                         >
-                          {deal.budget_currency}
+                          <span className="flex items-center gap-1.5">
+                            {CURRENCY_FLAGS[deal.budget_currency] || ''}
+                            {deal.budget_currency}
+                          </span>
                         </FieldRow>
                       )}
 
