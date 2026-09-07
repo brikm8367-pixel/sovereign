@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Briefcase, ArrowRight, X, Globe, Building2, DollarSign, Calendar, FileText, Check } from 'lucide-react';
+import { Briefcase, ArrowRight, X, Globe, Building2, DollarSign, Calendar, FileText, Check, Shield } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -200,6 +200,53 @@ export const ComposePage = () => {
       (selectedDealType !== 'other' || customDealType.trim()) &&
       (budgetCycle !== 'other' || customBudgetCycle.trim());
 
+    const tLocal = (ar: string, en: string) => isRTL ? ar : en;
+
+    // Section Header Component
+    const SectionHeader = ({ icon: Icon, title, color = 'primary' }: { icon: React.ComponentType<{ className?: string }>; title: string; color?: string }) => (
+      <div className="flex items-center gap-3 mb-4">
+        <div className={cn('p-2 rounded-full shrink-0', `bg-${color}/10 text-${color}`)}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <h2 className="font-semibold text-base text-foreground">{title}</h2>
+      </div>
+    );
+
+    // Choice Button Component
+    const ChoiceButton = ({ 
+      value, 
+      selected, 
+      onClick, 
+      label, 
+      description, 
+      children 
+    }: { 
+      value: string; 
+      selected: boolean; 
+      onClick: () => void; 
+      label: { ar: string; en: string };
+      description: { ar: string; en: string };
+      children?: React.ReactNode;
+    }) => (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "relative h-auto min-h-[72px] rounded-xl border-2 p-3 text-start transition-all touch-feedback",
+          selected
+            ? "border-primary bg-primary/5 text-primary"
+            : "border-border bg-background hover:border-primary/50"
+        )}
+      >
+        <div className="font-medium text-sm">{isRTL ? label.ar : label.en}</div>
+        <div className="text-xs text-muted-foreground mt-1">{isRTL ? description.ar : description.en}</div>
+        {selected && (
+          <Check className="absolute top-2 end-2 h-4 w-4 text-primary" />
+        )}
+        {children}
+      </button>
+    );
+
     return (
       <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
         <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
@@ -232,328 +279,305 @@ export const ComposePage = () => {
             )}
 
             {/* Deal Form Card */}
-            <div className="bg-card border border-border rounded-2xl p-5 space-y-5">
-              <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
-                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
-                  <Briefcase className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-lg text-foreground">
-                    {t.compose.offerDetails}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {t.compose.fillDetails}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-5">
-                {/* Company Name */}
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {t.compose.companyName}
-                  </label>
-                  <div className="relative">
-                    <Building2 className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder={t.compose.companyNamePlaceholder}
-                      className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Website URL */}
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {t.compose.websiteUrl}
-                  </label>
-                  <div className="relative">
-                    <Globe className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                      type="url"
-                      value={websiteUrl}
-                      onChange={(e) => setWebsiteUrl(e.target.value)}
-                      placeholder={t.compose.websiteUrlPlaceholder}
-                      className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Budget Range - Choice Buttons */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-foreground">
-                    {t.compose.budget}
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {BUDGETS.map((budget) => (
-                      <button
-                        key={budget.value}
-                        type="button"
-                        onClick={() => setSelectedBudget(budget.value)}
-                        className={cn(
-                          "relative h-auto min-h-[72px] rounded-xl border-2 p-3 text-start transition-all touch-feedback",
-                          selectedBudget === budget.value
-                            ? "border-primary bg-primary/5 text-primary"
-                            : "border-border bg-background hover:border-primary/50"
-                        )}
-                      >
-                        <div className="font-medium text-sm">{isRTL ? budget.label.ar : budget.label.en}</div>
-                        <div className="text-xs text-muted-foreground mt-1">{isRTL ? budget.description.ar : budget.description.en}</div>
-                        {selectedBudget === budget.value && (
-                          <Check className="absolute top-2 end-2 h-4 w-4 text-primary" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Currency Selector */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-foreground">
-                    {t.compose.currency}
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {CURRENCIES.map((currency) => (
-                      <button
-                        key={currency.value}
-                        type="button"
-                        onClick={() => setSelectedCurrency(currency.value as 'USD' | 'EUR' | 'GBP' | 'AED' | 'SAR' | 'KWD')}
-                        className={cn(
-                          "relative px-4 py-2 rounded-full text-sm font-medium transition-all touch-feedback border",
-                          selectedCurrency === currency.value
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-background hover:border-primary/50 text-foreground"
-                        )}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          {currency.flag}
-                          {currency.label}
-                        </span>
-                        {selectedCurrency === currency.value && (
-                          <Check className="absolute top-1 right-1 h-3.5 w-3.5 text-primary" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Budget Cycle - Toggle Buttons */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-foreground">
-                    {t.compose.budgetCycle}
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { value: 'per_post', label: { ar: 'لكل منشور', en: 'Per Post' } },
-                      { value: 'per_campaign', label: { ar: 'لكل حملة', en: 'Per Campaign' } },
-                      { value: 'other', label: { ar: 'أخرى', en: 'Other' } },
-                    ].map((cycle) => (
-                      <button
-                        key={cycle.value}
-                        type="button"
-                        onClick={() => setBudgetCycle(cycle.value as 'per_post' | 'per_campaign' | 'other')}
-                        className={cn(
-                          "relative h-11 rounded-xl border-2 font-medium transition-all touch-feedback",
-                          budgetCycle === cycle.value
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-background hover:border-primary/50"
-                        )}
-                      >
-                        {isRTL ? cycle.label.ar : cycle.label.en}
-                        {budgetCycle === cycle.value && (
-                          <Check className="absolute top-1/2 end-2 -translate-y-1/2 h-4 w-4 text-primary" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Custom Budget Cycle Input */}
-                {budgetCycle === 'other' && (
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-6">
+              {/* Section 1: Company Information */}
+              <section>
+                <SectionHeader icon={Building2} title={tLocal('معلومات الشركة', 'Company Information')} color="blue" />
+                
+                <div className="space-y-4">
+                  {/* Company Name */}
                   <div>
-                    <label className="block text-sm font-medium mb-1.5 text-foreground">
-                      {t.compose.otherBudgetCycleLabel}
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      {tLocal('اسم الشركة', 'Company Name')}
                     </label>
                     <div className="relative">
-                      <DollarSign className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Building2 className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input
-                        value={customBudgetCycle}
-                        onChange={(e) => setCustomBudgetCycle(e.target.value)}
-                        placeholder={t.compose.otherBudgetCyclePlaceholder}
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        placeholder={tLocal('مثال: شركة نايكي', 'e.g., Nike Inc.')}
                         className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
                         required
                       />
                     </div>
                   </div>
-                )}
 
-                {/* Deal Type - Choice Buttons */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-foreground">
-                    {t.compose.dealType}
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {DEAL_TYPES.map((type) => (
-                      <button
-                        key={type.value}
-                        type="button"
-                        onClick={() => setSelectedDealType(type.value)}
-                        className={cn(
-                          "relative h-auto min-h-[72px] rounded-xl border-2 p-3 text-start transition-all touch-feedback",
-                          selectedDealType === type.value
-                            ? "border-primary bg-primary/5 text-primary"
-                            : "border-border bg-background hover:border-primary/50"
-                        )}
-                      >
-                        <div className="font-medium text-sm">{isRTL ? type.label.ar : type.label.en}</div>
-                        <div className="text-xs text-muted-foreground mt-1">{isRTL ? type.description.ar : type.description.en}</div>
-                        {selectedDealType === type.value && (
-                          <Check className="absolute top-2 end-2 h-4 w-4 text-primary" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Custom Deal Type Input */}
-                {selectedDealType === 'other' && (
+                  {/* Website URL */}
                   <div>
-                    <label className="block text-sm font-medium mb-1.5 text-foreground">
-                      {t.compose.otherDealTypeLabel}
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      {tLocal('الموقع الإلكتروني', 'Website URL')}
                     </label>
                     <div className="relative">
-                      <FileText className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Globe className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input
-                        value={customDealType}
-                        onChange={(e) => setCustomDealType(e.target.value)}
-                        placeholder={t.compose.otherDealTypePlaceholder}
+                        type="url"
+                        value={websiteUrl}
+                        onChange={(e) => setWebsiteUrl(e.target.value)}
+                        placeholder={tLocal('مثال: https://nike.com', 'e.g., https://nike.com')}
                         className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
                         required
                       />
                     </div>
                   </div>
-                )}
-
-                {/* Campaign Description */}
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {t.compose.campaignDescription}
-                  </label>
-                  <Textarea
-                    value={campaignDescription}
-                    onChange={(e) => setCampaignDescription(e.target.value)}
-                    placeholder={t.compose.campaignDescriptionPlaceholder}
-                    className="h-28 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
-                    rows={4}
-                    required
-                  />
                 </div>
+              </section>
 
-                {/* Deliverables (optional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {t.compose.deliverables}
-                  </label>
-                  <Textarea
-                    value={deliverables}
-                    onChange={(e) => setDeliverables(e.target.value)}
-                    placeholder={t.compose.deliverablesPlaceholder}
-                    className="h-24 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
-                    rows={3}
-                  />
+              {/* Section 2: Budget */}
+              <section>
+                <SectionHeader icon={DollarSign} title={tLocal('الميزانية', 'Budget')} color="green" />
+                
+                <div className="space-y-4">
+                  {/* Budget Range - Choice Buttons */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      {tLocal('نطاق الميزانية', 'Budget Range')}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {BUDGETS.map((budget) => (
+                        <ChoiceButton
+                          key={budget.value}
+                          value={budget.value}
+                          selected={selectedBudget === budget.value}
+                          onClick={() => setSelectedBudget(budget.value)}
+                          label={budget.label}
+                          description={budget.description}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Currency Selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      {tLocal('العملة', 'Currency')}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {CURRENCIES.map((currency) => (
+                        <button
+                          key={currency.value}
+                          type="button"
+                          onClick={() => setSelectedCurrency(currency.value as 'USD' | 'EUR' | 'GBP' | 'AED' | 'SAR' | 'KWD')}
+                          className={cn(
+                            "relative px-4 py-2 rounded-full text-sm font-medium transition-all touch-feedback border",
+                            selectedCurrency === currency.value
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50 text-foreground"
+                          )}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            {currency.flag}
+                            {currency.label}
+                          </span>
+                          {selectedCurrency === currency.value && (
+                            <Check className="absolute top-1 right-1 h-3.5 w-3.5 text-primary" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Budget Cycle - Toggle Buttons */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      {tLocal('دورة الميزانية', 'Budget Cycle')}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { value: 'per_post', label: { ar: 'لكل منشور', en: 'Per Post' }, description: { ar: 'الدفع لكل منشور منفصل', en: 'Payment per individual post' } },
+                        { value: 'per_campaign', label: { ar: 'لكل حملة', en: 'Per Campaign' }, description: { ar: 'دفعة واحدة للحملة كاملة', en: 'Single payment for entire campaign' } },
+                        { value: 'other', label: { ar: 'أخرى', en: 'Other' }, description: { ar: 'دورة ميزانية مخصصة', en: 'Custom budget cycle' } },
+                      ].map((cycle) => (
+                        <ChoiceButton
+                          key={cycle.value}
+                          value={cycle.value}
+                          selected={budgetCycle === cycle.value}
+                          onClick={() => setBudgetCycle(cycle.value as 'per_post' | 'per_campaign' | 'other')}
+                          label={cycle.label}
+                          description={cycle.description}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Budget Cycle Input */}
+                  {budgetCycle === 'other' && (
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1.5">
+                        {tLocal('حدد دورة الميزانية', 'Specify Budget Cycle')}
+                      </label>
+                      <div className="relative">
+                        <DollarSign className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input
+                          value={customBudgetCycle}
+                          onChange={(e) => setCustomBudgetCycle(e.target.value)}
+                          placeholder={tLocal('مثال: شهري، ربع سنوي، عند الإنجاز', 'e.g., Monthly, Quarterly, Upon completion')}
+                          className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
+              </section>
 
-                {/* Timeline - Choice Buttons */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-foreground">
-                    {t.compose.timeline}
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {TIMELINE_OPTIONS.map((timeline) => (
-                      <button
-                        key={timeline.value}
-                        type="button"
-                        onClick={() => setSelectedTimeline(timeline.value)}
-                        className={cn(
-                          "relative h-auto min-h-[72px] rounded-xl border-2 p-3 text-start transition-all touch-feedback",
-                          selectedTimeline === timeline.value
-                            ? "border-primary bg-primary/5 text-primary"
-                            : "border-border bg-background hover:border-primary/50"
-                        )}
-                      >
-                        <div className="font-medium text-sm">{isRTL ? timeline.label.ar : timeline.label.en}</div>
-                        <div className="text-xs text-muted-foreground mt-1">{isRTL ? timeline.description.ar : timeline.description.en}</div>
-                        {selectedTimeline === timeline.value && (
-                          <Check className="absolute top-2 end-2 h-4 w-4 text-primary" />
-                        )}
-                      </button>
-                    ))}
+              {/* Section 3: Deal Type */}
+              <section>
+                <SectionHeader icon={Briefcase} title={tLocal('نوع الصفقة', 'Deal Type')} color="purple" />
+                
+                <div className="space-y-4">
+                  {/* Deal Type - Choice Buttons */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      {tLocal('نوع التعاون', 'Collaboration Type')}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {DEAL_TYPES.map((type) => (
+                        <ChoiceButton
+                          key={type.value}
+                          value={type.value}
+                          selected={selectedDealType === type.value}
+                          onClick={() => setSelectedDealType(type.value)}
+                          label={type.label}
+                          description={type.description}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Deal Type Input */}
+                  {selectedDealType === 'other' && (
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1.5">
+                        {tLocal('حدد نوع التعاون', 'Specify Collaboration Type')}
+                      </label>
+                      <div className="relative">
+                        <FileText className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input
+                          value={customDealType}
+                          onChange={(e) => setCustomDealType(e.target.value)}
+                          placeholder={tLocal('مثال: بث مباشر، بودكاست، حدث', 'e.g., Live stream, Podcast, Event appearance')}
+                          className="h-12 rounded-xl border-2 focus:border-primary ps-12 bg-background"
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Section 4: Timeline */}
+              <section>
+                <SectionHeader icon={Calendar} title={tLocal('الجدول الزمني', 'Timeline')} color="orange" />
+                
+                <div className="space-y-4">
+                  {/* Timeline - Choice Buttons */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      {tLocal('الموعد النهائي', 'Deadline')}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {TIMELINE_OPTIONS.map((timeline) => (
+                        <ChoiceButton
+                          key={timeline.value}
+                          value={timeline.value}
+                          selected={selectedTimeline === timeline.value}
+                          onClick={() => setSelectedTimeline(timeline.value)}
+                          label={timeline.label}
+                          description={timeline.description}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Exclusivity - Toggle Buttons */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      {tLocal('الحصرية', 'Exclusivity')}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { value: 'exclusive', label: { ar: 'حصرية', en: 'Exclusive' }, description: { ar: 'لا تعمل مع منافسين خلال الفترة', en: 'No competitor work during period' } },
+                        { value: 'non_exclusive', label: { ar: 'غير حصرية', en: 'Non-Exclusive' }, description: { ar: 'يمكن العمل مع علامات تجارية أخرى', en: 'Can work with other brands' } },
+                      ].map((excl) => (
+                        <ChoiceButton
+                          key={excl.value}
+                          value={excl.value}
+                          selected={exclusivity === excl.value}
+                          onClick={() => setExclusivity(excl.value as 'exclusive' | 'non_exclusive')}
+                          label={excl.label}
+                          description={excl.description}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
+              </section>
 
-                {/* Exclusivity - Toggle Buttons */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-foreground">
-                    {t.compose.exclusivity}
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { value: 'exclusive', label: { ar: 'حصرية', en: 'Exclusive' } },
-                      { value: 'non_exclusive', label: { ar: 'غير حصرية', en: 'Non-Exclusive' } },
-                    ].map((excl) => (
-                      <button
-                        key={excl.value}
-                        type="button"
-                        onClick={() => setExclusivity(excl.value as 'exclusive' | 'non_exclusive')}
-                        className={cn(
-                          "relative h-11 rounded-xl border-2 font-medium transition-all touch-feedback",
-                          exclusivity === excl.value
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-background hover:border-primary/50"
-                        )}
-                      >
-                        {isRTL ? excl.label.ar : excl.label.en}
-                        {exclusivity === excl.value && (
-                          <Check className="absolute top-1/2 end-2 -translate-y-1/2 h-4 w-4 text-primary" />
-                        )}
-                      </button>
-                    ))}
+              {/* Section 5: Description */}
+              <section>
+                <SectionHeader icon={FileText} title={tLocal('الوصف', 'Description')} color="amber" />
+                
+                <div className="space-y-4">
+                  {/* Campaign Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      {tLocal('وصف الحملة', 'Campaign Description')}
+                    </label>
+                    <Textarea
+                      value={campaignDescription}
+                      onChange={(e) => setCampaignDescription(e.target.value)}
+                      placeholder={tLocal('صف بالتفصيل ما تريد إنجازه: الأهداف، الرسالة، النبرة، الهاشتاجات المطلوبة...', 'Describe in detail what you want to achieve: goals, message, tone, required hashtags...')}
+                      className="h-28 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
+                      rows={4}
+                      required
+                    />
+                  </div>
+
+                  {/* Deliverables (optional) */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      {tLocal('المخرجات المطلوبة (اختياري)', 'Required Deliverables (Optional)')}
+                    </label>
+                    <Textarea
+                      value={deliverables}
+                      onChange={(e) => setDeliverables(e.target.value)}
+                      placeholder={tLocal('مثال: 3 منشورات فيد، 5 ستوريز، 1 ريلز، رابط في البايو لمدة أسبوع', 'e.g., 3 feed posts, 5 stories, 1 reel, link in bio for 1 week')}
+                      className="h-24 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* Why Them (optional) */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      {tLocal('لماذا اخترت هذا المؤثر؟ (اختياري)', 'Why This Influencer? (Optional)')}
+                    </label>
+                    <Textarea
+                      value={whyThem}
+                      onChange={(e) => setWhyThem(e.target.value)}
+                      placeholder={tLocal('مثال: جمهورهم يتطابق مع جمهورنا المستهدف، معدل تفاعل عالي، أسلوب محتوى يناسب علامتنا', 'e.g., Their audience matches our target, high engagement rate, content style fits our brand')}
+                      className="h-24 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
+                      rows={3}
+                    />
                   </div>
                 </div>
+              </section>
 
-                {/* Why Them (optional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-foreground">
-                    {t.compose.whyThem}
-                  </label>
-                  <Textarea
-                    value={whyThem}
-                    onChange={(e) => setWhyThem(e.target.value)}
-                    placeholder={t.compose.whyThemPlaceholder}
-                    className="h-24 rounded-xl border-2 focus:border-primary resize-none bg-background p-4"
-                    rows={3}
-                  />
-                </div>
-              </div>
-
+              {/* Submit Button */}
               <Button
                 onClick={handleSendDeal}
                 disabled={!isFormValid || sending}
-                className="w-full h-12 rounded-xl mt-2 flex items-center justify-center gap-2"
+                className="w-full h-12 rounded-xl font-semibold text-base flex items-center justify-center gap-2 mt-2"
               >
                 {sending ? (
                   <>
                     <svg className="animate-spin -ml-1 mr-2 h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                    {t.compose.sending}
+                    {tLocal('جاري الإرسال...', 'Sending...')}
                   </>
                 ) : (
                   <>
                     <Briefcase className="h-5 w-5" />
-                    {t.compose.sendOffer}
+                    {tLocal('إرسال العرض', 'Send Offer')}
                   </>
                 )}
               </Button>
