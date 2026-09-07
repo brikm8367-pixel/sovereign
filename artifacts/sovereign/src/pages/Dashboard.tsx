@@ -26,7 +26,8 @@ import {
   CheckCheck,
   XCircle,
   Clock,
-  ArrowRight
+  ArrowRight,
+  ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DealCardInline } from '@/components/deals/DealCardInline';
@@ -573,13 +574,24 @@ export default function Dashboard() {
     }
   };
 
+  const tLocal = (ar: string, en: string) => isRTL ? ar : en;
+
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
       <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
         <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
-          <h1 className="font-bold text-lg">
-            {role === 'manager' ? t.dashboard.agentDashboard : t.dashboard.home}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="font-bold text-lg">
+              {role === 'manager' ? t.dashboard.agentDashboard : t.dashboard.home}
+            </h1>
+            {/* Agent badge in header */}
+            {role === 'manager' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                <ShieldCheck className="h-3 w-3" />
+                {tLocal('وكيل', 'Agent')}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
             <Button
@@ -609,6 +621,10 @@ export default function Dashboard() {
       <main className="max-w-lg mx-auto pt-16 pb-20 px-4 space-y-6">
         {role === 'manager' && managedCelebrities.length > 0 && (
           <div className="space-y-3">
+            {/* Label above celebrity switcher */}
+            <p className="text-xs text-muted-foreground uppercase tracking-wider px-1">
+              {tLocal('المشاهير الذين تديرهم', 'Celebrities you manage')}
+            </p>
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-2">
               {managedCelebrities.map((celeb) => (
                 <button
@@ -638,6 +654,15 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
+            {/* Context bar when celebrity is selected */}
+            {managedCelebrityId && (
+              <div className="bg-primary/5 border border-primary/10 rounded-xl p-3">
+                <p className="text-sm font-medium text-primary flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4" />
+                  {tLocal('أنت تدير عروض', 'You manage offers for')} {managedCelebrities.find(c => c.id === managedCelebrityId)?.display_name || tLocal('الموهبة', 'Talent')}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -669,6 +694,17 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {pendingDeals.map((deal) => (
                   <div key={deal.id} className="bg-card rounded-2xl border border-border p-4 space-y-3">
+                    {/* Celebrity name prominently at top for manager */}
+                    {managedCelebrityId && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                          {tLocal('الموهبة', 'Talent')}
+                        </p>
+                        <p className="font-semibold text-base text-foreground">
+                          {managedCelebrities.find(c => c.id === managedCelebrityId)?.display_name || tLocal('الموهبة', 'Talent')}
+                        </p>
+                      </div>
+                    )}
                     <DealCardInline 
                       dealId={deal.id} 
                       isRTL={isRTL} 
