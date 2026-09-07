@@ -1,4 +1,4 @@
-export type Language = 'ar' | 'en' | 'fr' | 'es';
+export type Language = 'ar' | 'en' | 'fr' | 'es' | 'de' | 'tr' | 'pt';
 
 export interface Translations {
   header: {
@@ -181,5 +181,108 @@ export interface Translations {
     placeholder: string;
     noResults: string;
     searching: string;
+  };
+  compose: {
+    newOffer: string;
+    offerDetails: string;
+    fillDetails: string;
+    companyName: string;
+    companyNamePlaceholder: string;
+    websiteUrl: string;
+    websiteUrlPlaceholder: string;
+    budget: string;
+    budgetCycle: string;
+    perPost: string;
+    perCampaign: string;
+    dealType: string;
+    campaignDescription: string;
+    campaignDescriptionPlaceholder: string;
+    deliverables: string;
+    deliverablesPlaceholder: string;
+    timeline: string;
+    exclusivity: string;
+    exclusive: string;
+    nonExclusive: string;
+    whyThem: string;
+    whyThemPlaceholder: string;
+    sendOffer: string;
+    sending: string;
+    back: string;
+    budgets: string;
+    dealTypes: string;
+    timelines: string;
+    otherDealTypeLabel: string;
+    otherBudgetCycleLabel: string;
+    currency: string;
+    currencies: string;
+    validation: string;
+  };
+  dashboard: {
+    agentDashboard: string;
+    home: string;
+    pendingOffers: string;
+    noPendingOffers: string;
+    selectTalent: string;
+    myOffers: string;
+    noOffersYet: string;
+    conversations: string;
+    loading: string;
+    accept: string;
+    reject: string;
+    askTalent: string;
+    questionForTalent: string;
+    dealDetails: string;
+    writeQuestion: string;
+    sendQuestion: string;
+    sending: string;
+    close: string;
+    status: {
+      accepted: string;
+      declined: string;
+      pending: string;
+    };
+    openChat: string;
+    questionSent: string;
+    questionFailed: string;
+    offerAccepted: string;
+    offerRejected: string;
+    acceptFailed: string;
+    rejectFailed: string;
+    authorizedAgent: string;
+    represents: string;
+    voiceMessage: string;
+    send: string;
+    attachMedia: string;
+    typeMessage: string;
+    recordingUnavailable: string;
+    edited: string;
+    today: string;
+    yesterday: string;
+    noMessages: string;
+    startConversation: string;
+    regardingDeal: string;
+    error: string;
+  };
+  settings: {
+    language: string;
+    selectLanguage: string;
+    theme: string;
+    darkMode: string;
+    lightMode: string;
+  };
+  common: {
+    save: string;
+    cancel: string;
+    delete: string;
+    edit: string;
+    confirm: string;
+    back: string;
+    next: string;
+    done: string;
+    loading: string;
+    error: string;
+    success: string;
+    optional: string;
+    required: string;
   };
 }
