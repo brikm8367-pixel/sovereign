@@ -5,7 +5,7 @@ import { useRole } from '@/hooks/useRole.tsx';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { BottomNavigation } from '@/components/BottomNavigation';
-import { Loader2, Building2, DollarSign, Calendar, Globe, FileText, Shield, UserCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Building2, DollarSign, Calendar, Globe, FileText, Shield, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -35,7 +35,6 @@ export default function OffersPage() {
   const navigate = useNavigate();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showDetails, setShowDetails] = useState<Record<string, boolean>>({});
   const [selectedTab, setSelectedTab] = useState<'all' | 'sent' | 'seen' | 'accepted' | 'declined'>('all');
 
   // Redirect managers to home
@@ -278,7 +277,6 @@ export default function OffersPage() {
               {filteredDeals.map((deal) => {
                 const statusConfig = getStatusConfig(deal.status);
                 const dealTypeConfig = getDealTypeConfig(deal.deal_type);
-                const isExpanded = showDetails[deal.id] || false;
 
                 return (
                   <div 
@@ -412,25 +410,6 @@ export default function OffersPage() {
                           </FieldRow>
                         </>
                       )}
-                    </div>
-
-                    {/* Action Buttons Section */}
-                    <div className="mt-5 pt-4 border-t border-border/50 space-y-2">
-                      <Button
-                        variant="default"
-                        className={cn('w-full sm:w-auto h-11 rounded-xl font-semibold text-sm touch-feedback', 'bg-primary text-primary-foreground hover:bg-primary/90')}
-                        onClick={() => setShowDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
-                      >
-                        {isExpanded ? t('إخفاء التفاصيل', 'Hide details') : t('إظهار التفاصيل', 'View details')}
-                        {isExpanded ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
-                      </Button>
-                      
-                      <Button
-                        variant="outline"
-                        className={cn('w-full sm:w-auto h-11 rounded-xl font-semibold text-sm touch-feedback', 'border border-border bg-background hover:bg-muted/50')}
-                      >
-                        {t('تواصل', 'Contact')}
-                      </Button>
                     </div>
                   </div>
                 );

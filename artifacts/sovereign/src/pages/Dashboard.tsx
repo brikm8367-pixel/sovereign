@@ -76,6 +76,8 @@ interface Message {
   edited_at?: string | null;
   expires_at?: string | null;
   deal_id?: string | null;
+  sender_role?: string | null;
+  deal_status?: string | null;
 }
 
 interface Deal {
@@ -106,6 +108,8 @@ interface Conversation {
   unread_count: number;
   deal_id: string | null;
   category: string;
+  sender_role?: string | null;
+  deal_status?: string | null;
 }
 
 export default function Dashboard() {
@@ -319,13 +323,18 @@ export default function Dashboard() {
             last_message_time: msg.created_at,
             unread_count: msg.is_read ? 0 : 1,
             deal_id: msg.deal_id || null,
-            category: msg.category || 'work'
+            category: msg.category || 'work',
+            sender_role: msg.sender_role || null,
+            deal_status: msg.deal_status || null
           });
         } else {
           const existing = conversationsMap.get(convId)!;
           if (new Date(msg.created_at) > new Date(existing.last_message_time)) {
             existing.last_message = msg.content || '';
             existing.last_message_time = msg.created_at;
+            // Update sender_role and deal_status from latest message
+            existing.sender_role = msg.sender_role || null;
+            existing.deal_status = msg.deal_status || null;
           }
           // FIX: Check unread against currentUserId (user.id)
           if (!msg.is_read && msg.receiver_id === currentUserId) {

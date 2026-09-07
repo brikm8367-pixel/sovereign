@@ -171,6 +171,20 @@ export default function NotificationsPage() {
             if (prev.some(n => n.id === newMessage.id)) return prev;
             return [newMessage, ...prev];
           });
+          
+          // Show role-specific toast notification
+          const t = (ar: string, en: string) => isRTL ? ar : en;
+          switch (role) {
+            case 'manager':
+              toast.info(t('وصل عرض جديد للموهبة التي تديرها', 'New offer received for talent you manage'));
+              break;
+            case 'sender':
+              toast.info(t('تم تحديث حالة عرضك', 'Your offer status updated'));
+              break;
+            default: // celebrity
+              toast.info(t('وصلتك رسالة من وكيلك', 'You received a message from your agent'));
+              break;
+          }
         }
       )
       .subscribe();
@@ -178,7 +192,7 @@ export default function NotificationsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, role, managedCelebrityId]);
+  }, [user, role, managedCelebrityId, isRTL]);
 
   const handleMarkAllRead = async () => {
     if (!user) return;
