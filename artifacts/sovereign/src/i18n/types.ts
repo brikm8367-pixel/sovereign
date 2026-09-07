@@ -208,14 +208,41 @@ export interface Translations {
     sendOffer: string;
     sending: string;
     back: string;
-    budgets: string;
-    dealTypes: string;
-    timelines: string;
+    budgets: {
+      under5k: { label: string; description: string };
+      '5k-10k': { label: string; description: string };
+      '10k-50k': { label: string; description: string };
+      over50k: { label: string; description: string };
+    };
+    dealTypes: {
+      instagramPost: { label: string; description: string };
+      instagramStory: { label: string; description: string };
+      instagramReel: { label: string; description: string };
+      tiktokVideo: { label: string; description: string };
+      youtubeVideo: { label: string; description: string };
+      other: { label: string; description: string };
+    };
+    timelines: {
+      asap: { label: string; description: string };
+      within1Month: { label: string; description: string };
+      within3Months: { label: string; description: string };
+      flexible: { label: string; description: string };
+    };
     otherDealTypeLabel: string;
     otherBudgetCycleLabel: string;
     currency: string;
-    currencies: string;
-    validation: string;
+    currencies: {
+      USD: string;
+      EUR: string;
+      GBP: string;
+      AED: string;
+      SAR: string;
+      KWD: string;
+    };
+    validation: {
+      required: string;
+      invalidUrl: string;
+    };
   };
   dashboard: {
     agentDashboard: string;
@@ -240,6 +267,7 @@ export interface Translations {
       accepted: string;
       declined: string;
       pending: string;
+      openChat: string;
     };
     openChat: string;
     questionSent: string;
