@@ -35,6 +35,9 @@ import MessageComposer from '@/components/messaging/MessageComposer';
 import { initE2EKeys, ensureUserE2EReady } from '@/utils/e2eManager';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 
+// Module-level cache for E2E key verification
+let lastVerifiedUserId: string | null = null;
+
 interface Deal {
   id: string;
   sender_id: string;
@@ -134,8 +137,21 @@ export default function Dashboard() {
     const initializeE2EKeys = async () => {
       if (!user) return;
       
+      // Skip if we already verified this user
+      if (lastVerifiedUserId === user.id) {
+        console.log('[Dashboard] E2E keys already verified for user:', user.id);
+        return;
+      }
+
       try {
-        const hasKeys = await ensureUserE2EReady(user.id);
+        // Add 5 second timeout for E2E initialization
+        const hasKeys = await Promise.race([
+          ensureUserE2EReady(user.id),
+          new Promise<boolean>((_, reject) => 
+            setTimeout(() => reject(new Error('E2E initialization timeout')), 5000)
+          )
+        ]);
+        
         if (!hasKeys) {
           console.log('[Dashboard] E2E keys missing for user, initializing...', user.id);
           await initE2EKeys(user.id);
@@ -143,6 +159,8 @@ export default function Dashboard() {
             console.log('[Dashboard] E2E keys initialized successfully for user:', user.id);
           }
         }
+        // Cache the verified userId
+        lastVerifiedUserId = user.id;
       } catch (error) {
         console.error('[Dashboard] Failed to initialize E2E keys, will retry on next focus:', error);
         // Error is logged, will retry on next window focus
@@ -253,22 +271,44 @@ export default function Dashboard() {
 
       if (error) throw error;
 
+      const messages = (data as any[]) || [];
+      
+      // Collect all unique otherUserIds
+      const otherUserIds = new Set<string>();
+      for (const msg of messages) {
+        const otherUserId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
+        if (otherUserId) {
+          otherUserIds.add(otherUserId);
+        }
+      }
+
+      // Batch fetch all profiles in one query
+      const profilesMap = new Map<string, any>();
+      if (otherUserIds.size > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, display_name, username, avatar_url')
+          .in('id', Array.from(otherUserIds));
+        
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        } else if (profiles) {
+          for (const profile of profiles) {
+            profilesMap.set(profile.id, profile);
+          }
+        }
+      }
+
       const conversationsMap = new Map<string, Conversation>();
       
-      for (const msg of (data as any[]) || []) {
-        // FIX: Use the correct currentUserId (user.id) for determining the other participant
+      for (const msg of messages) {
         const otherUserId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
         if (!otherUserId) continue;
 
         const convId = msg.deal_id || otherUserId;
         
         if (!conversationsMap.has(convId)) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id, display_name, username, avatar_url')
-            .eq('id', otherUserId)
-            .single();
-
+          const profile = profilesMap.get(otherUserId);
           conversationsMap.set(convId, {
             id: convId,
             user_id: otherUserId,
@@ -496,8 +536,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (authLoading || !user) return;
 
-    fetchPendingDeals();
-    fetchConversations();
+    // Run fetchPendingDeals and fetchConversations in parallel
+    Promise.all([fetchPendingDeals(), fetchConversations()]);
 
     const subscription = supabase
       .channel('dashboard-changes')
