@@ -49,7 +49,7 @@ const getStatusConfig = (status: string, isRTL: boolean) => {
   switch (status) {
     case 'accepted':
       return {
-        label: t(isRTL, 'Accepté', 'Accepted'),
+        label: t(isRTL, 'تم القبول', 'Accepted'),
         variant: 'success' as const,
         bg: 'bg-green-100 dark:bg-green-900/30',
         text: 'text-green-700 dark:text-green-400',
@@ -57,7 +57,7 @@ const getStatusConfig = (status: string, isRTL: boolean) => {
       };
     case 'declined':
       return {
-        label: t(isRTL, 'Refusé', 'Declined'),
+        label: t(isRTL, 'تم الرفض', 'Declined'),
         variant: 'destructive' as const,
         bg: 'bg-red-100 dark:bg-red-900/30',
         text: 'text-red-700 dark:text-red-400',
@@ -66,7 +66,7 @@ const getStatusConfig = (status: string, isRTL: boolean) => {
     case 'pending':
     default:
       return {
-        label: t(isRTL, 'En attente', 'Pending'),
+        label: t(isRTL, 'قيد المراجعة', 'Pending'),
         variant: 'secondary' as const,
         bg: 'bg-amber-100 dark:bg-amber-900/30',
         text: 'text-amber-700 dark:text-amber-400',
@@ -78,33 +78,33 @@ const getStatusConfig = (status: string, isRTL: boolean) => {
 const getDealTypeConfig = (type: string | null, isRTL: boolean) => {
   const types: Record<string, { label: string; color: string; description: string }> = {
     sponsorship: { 
-      label: t(isRTL, 'Sponsoring', 'Sponsorship'), 
-      description: t(isRTL, 'Sponsoring de marque ou événement', 'Brand or event sponsorship'),
+      label: t(isRTL, 'رعاية', 'Sponsorship'), 
+      description: t(isRTL, 'رعاية علامة تجارية أو حدث', 'Brand or event sponsorship'),
       color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' 
     },
     appearance: { 
-      label: t(isRTL, 'Apparition', 'Brand Appearance'), 
-      description: t(isRTL, 'Apparition dans une publicité ou campagne', 'Appearance in ad or campaign'),
+      label: t(isRTL, 'ظهور إعلاني', 'Brand Appearance'), 
+      description: t(isRTL, 'ظهور في إعلان أو حملة', 'Appearance in ad or campaign'),
       color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800' 
     },
     event: { 
-      label: t(isRTL, 'Événement', 'Event Attendance'), 
-      description: t(isRTL, 'Participation à un événement ou conférence', 'Attend event or conference'),
+      label: t(isRTL, 'حضور فعالية', 'Event Attendance'), 
+      description: t(isRTL, 'حضور حدث أو مؤتمر', 'Attend event or conference'),
       color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' 
     },
     collab: { 
-      label: t(isRTL, 'Collaboration', 'Content Collab'), 
-      description: t(isRTL, 'Création de contenu conjoint', 'Create joint content'),
+      label: t(isRTL, 'تعاون محتوى', 'Content Collab'), 
+      description: t(isRTL, 'إنشاء محتوى مشترك', 'Create joint content'),
       color: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-800' 
     },
     endorsement: { 
-      label: t(isRTL, 'Endorsement', 'Product Endorsement'), 
-      description: t(isRTL, 'Promotion d\'un produit ou service', 'Promote product or service'),
+      label: t(isRTL, 'ترويج منتج', 'Product Endorsement'), 
+      description: t(isRTL, 'ترويج منتج أو خدمة', 'Promote product or service'),
       color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800' 
     },
     other: { 
-      label: t(isRTL, 'Autre', 'Other'), 
-      description: t(isRTL, 'Autre type d\'offre', 'Other deal type'),
+      label: t(isRTL, 'أخرى', 'Other'), 
+      description: t(isRTL, 'نوع عرض آخر', 'Other deal type'),
       color: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' 
     },
   };
@@ -220,7 +220,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
           <div className="flex items-center gap-2 flex-wrap">
             <Building2 className="h-5 w-5 text-muted-foreground shrink-0" />
             <h3 className="font-semibold text-lg text-foreground truncate">
-              {deal.company_name || t(isRTL, 'Non spécifié', 'Not specified')}
+              {deal.company_name || t(isRTL, 'غير محدد', 'Not specified')}
             </h3>
             <Badge 
               variant="outline" 
@@ -245,7 +245,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         {/* Budget Range */}
         {deal.budget_range && (
           <FieldRow 
-            label={t(isRTL, 'Budget', 'Budget')} 
+            label={t(isRTL, 'الميزانية', 'Budget')} 
             icon={DollarSign}
           >
             <span className="font-semibold text-primary">{deal.budget_range}</span>
@@ -255,7 +255,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         {/* Budget Cycle */}
         {deal.budget_cycle && (
           <FieldRow 
-            label={t(isRTL, 'Cycle budgétaire', 'Budget Cycle')} 
+            label={t(isRTL, 'دورة الميزانية', 'Budget Cycle')} 
             icon={Calendar}
           >
             {deal.budget_cycle}
@@ -265,7 +265,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         {/* Timeline */}
         {deal.timeline && (
           <FieldRow 
-            label={t(isRTL, 'Timeline', 'Timeline')} 
+            label={t(isRTL, 'الجدول الزمني', 'Timeline')} 
             icon={Calendar}
           >
             {deal.timeline}
@@ -277,7 +277,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         {/* Website URL */}
         {deal.website_url && (
           <FieldRow 
-            label={t(isRTL, 'Site web', 'Website')} 
+            label={t(isRTL, 'الموقع الإلكتروني', 'Website')} 
             icon={Globe}
           >
             <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
@@ -289,7 +289,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         {/* Exclusivity */}
         {deal.exclusivity && (
           <FieldRow 
-            label={t(isRTL, 'Exclusivité', 'Exclusivity')} 
+            label={t(isRTL, 'الحصرية', 'Exclusivity')} 
             icon={Shield}
           >
             {deal.exclusivity}
@@ -299,7 +299,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         {/* Deliverables */}
         {deal.deliverables && (
           <FieldRow 
-            label={t(isRTL, 'Livrables', 'Deliverables')} 
+            label={t(isRTL, 'المخرجات', 'Deliverables')} 
             icon={FileText}
           >
             {deal.deliverables}
@@ -309,7 +309,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
         {/* Why Them */}
         {deal.why_them && (
           <FieldRow 
-            label={t(isRTL, 'Pourquoi eux', 'Why Them')} 
+            label={t(isRTL, 'لماذا هم', 'Why Them')} 
             icon={UserCheck}
           >
             {deal.why_them}
@@ -321,7 +321,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
           <>
             <SectionDivider />
             <FieldRow 
-              label={t(isRTL, 'Description', 'Description')} 
+              label={t(isRTL, 'الوصف', 'Description')} 
               icon={FileText}
             >
               {deal.details}
@@ -337,14 +337,14 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
           className={cn('w-full sm:w-auto h-11 rounded-xl font-semibold text-sm touch-feedback', 'bg-primary text-primary-foreground hover:bg-primary/90')}
           onClick={onToggleDetails}
         >
-          {showDetails ? t(isRTL, 'Masquer les détails', 'Hide details') : t(isRTL, 'Voir les détails', 'View details')}
+          {showDetails ? t(isRTL, 'إخفاء التفاصيل', 'Hide details') : t(isRTL, 'إظهار التفاصيل', 'View details')}
         </Button>
         
         <Button
           variant="outline"
           className={cn('w-full sm:w-auto h-11 rounded-xl font-semibold text-sm touch-feedback', 'border border-border bg-background hover:bg-muted/50')}
         >
-          {t(isRTL, 'Répondre', 'Reply')}
+          {t(isRTL, 'رد', 'Reply')}
         </Button>
       </div>
     </div>
