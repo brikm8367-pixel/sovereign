@@ -4,16 +4,35 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { DealCardInline } from '@/components/deals/DealCardInline';
 import { BottomNavigation } from '@/components/BottomNavigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Building2, DollarSign, Calendar, Globe, FileText, Shield, UserCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+interface Deal {
+  id: string;
+  deal_type: string | null;
+  company_name: string | null;
+  budget_range: string | null;
+  budget_cycle: string | null;
+  timeline: string | null;
+  details: string | null;
+  website_url: string | null;
+  exclusivity: string | null;
+  deliverables: string | null;
+  why_them: string | null;
+  status: string;
+  celebrity_id: string | null;
+  sender_id: string | null;
+}
 
 export default function OffersPage() {
   const { user, loading } = useAuth();
   const { role } = useRole();
   const { isRTL } = useLanguage();
   const navigate = useNavigate();
-  const [deals, setDeals] = useState<any[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDetails, setShowDetails] = useState<Record<string, boolean>>({});
 
@@ -78,6 +97,89 @@ export default function OffersPage() {
 
   const t = (ar: string, en: string) => (isRTL ? ar : en);
 
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case 'accepted':
+        return {
+          label: t('تم القبول', 'Accepted'),
+          bg: 'bg-green-100 dark:bg-green-900/30',
+          text: 'text-green-700 dark:text-green-400',
+          border: 'border-green-200 dark:border-green-800',
+        };
+      case 'declined':
+        return {
+          label: t('تم الرفض', 'Declined'),
+          bg: 'bg-red-100 dark:bg-red-900/30',
+          text: 'text-red-700 dark:text-red-400',
+          border: 'border-red-200 dark:border-red-800',
+        };
+      case 'pending':
+      default:
+        return {
+          label: t('قيد المراجعة', 'Pending'),
+          bg: 'bg-amber-100 dark:bg-amber-900/30',
+          text: 'text-amber-700 dark:text-amber-400',
+          border: 'border-amber-200 dark:border-amber-800',
+        };
+    }
+  };
+
+  const getDealTypeConfig = (type: string | null) => {
+    const types: Record<string, { label: string; color: string }> = {
+      sponsorship: { 
+        label: t('رعاية', 'Sponsorship'), 
+        color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' 
+      },
+      appearance: { 
+        label: t('ظهور إعلاني', 'Brand Appearance'), 
+        color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800' 
+      },
+      event: { 
+        label: t('حضور فعالية', 'Event Attendance'), 
+        color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' 
+      },
+      collab: { 
+        label: t('تعاون محتوى', 'Content Collab'), 
+        color: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-800' 
+      },
+      endorsement: { 
+        label: t('ترويج منتج', 'Product Endorsement'), 
+        color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800' 
+      },
+      other: { 
+        label: t('أخرى', 'Other'), 
+        color: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' 
+      },
+    };
+    return types[type || 'other'] || types.other;
+  };
+
+  function FieldRow({ 
+    label, 
+    children, 
+    icon: Icon,
+    className = '' 
+  }: { 
+    label: string; 
+    children: React.ReactNode; 
+    icon?: React.ComponentType<{ className?: string }>;
+    className?: string 
+  }) {
+    return (
+      <div className={cn('space-y-1', className)}>
+        <div className="flex items-center gap-1.5">
+          {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{label}</p>
+        </div>
+        <div className="text-sm font-medium text-foreground whitespace-pre-wrap break-words pl-5">{children}</div>
+      </div>
+    );
+  }
+
+  function SectionDivider() {
+    return <div className="border-t border-border/50 my-3" />;
+  }
+
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
       <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
@@ -110,17 +212,153 @@ export default function OffersPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {deals.map((deal) => (
-                <div key={deal.id} className="bg-card rounded-2xl border border-border p-5 shadow-sm">
-                  <DealCardInline 
-                    dealId={deal.id} 
-                    isRTL={isRTL} 
-                    onToggleDetails={() => setShowDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
-                    showDetails={showDetails[deal.id] || false}
-                    showStatusBadge={true}
-                  />
-                </div>
-              ))}
+              {deals.map((deal) => {
+                const statusConfig = getStatusConfig(deal.status);
+                const dealTypeConfig = getDealTypeConfig(deal.deal_type);
+                const isExpanded = showDetails[deal.id] || false;
+
+                return (
+                  <div 
+                    key={deal.id} 
+                    className="rounded-2xl border border-border bg-card shadow-sm hover:shadow-md transition-shadow p-5"
+                  >
+                    {/* Header Section */}
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Building2 className="h-5 w-5 text-muted-foreground shrink-0" />
+                          <h3 className="font-semibold text-lg text-foreground truncate">
+                            {deal.company_name || t('غير محدد', 'Not specified')}
+                          </h3>
+                          <Badge 
+                            variant="outline" 
+                            className={cn('rounded-full px-2.5 py-1 text-xs font-medium h-5', dealTypeConfig.color)}
+                          >
+                            {dealTypeConfig.label}
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      {/* Prominent Status Badge */}
+                      <Badge 
+                        variant="outline" 
+                        className={cn('rounded-full px-3 py-1.5 text-xs font-semibold h-7 shrink-0', statusConfig.bg, statusConfig.text, statusConfig.border)}
+                      >
+                        {statusConfig.label}
+                      </Badge>
+                    </div>
+
+                    {/* Main Details Section */}
+                    <div className="space-y-4">
+                      {/* Budget Range */}
+                      {deal.budget_range && (
+                        <FieldRow 
+                          label={t('الميزانية', 'Budget')} 
+                          icon={DollarSign}
+                        >
+                          <span className="font-semibold text-primary">{deal.budget_range}</span>
+                        </FieldRow>
+                      )}
+
+                      {/* Budget Cycle */}
+                      {deal.budget_cycle && (
+                        <FieldRow 
+                          label={t('دورة الميزانية', 'Budget Cycle')} 
+                          icon={Calendar}
+                        >
+                          {deal.budget_cycle}
+                        </FieldRow>
+                      )}
+
+                      {/* Timeline */}
+                      {deal.timeline && (
+                        <FieldRow 
+                          label={t('الجدول الزمني', 'Timeline')} 
+                          icon={Calendar}
+                        >
+                          {deal.timeline}
+                        </FieldRow>
+                      )}
+
+                      <SectionDivider />
+
+                      {/* Website URL */}
+                      {deal.website_url && (
+                        <FieldRow 
+                          label={t('الموقع الإلكتروني', 'Website')} 
+                          icon={Globe}
+                        >
+                          <a href={deal.website_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                            {deal.website_url}
+                          </a>
+                        </FieldRow>
+                      )}
+
+                      {/* Exclusivity */}
+                      {deal.exclusivity && (
+                        <FieldRow 
+                          label={t('الحصرية', 'Exclusivity')} 
+                          icon={Shield}
+                        >
+                          {deal.exclusivity}
+                        </FieldRow>
+                      )}
+
+                      {/* Deliverables */}
+                      {deal.deliverables && (
+                        <FieldRow 
+                          label={t('المخرجات', 'Deliverables')} 
+                          icon={FileText}
+                        >
+                          {deal.deliverables}
+                        </FieldRow>
+                      )}
+
+                      {/* Why Them */}
+                      {deal.why_them && (
+                        <FieldRow 
+                          label={t('لماذا هم', 'Why Them')} 
+                          icon={UserCheck}
+                        >
+                          {deal.why_them}
+                        </FieldRow>
+                      )}
+
+                      {/* Description / Pitch */}
+                      {deal.details && (
+                        <>
+                          <SectionDivider />
+                          <FieldRow 
+                            label={t('الوصف', 'Description')} 
+                            icon={FileText}
+                          >
+                            {deal.details}
+                          </FieldRow>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Action Buttons Section */}
+                    <div className="mt-5 pt-4 border-t border-border/50 space-y-2">
+                      <Button
+                        variant="default"
+                        className={cn('w-full sm:w-auto h-11 rounded-xl font-semibold text-sm touch-feedback', 'bg-primary text-primary-foreground hover:bg-primary/90')}
+                        onClick={() => setShowDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
+                      >
+                        {isExpanded ? t('إخفاء التفاصيل', 'Hide details') : t('إظهار التفاصيل', 'View details')}
+                        {isExpanded ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        className={cn('w-full sm:w-auto h-11 rounded-xl font-semibold text-sm touch-feedback', 'border border-border bg-background hover:bg-muted/50')}
+                      >
+                        {t('تواصل', 'Contact')}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
