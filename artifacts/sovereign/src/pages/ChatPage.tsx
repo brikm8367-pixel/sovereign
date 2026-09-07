@@ -752,13 +752,97 @@ export default function ChatPage() {
 
   const displayProfile = getDisplayProfile();
 
-  if (!user) {
+  // ===== CONTEXT-AWARE HEADER LOGIC =====
+  const getHeaderContext = () => {
+    const tLocal = (ar: string, en: string) => isRTL ? ar : en;
+    
+    // Company sender role
+    if (role === 'company' || (user && deal && deal.sender_id === user.id)) {
+      // Check if recipient is agent (manager) or talent based on message sender_role
+      const hasAgentMessage = messages.some(m => m.sender_role === 'manager' && m.sender_id !== user.id);
+      const recipientRoleBadge = hasAgentMessage 
+        ? tLocal('وكيل', 'Agent') 
+        : tLocal('موهبة', 'Talent');
+      
+      return (
+        <div className="text-start min-w-0">
+          <p className="font-semibold text-base truncate">
+            {displayProfile?.display_name || displayProfile?.username || t.dashboard.loading}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-muted-foreground">{tLocal('أنت تراسل', 'You are messaging')}</p>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+              {recipientRoleBadge}
+            </span>
+          </div>
+          {displayProfile?.username && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">@{displayProfile.username}</p>
+          )}
+        </div>
+      );
+    }
+    
+    // Agent manager role
+    if (role === 'manager' && managedCelebrityId) {
+      const celebrityName = managedCelebrityProfiles.get(managedCelebrityId)?.display_name || tLocal('الموهبة', 'Talent');
+      const companyName = deal?.company_name || recipient?.display_name || tLocal('الشركة', 'Company');
+      
+      return (
+        <div className="text-start min-w-0">
+          <p className="font-semibold text-base truncate">
+            {celebrityName}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+              <UserCheck className="h-2.5 w-2.5" />
+              {tLocal('وكيل مفوض', 'Authorized Agent')}
+            </span>
+            <p className="text-[11px] text-muted-foreground">{tLocal('تمثل', 'representing')}</p>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{tLocal('تراسل', 'messaging')} {companyName}</p>
+        </div>
+      );
+    }
+    
+    // Talent celebrity role (Ask Talent)
+    if (role === 'celebrity' || (user && deal && deal.celebrity_id === user.id)) {
+      // Find agent name from messages (sender_role === 'manager')
+      const agentMessage = messages.find(m => m.sender_role === 'manager' && m.sender_id !== user.id);
+      const agentName = agentMessage?.managed_celebrity_id 
+        ? managedCelebrityProfiles.get(agentMessage.managed_celebrity_id)?.display_name 
+        : (recipient?.display_name || tLocal('الوكيل', 'Agent'));
+      const companyName = deal?.company_name || tLocal('الشركة', 'Company');
+      
+      return (
+        <div className="text-start min-w-0">
+          <p className="font-semibold text-base truncate">
+            {tLocal('وكيلك', 'Your agent')} {agentName}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <p className="text-[11px] text-muted-foreground">{tLocal('يتحدث مع', 'talking to')}</p>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+              {companyName}
+            </span>
+            <span className="text-[10px] text-muted-foreground/70">{tLocal('عبر وكيلك', 'via your agent')}</span>
+          </div>
+        </div>
+      );
+    }
+    
+    // Fallback to original display
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center" dir={isRTL ? 'rtl' : 'ltr'}>
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="text-start min-w-0">
+        <p className="font-semibold text-base truncate">
+          {displayProfile?.display_name || displayProfile?.username || t.dashboard.loading}
+        </p>
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+          {displayProfile?.username ? `@${displayProfile.username}` : ''}
+          <Shield className="h-3 w-3 text-emerald-500 inline" />
+          <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
+        </p>
       </div>
     );
-  }
+  };
 
   const isDealAccepted = deal && deal.status === 'accepted';
 
@@ -783,39 +867,16 @@ export default function ChatPage() {
                 {displayProfile?.display_name?.[0] || <User className="h-4 w-4" />}
               </AvatarFallback>
             </Avatar>
-            <div className="text-start min-w-0">
-              <p className="font-semibold text-base truncate">
-                {displayProfile?.display_name || displayProfile?.username || t.dashboard.loading}
-              </p>
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                {displayProfile?.username && `@${displayProfile.username}`}
-                <Shield className="h-3 w-3 text-emerald-500 inline" />
-                <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
-              </p>
-              {/* Show agent badge in header when conversation partner is a manager */}
-              {messages.length > 0 && messages.some(m => m.sender_role === 'manager' && m.sender_id !== user.id && m.managed_celebrity_id) && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                    <UserCheck className="h-2.5 w-2.5" />
-                    {t.dashboard.authorizedAgent}
-                  </span>
-                  {messages.some(m => m.managed_celebrity_id) && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {t.dashboard.represents} {messages.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(messages.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
-                    </span>
-                  )}
-                </div>
-              )}
-              {/* Deal status badge in header when deal is accepted */}
-              {isDealAccepted && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                    <CheckCheck className="h-2.5 w-2.5" />
-                    {t.dashboard.status.accepted}
-                  </span>
-                </div>
-              )}
-            </div>
+            {getHeaderContext()}
+            {/* Deal status badge in header when deal is accepted */}
+            {isDealAccepted && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                  <CheckCheck className="h-2.5 w-2.5" />
+                  {t.dashboard.status.accepted}
+                </span>
+              </div>
+            )}
           </button>
           <Button
             variant="ghost"

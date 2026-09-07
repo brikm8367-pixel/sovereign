@@ -18,6 +18,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { DealCardInline } from '@/components/deals/DealCardInline';
 
 interface ConversationViewProps {
   message: Message | null;
@@ -110,6 +111,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
   const [editContent, setEditContent] = useState('');
   const [showDisappear, setShowDisappear] = useState(false);
   const [disappearTimer, setDisappearTimer] = useState<number | null>(null);
+  const [showDealDetails, setShowDealDetails] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -623,6 +625,94 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
 
   const t = (ar: string, en: string) => (isRTL ? ar : en);
 
+  // ===== CONTEXT-AWARE HEADER LOGIC =====
+  const getHeaderContext = () => {
+    const tLocal = (ar: string, en: string) => isRTL ? ar : en;
+    
+    // Company sender role
+    if (role === 'company' || (user && deal && deal.sender_id === user.id)) {
+      // Check if recipient is agent (manager) or talent based on message sender_role
+      const hasAgentMessage = thread.some(m => m.sender_role === 'manager' && m.sender_id !== user.id);
+      const recipientRoleBadge = hasAgentMessage 
+        ? tLocal('وكيل', 'Agent') 
+        : tLocal('موهبة', 'Talent');
+      
+      return (
+        <div className="text-start min-w-0">
+          <p className="font-semibold text-base truncate leading-tight">{otherName}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-muted-foreground">{tLocal('أنت تراسل', 'You are messaging')}</p>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+              {recipientRoleBadge}
+            </span>
+          </div>
+          {senderProfile?.username && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">@{senderProfile.username}</p>
+          )}
+        </div>
+      );
+    }
+    
+    // Agent manager role
+    if (role === 'manager' && managedCelebrityId) {
+      const celebrityName = managedCelebrityProfiles.get(managedCelebrityId)?.display_name || tLocal('الموهبة', 'Talent');
+      const companyName = deal?.company_name || otherName || tLocal('الشركة', 'Company');
+      
+      return (
+        <div className="text-start min-w-0">
+          <p className="font-semibold text-base truncate leading-tight">
+            {celebrityName}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+              <UserCheck className="h-2.5 w-2.5" />
+              {tLocal('وكيل مفوض', 'Authorized Agent')}
+            </span>
+            <p className="text-[11px] text-muted-foreground">{tLocal('تمثل', 'representing')}</p>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{tLocal('تراسل', 'messaging')} {companyName}</p>
+        </div>
+      );
+    }
+    
+    // Talent celebrity role (Ask Talent)
+    if (role === 'celebrity' || (user && deal && deal.celebrity_id === user.id)) {
+      // Find agent name from messages (sender_role === 'manager')
+      const agentMessage = thread.find(m => m.sender_role === 'manager' && m.sender_id !== user.id);
+      const agentName = agentMessage?.managed_celebrity_id 
+        ? managedCelebrityProfiles.get(agentMessage.managed_celebrity_id)?.display_name 
+        : (otherName || tLocal('الوكيل', 'Agent'));
+      const companyName = deal?.company_name || tLocal('الشركة', 'Company');
+      
+      return (
+        <div className="text-start min-w-0">
+          <p className="font-semibold text-base truncate leading-tight">
+            {tLocal('وكيلك', 'Your agent')} {agentName}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <p className="text-[11px] text-muted-foreground">{tLocal('يتحدث مع', 'talking to')}</p>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+              {companyName}
+            </span>
+            <span className="text-[10px] text-muted-foreground/70">{tLocal('عبر وكيلك', 'via your agent')}</span>
+          </div>
+        </div>
+      );
+    }
+    
+    // Fallback to original display
+    return (
+      <div className="text-start min-w-0">
+        <p className="font-semibold text-base truncate leading-tight">{otherName}</p>
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+          {senderProfile?.username ? `@${senderProfile.username}` : ''}
+          <Shield className="h-3 w-3 text-emerald-500 inline" />
+          <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
+        </p>
+      </div>
+    );
+  };
+
   return (
     <>
     <Dialog open={isOpen} onOpenChange={() => { setContextMenu(null); onClose(); }}>
@@ -642,41 +732,16 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                 {otherName[0] || <User className="h-4 w-4" />}
               </AvatarFallback>
             </Avatar>
-            <div className="text-start min-w-0">
-              <p className="font-semibold text-base truncate leading-tight">{otherName}</p>
-              {isTyping ? (
-                <p className="text-xs text-primary font-medium animate-pulse">{isRTL ? 'يكتب...' : 'typing...'}</p>
-              ) : (
-                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                  {senderProfile?.username ? `@${senderProfile.username}` : ''}
-                  <Shield className="h-3 w-3 text-emerald-500 inline" />
-                  <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">E2E</span>
-                </p>
-              )}
-              {/* Show agent badge in header when conversation partner is a manager */}
-              {thread.some(m => m.sender_role === 'manager' && m.sender_id !== user.id && m.managed_celebrity_id) && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                    <UserCheck className="h-2.5 w-2.5" />
-                    {t('وكيل مفوض', 'Authorized Agent')}
-                  </span>
-                  {thread.some(m => m.managed_celebrity_id) && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {t('يمثل', 'represents')} {thread.find(m => m.managed_celebrity_id)?.managed_celebrity_id && managedCelebrityProfiles.get(thread.find(m => m.managed_celebrity_id)!.managed_celebrity_id!)?.display_name || '...'}
-                    </span>
-                  )}
-                </div>
-              )}
-              {/* Deal status badge in header when deal is accepted */}
-              {isDealAccepted && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                    <CheckCheck className="h-2.5 w-2.5" />
-                    {t('تم قبول العرض', 'Deal Accepted')}
-                  </span>
-                </div>
-              )}
-            </div>
+            {getHeaderContext()}
+            {/* Deal status badge in header when deal is accepted */}
+            {isDealAccepted && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                  <CheckCheck className="h-2.5 w-2.5" />
+                  {t('تم قبول العرض', 'Deal Accepted')}
+                </span>
+              </div>
+            )}
           </button>
           <div className="flex items-center gap-0.5 shrink-0">
             {/* Disappearing messages toggle */}
