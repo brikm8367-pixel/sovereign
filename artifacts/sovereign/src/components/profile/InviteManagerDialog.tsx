@@ -104,20 +104,16 @@ export function InviteManagerDialog({ open, onOpenChange }: Props) {
 
   const handleShare = async () => {
     if (!invite) return;
-    const shareText = isRTL 
-      ? `دعوة لإدارة صندوق العمل. الرابط: ${inviteLink} الكود: ${invite.code}` 
-      : `Manager invitation. Link: ${inviteLink} Code: ${invite.code}`;
     
     try {
       if (navigator.share) {
         await navigator.share({ 
           title: 'Sovereign', 
-          text: shareText, 
           url: inviteLink 
         });
       } else {
-        await navigator.clipboard.writeText(`${shareText}`);
-        toast.success(isRTL ? 'تم نسخ الرابط والكود' : 'Link and code copied');
+        await navigator.clipboard.writeText(inviteLink);
+        toast.success(isRTL ? 'تم نسخ الرابط' : 'Link copied');
       }
       setCopiedLink(true); 
       setTimeout(() => setCopiedLink(false), 2000);

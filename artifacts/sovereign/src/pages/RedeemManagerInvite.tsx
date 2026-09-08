@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Input } from '@/components/ui/input';
 import { Crown, Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -101,15 +101,15 @@ export default function RedeemManagerInvite() {
           </div>
         ) : (
           <>
-            <div className="flex justify-center" dir="ltr">
-              <InputOTP maxLength={8} value={code} onChange={(v) => setCode(v.toUpperCase())}>
-                <InputOTPGroup>
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <InputOTPSlot key={i} index={i} className="w-9 h-11 text-base font-mono" />
-                  ))}
-                </InputOTPGroup>
-              </InputOTP>
-            </div>
+            <Input
+              type="text"
+              maxLength={8}
+              autoCapitalize="characters"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              className="w-full text-center text-2xl font-mono tracking-widest"
+              placeholder={isRTL ? 'أدخل الكود' : 'Enter code'}
+            />
             <Button onClick={redeem} disabled={joining || loading} className="w-full h-12 rounded-2xl">
               {joining ? <Loader2 className="h-5 w-5 animate-spin" /> : isRTL ? 'تأكيد وأصبحت وكيلاً' : 'Accept & Become Manager'}
             </Button>
