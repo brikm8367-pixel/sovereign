@@ -108,25 +108,17 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
       if (error) throw error;
     });
 
-    // Backwards compatibility: ensure profiles.public_key has *some* key so older
-    // recipients (that read profiles.public_key) can still encrypt to us.
-    // Only set if profile currently has no public_key — do not overwrite existing.
+    // Backwards compatibility: ensure profiles.public_key has the current device's public key
+    // so older recipients (that read profiles.public_key) can still encrypt to us.
+    // Always update to the latest key to avoid stale keys causing decryption failures.
     await withRetry(async () => {
-      const { data: profile } = await supabase
+      const { error } = await supabase
         .from('profiles')
-        .select('public_key')
-        .eq('id', userId)
-        .single();
-      
-      if (!profile?.public_key) {
-        const { error } = await supabase
-          .from('profiles')
-          .upsert(
-            { id: userId, public_key: keys!.publicKey },
-            { onConflict: 'id' }
-          );
-        if (error) throw error;
-      }
+        .upsert(
+          { id: userId, public_key: keys!.publicKey },
+          { onConflict: 'id' }
+        );
+      if (error) throw error;
     });
 
     // Restore cloud sessions if password is provided
@@ -213,14 +205,7 @@ async function restoreCloudSessions(userId: string, password: string) {
 // Returns null if no key exists — caller must handle this (no auto-provisioning).
 export async function getRecipientPublicKey(recipientId: string): Promise<string | null> {
   try {
-    // First check profiles.public_key
-    const { data: profile } = await supabase.from('profiles').select('public_key').eq('id', recipientId).single();
-    if (profile?.public_key) return profile.public_key;
-  } catch (err) {
-    console.warn('[E2E] getRecipientPublicKey profiles query failed', err);
-  }
-  try {
-    // Fallback to device_keys
+    // First check device_keys (most recent device)
     const result = (await withRetry(() =>
       (supabase as any)
         .from('device_keys')
@@ -234,6 +219,13 @@ export async function getRecipientPublicKey(recipientId: string): Promise<string
     if (result?.data?.public_key) return result.data.public_key;
   } catch (err) {
     console.warn('[E2E] getRecipientPublicKey device_keys query failed', err);
+  }
+  try {
+    // Fallback to profiles.public_key
+    const { data: profile } = await supabase.from('profiles').select('public_key').eq('id', recipientId).single();
+    if (profile?.public_key) return profile.public_key;
+  } catch (err) {
+    console.warn('[E2E] getRecipientPublicKey profiles query failed', err);
   }
   return null;
 }
