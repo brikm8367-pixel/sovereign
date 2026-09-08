@@ -67,6 +67,39 @@ export function useDealCards(celebrityId?: string | null) {
   const updateStatus = async (id: string, status: DealStatus) => {
     const { error } = await supabase.from('deal_cards').update({ status }).eq('id', id);
     if (error) throw error;
+    
+    // Fetch the deal card to get celebrity_id, sender_id, and deal_type for notification
+    const { data: dealCard, error: fetchError } = await supabase
+      .from('deal_cards')
+      .select('celebrity_id, sender_id, deal_type')
+      .eq('id', id)
+      .single();
+    
+    if (!fetchError && dealCard && user) {
+      // Check if current user is a manager acting on behalf of a celebrity
+      // (user.id !== celebrityId means the user is not the celebrity themselves)
+      if (user.id !== dealCard.celebrity_id) {
+        // User is a manager acting for the celebrity
+        const statusLabels: Record<string, string> = {
+          accepted: 'مقبول',
+          declined: 'مرفوض',
+          countered: 'عرض مضاد',
+        };
+        const statusLabel = statusLabels[status] || status;
+        
+        await supabase.from('messages').insert({
+          sender_id: user.id,
+          receiver_id: dealCard.celebrity_id,
+          category: 'work',
+          subject: 'قرار وكيل بخصوص عرض',
+          content: `تم ${statusLabel} العرض: ${dealCard.deal_type}`,
+          sender_role: 'manager',
+          managed_celebrity_id: dealCard.celebrity_id,
+          deal_id: id,
+        });
+      }
+    }
+    
     await load();
   };
 
