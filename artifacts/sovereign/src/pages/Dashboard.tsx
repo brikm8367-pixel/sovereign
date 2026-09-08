@@ -263,7 +263,7 @@ export default function Dashboard() {
 
       let query = supabase
         .from('messages')
-        .select('*')
+        .select('*, deal_cards!messages_deal_id_fkey(status)')
         .eq('category', 'work')
         .order('created_at', { ascending: false })
         .limit(50); // Limit to 50 most recent messages per conversation
@@ -313,6 +313,8 @@ export default function Dashboard() {
         
         if (!conversationsMap.has(convId)) {
           const profile = profilesMap.get(otherUserId);
+          // Get deal_status from the joined deal_cards table
+          const dealStatus = msg.deal_cards?.status || msg.deal_status || null;
           conversationsMap.set(convId, {
             id: convId,
             user_id: otherUserId,
@@ -325,7 +327,7 @@ export default function Dashboard() {
             deal_id: msg.deal_id || null,
             category: msg.category || 'work',
             sender_role: msg.sender_role || null,
-            deal_status: msg.deal_status || null
+            deal_status: dealStatus
           });
         } else {
           const existing = conversationsMap.get(convId)!;
@@ -334,7 +336,9 @@ export default function Dashboard() {
             existing.last_message_time = msg.created_at;
             // Update sender_role and deal_status from latest message
             existing.sender_role = msg.sender_role || null;
-            existing.deal_status = msg.deal_status || null;
+            // Get deal_status from the joined deal_cards table
+            const dealStatus = msg.deal_cards?.status || msg.deal_status || null;
+            existing.deal_status = dealStatus;
           }
           // FIX: Check unread against currentUserId (user.id)
           if (!msg.is_read && msg.receiver_id === currentUserId) {
