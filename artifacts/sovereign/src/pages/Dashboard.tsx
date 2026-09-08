@@ -148,11 +148,11 @@ export default function Dashboard() {
       }
 
       try {
-        // Add 5 second timeout for E2E initialization
+        // Add 2 second timeout for E2E initialization (reduced from 5000ms)
         const hasKeys = await Promise.race([
           ensureUserE2EReady(user.id),
           new Promise<boolean>((_, reject) => 
-            setTimeout(() => reject(new Error('E2E initialization timeout')), 5000)
+            setTimeout(() => reject(new Error('E2E initialization timeout')), 2000)
           )
         ]);
         
@@ -171,8 +171,19 @@ export default function Dashboard() {
       }
     };
 
-    // Run on mount
-    initializeE2EKeys();
+    // Run on mount - deferred to after initial render and data fetch
+    const runDeferred = () => {
+      if (mounted && user) {
+        initializeE2EKeys();
+      }
+    };
+
+    // Use requestIdleCallback if available, otherwise setTimeout with 0 delay
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(runDeferred, { timeout: 2000 });
+    } else {
+      setTimeout(runDeferred, 0);
+    }
 
     // Also run on window focus to retry if previous attempt failed
     const handleFocus = () => {
