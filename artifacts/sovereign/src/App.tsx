@@ -110,12 +110,35 @@ const App = () => {
 
   const { updateServiceWorker } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
-      // Check for updates when user returns to the app
-      document.addEventListener('visibilitychange', () => {
+      // Check for updates when user returns to the app (visibility change)
+      const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible' && r) {
           r.update();
         }
-      });
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      // Check for updates when window regains focus
+      const handleFocus = () => {
+        if (r) {
+          r.update();
+        }
+      };
+      window.addEventListener('focus', handleFocus);
+
+      // Periodic check for updates every 5 minutes (300,000 ms)
+      const intervalId = setInterval(() => {
+        if (r) {
+          r.update();
+        }
+      }, 5 * 60 * 1000);
+
+      // Cleanup function
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleFocus);
+        clearInterval(intervalId);
+      };
     },
     onNeedRefresh() {
       // Show the update prompt when a new version is detected
