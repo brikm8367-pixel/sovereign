@@ -265,6 +265,7 @@ export default function Dashboard() {
         .from('messages')
         .select('*, deal_cards!messages_deal_id_fkey(status)')
         .eq('category', 'work')
+        .not('deal_cards.status', 'eq', 'declined')
         .order('created_at', { ascending: false })
         .limit(50); // Limit to 50 most recent messages per conversation
 

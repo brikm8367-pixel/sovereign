@@ -202,7 +202,7 @@ function DealRow({
           <div className="flex gap-2 pt-1">
             <Button size="sm" className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-semibold"
               onClick={() => onStatus(deal.id, 'accepted')}>
-              <Check className="h-3.5 w-3.5 me-1" />{isRTL ? 'قبول' : 'Accept'}
+              <Check className="h-3.5 w-3.5 me-1" />{isRTL ? 'بدء التفاوض' : 'Start Negotiation'}
             </Button>
             <Button size="sm" variant="outline" className="flex-1 h-9 rounded-xl font-semibold"
               onClick={() => onStatus(deal.id, 'countered')}>
@@ -254,7 +254,7 @@ function DealRow({
             <div className="flex gap-2 pt-1">
               <Button size="sm" className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-semibold"
                 onClick={() => onStatus(deal.id, 'accepted')}>
-                <Check className="h-3.5 w-3.5 me-1" />{isRTL ? 'قبول' : 'Accept'}
+                <Check className="h-3.5 w-3.5 me-1" />{isRTL ? 'بدء التفاوض' : 'Start Negotiation'}
               </Button>
               <Button size="sm" variant="outline" className="flex-1 h-9 rounded-xl font-semibold"
                 onClick={() => onStatus(deal.id, 'countered')}>
