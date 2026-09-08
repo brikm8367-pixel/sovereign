@@ -193,6 +193,9 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
   const { user } = useAuth();
   const { isRTL } = useLanguage();
 
+  // Helper function for inline translations
+  const translate = (arText: string, enText: string) => isRTL ? arText : enText;
+
   // Form state
   const [dealType,          setDealType]         = useState('');
   const [budget,            setBudget]            = useState('');
@@ -236,12 +239,12 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
   const submit = async () => {
     if (!user) return;
-    if (!dealType) { toast.error(isRTL ? 'اختر نوع العرض' : 'Choose a deal type'); return; }
-    if (!budget)   { toast.error(isRTL ? 'حدد الميزانية' : 'Specify the budget'); return; }
-    if (!companyName.trim()) { toast.error(isRTL ? 'أدخل اسم الشركة' : 'Enter company name'); return; }
-    if (!websiteUrl.trim()) { toast.error(isRTL ? 'أدخل الموقع الإلكتروني' : 'Enter website URL'); return; }
+    if (!dealType) { toast.error(translate('اختر نوع العرض', 'Choose a deal type')); return; }
+    if (!budget)   { toast.error(translate('حدد الميزانية', 'Specify the budget')); return; }
+    if (!companyName.trim()) { toast.error(translate('أدخل اسم الشركة', 'Enter company name')); return; }
+    if (!websiteUrl.trim()) { toast.error(translate('أدخل الموقع الإلكتروني', 'Enter website URL')); return; }
     if (hasPending) {
-      toast.error(isRTL ? 'لديك عرض قيد المراجعة — انتظر الرد أولاً' : 'You have a pending deal — wait for a reply first');
+      toast.error(translate('لديك عرض قيد المراجعة — انتظر الرد أولاً', 'You have a pending deal — wait for a reply first'));
       return;
     }
 
@@ -267,7 +270,7 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
     const typeLabel = DEAL_TYPES.find(t => t.id === dealType);
     const budgetLabel = BUDGETS.find(b => b.id === budget)?.label ?? budget;
-    const summary = `${isRTL ? 'عرض عمل' : 'Deal'}: ${typeLabel?.[isRTL ? 'ar' : 'en'] ?? dealType} · ${budgetLabel}`;
+    const summary = `${translate('عرض عمل', 'Deal')}: ${typeLabel?.[isRTL ? 'ar' : 'en'] ?? dealType} · ${budgetLabel}`;
 
     // Pack all structured fields into details JSON
     const detailsPayload = JSON.stringify({
@@ -280,11 +283,11 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
       sender_id:   user.id,
       receiver_id: celebrityId,
       category:    'work',
-      subject:     isRTL ? 'بطاقة عرض' : 'Deal Card',
+      subject:     translate('بطاقة عرض', 'Deal Card'),
       content:     summary,
     }).select('id').single();
 
-    if (msgErr) { setSending(false); toast.error(isRTL ? 'تعذّر الإرسال' : 'Could not send'); return; }
+    if (msgErr) { setSending(false); toast.error(translate('تعذّر الإرسال', 'Could not send')); return; }
 
     const { error: dealErr } = await (supabase as any).from('deal_cards').insert({
       sender_id:   user.id,
@@ -300,17 +303,15 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
     setSending(false);
     if (dealErr) {
-      toast.error(isRTL ? 'تعذّر إنشاء البطاقة' : 'Could not create deal card');
+      toast.error(translate('تعذّر إنشاء البطاقة', 'Could not create deal card'));
       return;
     }
 
-    toast.success(isRTL ? 'تم إرسال بطاقة العرض ✓' : 'Deal card sent ✓');
+    toast.success(translate('تم إرسال بطاقة العرض ✓', 'Deal card sent ✓'));
     reset();
     onOpenChange(false);
     onSent?.();
   };
-
-  const t = (ar: string, en: string) => (isRTL ? ar : en);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -318,10 +319,10 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-primary" />
-            {t('بطاقة عرض عمل', 'Deal Card')}
+            {translate('بطاقة عرض عمل', 'Deal Card')}
           </DialogTitle>
           <DialogDescription>
-            {t('عرض منظّم إلى ', 'Structured offer to ')}{celebrityName ? `@${celebrityName}` : ''}
+            {translate('عرض منظّم إلى ', 'Structured offer to ')}{celebrityName ? `@${celebrityName}` : ''}
           </DialogDescription>
         </DialogHeader>
 
@@ -329,11 +330,11 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
           {/* Company Info Section */}
           <div className="space-y-4">
-            <SectionHeader label={t('معلومات الشركة', 'Company Information')} required />
+            <SectionHeader label={translate('معلومات الشركة', 'Company Information')} required />
             
             <InputField
-              label={t('اسم الشركة', 'Company Name')}
-              placeholder={t('اكتب اسم شركتك كما يظهر رسمياً', 'Enter your official company name')}
+              label={translate('اسم الشركة', 'Company Name')}
+              placeholder={translate('اكتب اسم شركتك كما يظهر رسمياً', 'Enter your official company name')}
               value={companyName}
               onChange={e => setCompanyName(e.target.value)}
               required
@@ -341,7 +342,7 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
             />
 
             <InputField
-              label={t('الموقع الإلكتروني', 'Website URL')}
+              label={translate('الموقع الإلكتروني', 'Website URL')}
               placeholder="https://example.com"
               value={websiteUrl}
               onChange={e => setWebsiteUrl(e.target.value)}
@@ -355,14 +356,14 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
           {/* 1 — Deal type with descriptions */}
           <div className="space-y-3">
-            <SectionHeader label={t('نوع العرض', 'Deal Type')} required />
+            <SectionHeader label={translate('نوع العرض', 'Deal Type')} required />
             <div className="grid grid-cols-1 gap-2">
               {DEAL_TYPES.map(dt => (
                 <ChoiceBtn 
                   key={dt.id} 
                   active={dealType === dt.id} 
                   onClick={() => setDealType(dt.id)}
-                  description={t(dt.arDesc, dt.enDesc)}
+                  description={translate(dt.arDesc, dt.enDesc)}
                 >
                   {dt[isRTL ? 'ar' : 'en']}
                 </ChoiceBtn>
@@ -372,10 +373,10 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
           {/* 2 — Budget with full ranges */}
           <div className="space-y-3">
-            <SectionHeader label={t('الميزانية الصافية', 'Net Budget')} required />
+            <SectionHeader label={translate('الميزانية الصافية', 'Net Budget')} required />
             <div className="grid grid-cols-2 gap-2">
               {BUDGETS.map(b => (
-                <ChoiceBtn key={b.id} active={budget === b.id} onClick={() => setBudget(b.id)} description={t(b.arDesc, b.enDesc)}>
+                <ChoiceBtn key={b.id} active={budget === b.id} onClick={() => setBudget(b.id)} description={translate(b.arDesc, b.enDesc)}>
                   {b.label}
                 </ChoiceBtn>
               ))}
@@ -384,10 +385,10 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
           {/* 3 — Payment structure with full labels */}
           <div className="space-y-3">
-            <SectionHeader label={t('هيكل الدفع', 'Payment Structure')} />
+            <SectionHeader label={translate('هيكل الدفع', 'Payment Structure')} />
             <div className="grid grid-cols-2 gap-2">
               {PAYMENT_STRUCTURES.map(p => (
-                <ChoiceBtn key={p.id} active={paymentStructure === p.id} onClick={() => setPaymentStructure(p.id)} description={t(p.arDesc, p.enDesc)}>
+                <ChoiceBtn key={p.id} active={paymentStructure === p.id} onClick={() => setPaymentStructure(p.id)} description={translate(p.arDesc, p.enDesc)}>
                   {p[isRTL ? 'ar' : 'en']}
                 </ChoiceBtn>
               ))}
@@ -396,10 +397,10 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
           {/* 4 — Timeline with full labels */}
           <div className="space-y-3">
-            <SectionHeader label={t('الجدول الزمني', 'Timeline')} />
+            <SectionHeader label={translate('الجدول الزمني', 'Timeline')} />
             <div className="grid grid-cols-2 gap-2">
               {TIMELINES.map(tl => (
-                <ChoiceBtn key={tl.id} active={timeline === tl.id} onClick={() => setTimeline(tl.id)} description={t(tl.arDesc, tl.enDesc)}>
+                <ChoiceBtn key={tl.id} active={timeline === tl.id} onClick={() => setTimeline(tl.id)} description={translate(tl.arDesc, tl.enDesc)}>
                   {tl[isRTL ? 'ar' : 'en']}
                 </ChoiceBtn>
               ))}
@@ -408,7 +409,7 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
           {/* 5 — Commitments with full labels and checkmark */}
           <div className="space-y-3">
-            <SectionHeader label={t('الالتزامات الرئيسية', 'Main Commitments')} />
+            <SectionHeader label={translate('الالتزامات الرئيسية', 'Main Commitments')} />
             <div className="flex flex-wrap gap-2">
               {COMMITMENTS.map(c => (
                 <button
@@ -431,8 +432,8 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
 
           {/* 6 — Pitch Box with clear label and placeholder */}
           <TextareaField
-            label={t('لماذا هذه الموهبة؟', 'Why this talent?')}
-            placeholder={t('اكتب لماذا اخترت هذه الموهبة تحديداً وما قيمة التعاون للطرفين (أقصى 300 حرف)', 'Write why you chose this specific talent and what value the collaboration brings to both sides (max 300 chars)')}
+            label={translate('لماذا هذه الموهبة؟', 'Why this talent?')}
+            placeholder={translate('اكتب لماذا اخترت هذه الموهبة تحديداً وما قيمة التعاون للطرفين (أقصى 300 حرف)', 'Write why you chose this specific talent and what value the collaboration brings to both sides (max 300 chars)')}
             value={pitch}
             onChange={e => setPitch(e.target.value)}
             maxLength={300}
@@ -442,7 +443,7 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
           {hasPending && (
             <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
               <p className="text-xs text-amber-700 dark:text-amber-400 text-center">
-                {t('لديك عرض قيد المراجعة — لا يمكن الإرسال حتى يتم الرد.', 'You have a pending deal — cannot send until it gets a reply.')}
+                {translate('لديك عرض قيد المراجعة — لا يمكن الإرسال حتى يتم الرد.', 'You have a pending deal — cannot send until it gets a reply.')}
               </p>
             </div>
           )}
@@ -454,7 +455,7 @@ export function DealCardComposer({ open, onOpenChange, celebrityId, celebrityNam
           >
             {sending
               ? <Loader2 className="h-5 w-5 animate-spin" />
-              : <><Check className="h-4 w-4 me-2" />{t('إرسال العرض', 'Send Deal')}</>}
+              : <><Check className="h-4 w-4 me-2" />{translate('إرسال العرض', 'Send Deal')}</>}
           </Button>
 
         </div>
