@@ -263,8 +263,8 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         // Update ref immediately so refresh() knows a celebrity is selected
         managedCelebrityIdRef.current = celebrityId;
         setManagedCelebrityId(celebrityId);
-        // Refresh to sync managedCelebrities list and ensure context is up to date
-        await refresh();
+        // Refresh to sync managedCelebrities list and ensure context is up to date (non-blocking)
+        refresh().catch(err => console.error('refresh failed after switch', err));
         console.log('[useRole] Successfully switched to celebrity:', celebrityId);
       } else {
         console.warn('[useRole] Celebrity not in managed list:', celebrityId);
