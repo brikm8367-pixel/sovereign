@@ -274,7 +274,7 @@ export default function Dashboard() {
 
       let query = supabase
         .from('messages')
-        .select('*, deal_cards!messages_deal_id_fkey(status)')
+        .select('id, sender_id, receiver_id, content, created_at, is_read, category, deal_id, sender_role, managed_celebrity_id, deal_cards!messages_deal_id_fkey(status)')
         .eq('category', 'work')
         .not('deal_cards.status', 'eq', 'declined')
         .order('created_at', { ascending: false })
