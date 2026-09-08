@@ -46,6 +46,7 @@ interface ThreadMessage {
   sender_role?: string | null;
   managed_celebrity_id?: string | null;
   deal_id?: string | null;
+  subject?: string | null;
 }
 
 interface Reaction {
@@ -714,6 +715,9 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
     );
   };
 
+  // Check if message is a manager decision notification
+  const isManagerDecision = (msg: ThreadMessage) => msg.subject === 'قرار وكيل بخصوص عرض';
+
   return (
     <>
     <Dialog open={isOpen} onOpenChange={() => { setContextMenu(null); onClose(); }}>
@@ -861,6 +865,44 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                     <CheckCheck className="h-3 w-3 text-white/40" />
                   )
                 ) : null;
+
+                // Special rendering for manager decision notifications
+                if (isManagerDecision(msg)) {
+                  return (
+                    <div key={msg.id}>
+                      {showDateSep && (
+                        <div className="text-center my-3">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] text-muted-foreground bg-card/80 backdrop-blur-sm font-medium">
+                            {dateSeparator(msg.created_at, isRTL)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex mb-2" style={{ justifyContent: isRTL ? 'flex-start' : 'flex-end' }}>
+                        <div className="max-w-[85%]">
+                          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/30">
+                                <ShieldCheck className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                              </div>
+                              <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                                {msg.subject}
+                              </span>
+                            </div>
+                            <p className="text-sm text-amber-800 dark:text-amber-200 whitespace-pre-wrap">
+                              {msg.content}
+                            </p>
+                            <div className="flex items-center justify-end gap-1.5 mt-3 pt-2 border-t border-amber-200 dark:border-amber-800">
+                              <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                                {fmtTime(msg.created_at)}
+                              </span>
+                              {readStatus}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div key={msg.id}>
