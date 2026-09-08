@@ -35,12 +35,21 @@ export default function RedeemManagerInvite() {
       return;
     }
     setDone(true);
-    // Auto-switch to the newly managed celebrity
-    if (data?.celebrity_id) {
-      await switchCelebrity(data.celebrity_id);
-    }
+    // Schedule navigation first so it always happens after 1200ms
     toast.success(isRTL ? 'أصبحت وكيلاً الآن' : 'You are now a manager');
     setTimeout(() => navigate('/home'), 1200);
+    // Auto-switch to the newly managed celebrity (non-blocking with timeout)
+    if (data?.celebrity_id) {
+      try {
+        await Promise.race([
+          switchCelebrity(data.celebrity_id),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('switchCelebrity timeout')), 2000))
+        ]);
+      } catch (e) {
+        // Ignore switchCelebrity errors/timeouts; navigation already scheduled
+        console.warn('switchCelebrity failed or timed out:', e);
+      }
+    }
   };
 
   // If not authenticated, save current path to sessionStorage and redirect to /auth
