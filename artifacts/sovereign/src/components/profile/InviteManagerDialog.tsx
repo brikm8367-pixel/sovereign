@@ -65,8 +65,7 @@ export function InviteManagerDialog({ open, onOpenChange }: Props) {
     
     try {
       const { data, error } = await supabase.functions.invoke('create-manager-invite', {
-        body: JSON.stringify({ password }),
-        headers: { 'Content-Type': 'application/json' },
+        body: { password },
       });
       console.log('[InviteManagerDialog] Supabase response data:', data);
       console.log('[InviteManagerDialog] Supabase response error:', error);
