@@ -584,14 +584,100 @@ export default function Dashboard() {
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
           console.log('[Dashboard] Realtime: New message inserted', payload);
-          fetchConversations();
+          const newMessage = payload.new as Message;
+          if (!newMessage || newMessage.category !== 'work') return;
+          
+          const currentUserId = user?.id;
+          if (!currentUserId) return;
+
+          // Determine the other user ID
+          const otherUserId = newMessage.sender_id === currentUserId ? newMessage.receiver_id : newMessage.sender_id;
+          if (!otherUserId) return;
+
+          const convId = newMessage.deal_id || otherUserId;
+
+          setConversations(prev => {
+            const existingIndex = prev.findIndex(c => c.id === convId);
+            if (existingIndex === -1) {
+              // Conversation doesn't exist locally, fallback to full fetch
+              console.log('[Dashboard] Conversation not found locally, triggering full fetch');
+              fetchConversations();
+              return prev;
+            }
+
+            const updated = [...prev];
+            const conv = { ...updated[existingIndex] };
+            
+            // Update last message and time if newer
+            if (new Date(newMessage.created_at) > new Date(conv.last_message_time)) {
+              conv.last_message = newMessage.content || '';
+              conv.last_message_time = newMessage.created_at;
+              conv.sender_role = newMessage.sender_role || null;
+              conv.deal_status = newMessage.deal_status || null;
+            }
+            
+            // Increment unread if message is for current user and unread
+            if (!newMessage.is_read && newMessage.receiver_id === currentUserId) {
+              conv.unread_count += 1;
+            }
+
+            updated[existingIndex] = conv;
+            
+            // Re-sort by last_message_time descending
+            return updated.sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
+          });
         }
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'messages' },
         (payload) => {
           console.log('[Dashboard] Realtime: Message updated', payload);
-          fetchConversations();
+          const updatedMessage = payload.new as Message;
+          if (!updatedMessage || updatedMessage.category !== 'work') return;
+          
+          const currentUserId = user?.id;
+          if (!currentUserId) return;
+
+          // Determine the other user ID
+          const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
+          if (!otherUserId) return;
+
+          const convId = updatedMessage.deal_id || otherUserId;
+
+          setConversations(prev => {
+            const existingIndex = prev.findIndex(c => c.id === convId);
+            if (existingIndex === -1) {
+              // Conversation doesn't exist locally, fallback to full fetch
+              console.log('[Dashboard] Conversation not found locally, triggering full fetch');
+              fetchConversations();
+              return prev;
+            }
+
+            const updated = [...prev];
+            const conv = { ...updated[existingIndex] };
+            
+            // Update last message and time if newer
+            if (new Date(updatedMessage.created_at) > new Date(conv.last_message_time)) {
+              conv.last_message = updatedMessage.content || '';
+              conv.last_message_time = updatedMessage.created_at;
+              conv.sender_role = updatedMessage.sender_role || null;
+              conv.deal_status = updatedMessage.deal_status || null;
+            }
+            
+            // Handle read status change - decrement unread if message was marked as read
+            if (updatedMessage.is_read && updatedMessage.receiver_id === currentUserId) {
+              // We don't know the previous state, so we can't reliably decrement
+              // Fallback to full fetch for read status changes to be safe
+              console.log('[Dashboard] Message read status changed, triggering full fetch');
+              fetchConversations();
+              return prev;
+            }
+
+            updated[existingIndex] = conv;
+            
+            // Re-sort by last_message_time descending
+            return updated.sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
+          });
         }
       )
       .subscribe();
