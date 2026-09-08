@@ -133,6 +133,7 @@ export default function Dashboard() {
   const isMountedRef = useRef(true);
   const fetchConversationsRef = useRef<() => Promise<void>>();
   const fetchPendingDealsRef = useRef<() => Promise<void>>();
+  const fetchConversationsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-initialize E2E keys for existing users who may not have them yet
   useEffect(() => {
@@ -599,9 +600,14 @@ export default function Dashboard() {
           setConversations(prev => {
             const existingIndex = prev.findIndex(c => c.id === convId);
             if (existingIndex === -1) {
-              // Conversation doesn't exist locally, fallback to full fetch
-              console.log('[Dashboard] Conversation not found locally, triggering full fetch');
-              fetchConversations();
+              // Conversation doesn't exist locally, fallback to full fetch (batched)
+              console.log('[Dashboard] Conversation not found locally, scheduling batched fetch');
+              if (fetchConversationsTimeoutRef.current) {
+                clearTimeout(fetchConversationsTimeoutRef.current);
+              }
+              fetchConversationsTimeoutRef.current = setTimeout(() => {
+                fetchConversations();
+              }, 500);
               return prev;
             }
 
@@ -647,9 +653,14 @@ export default function Dashboard() {
           setConversations(prev => {
             const existingIndex = prev.findIndex(c => c.id === convId);
             if (existingIndex === -1) {
-              // Conversation doesn't exist locally, fallback to full fetch
-              console.log('[Dashboard] Conversation not found locally, triggering full fetch');
-              fetchConversations();
+              // Conversation doesn't exist locally, fallback to full fetch (batched)
+              console.log('[Dashboard] Conversation not found locally, scheduling batched fetch');
+              if (fetchConversationsTimeoutRef.current) {
+                clearTimeout(fetchConversationsTimeoutRef.current);
+              }
+              fetchConversationsTimeoutRef.current = setTimeout(() => {
+                fetchConversations();
+              }, 500);
               return prev;
             }
 
@@ -667,9 +678,14 @@ export default function Dashboard() {
             // Handle read status change - decrement unread if message was marked as read
             if (updatedMessage.is_read && updatedMessage.receiver_id === currentUserId) {
               // We don't know the previous state, so we can't reliably decrement
-              // Fallback to full fetch for read status changes to be safe
-              console.log('[Dashboard] Message read status changed, triggering full fetch');
-              fetchConversations();
+              // Fallback to full fetch for read status changes to be safe (batched)
+              console.log('[Dashboard] Message read status changed, scheduling batched fetch');
+              if (fetchConversationsTimeoutRef.current) {
+                clearTimeout(fetchConversationsTimeoutRef.current);
+              }
+              fetchConversationsTimeoutRef.current = setTimeout(() => {
+                fetchConversations();
+              }, 500);
               return prev;
             }
 
@@ -684,6 +700,9 @@ export default function Dashboard() {
 
     return () => {
       isMountedRef.current = false;
+      if (fetchConversationsTimeoutRef.current) {
+        clearTimeout(fetchConversationsTimeoutRef.current);
+      }
       subscription.unsubscribe();
     };
   }, [user, authLoading, managedCelebrityId, role, fetchPendingDeals, fetchConversations]);
