@@ -141,8 +141,24 @@ const App = () => {
       };
     },
     onNeedRefresh() {
-      // Show the update prompt when a new version is detected
-      setShowUpdatePrompt(true);
+      // Force the new service worker to take control immediately
+      updateServiceWorker(true);
+      
+      // Clear all caches to fix stale HTML MIME type error
+      const clearAllCaches = async () => {
+        try {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(name => caches.delete(name)));
+          console.log('[SW] All caches cleared');
+        } catch (error) {
+          console.error('[SW] Failed to clear caches:', error);
+        }
+      };
+      
+      clearAllCaches().then(() => {
+        // Reload the page after clearing caches
+        window.location.reload();
+      });
     },
     onOfflineReady() {
       // Hide the update prompt when the app is ready for offline use
