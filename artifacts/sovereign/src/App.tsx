@@ -132,33 +132,9 @@ const App = () => {
           r.update();
         }
       }, 5 * 60 * 1000);
-
-      // Cleanup function
-      return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        window.removeEventListener('focus', handleFocus);
-        clearInterval(intervalId);
-      };
     },
     onNeedRefresh() {
-      // Force the new service worker to take control immediately
-      updateServiceWorker(true);
-      
-      // Clear all caches to fix stale HTML MIME type error
-      const clearAllCaches = async () => {
-        try {
-          const cacheNames = await caches.keys();
-          await Promise.all(cacheNames.map(name => caches.delete(name)));
-          console.log('[SW] All caches cleared');
-        } catch (error) {
-          console.error('[SW] Failed to clear caches:', error);
-        }
-      };
-      
-      clearAllCaches().then(() => {
-        // Reload the page after clearing caches
-        window.location.reload();
-      });
+      setShowUpdatePrompt(true);
     },
     onOfflineReady() {
       // Hide the update prompt when the app is ready for offline use
@@ -169,11 +145,24 @@ const App = () => {
   const handleUpdate = () => {
     setIsUpdating(true);
     setShowUpdatePrompt(false); // Hide immediately to prevent double-clicks and reappearance after reload
-    updateServiceWorker(true);
-    // Fallback reload in case updateServiceWorker doesn't reload
-    setTimeout(() => {
-      window.location.reload();
-    }, 500);
+
+    const clearAllCaches = async () => {
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+        console.log('[SW] All caches cleared');
+      } catch (error) {
+        console.error('[SW] Failed to clear caches:', error);
+      }
+    };
+
+    clearAllCaches().then(() => {
+      updateServiceWorker(true);
+      // Fallback reload in case updateServiceWorker doesn't reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    });
   };
 
   return (
