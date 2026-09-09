@@ -130,6 +130,7 @@ export default function Dashboard() {
   const [showDealDetails, setShowDealDetails] = useState<Record<string, boolean>>({});
   const [showDealQuestion, setShowDealQuestion] = useState<string | null>(null);
   const [selectedDealForQuestion, setSelectedDealForQuestion] = useState<Deal | null>(null);
+  const [unreadTotal, setUnreadTotal] = useState(0);
   const isMountedRef = useRef(true);
   const fetchConversationsRef = useRef<() => Promise<void>>();
   const fetchPendingDealsRef = useRef<() => Promise<void>>();
@@ -385,6 +386,18 @@ export default function Dashboard() {
     fetchPendingDealsRef.current = fetchPendingDeals;
   }, [fetchPendingDeals]);
 
+  // Calculate unread total whenever conversations change
+  useEffect(() => {
+    const total = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
+    setUnreadTotal(total);
+    // Update document title with unread indicator
+    if (total > 0) {
+      document.title = `(${total}) ${isRTL ? 'مباشر' : 'Directly'}`;
+    } else {
+      document.title = isRTL ? 'مباشر' : 'Directly';
+    }
+  }, [conversations, isRTL]);
+
   const handleInterested = async (dealId: string) => {
     if (!user) return;
     setIsProcessing(true);
@@ -617,6 +630,14 @@ export default function Dashboard() {
         { event: 'INSERT', schema: 'public', table: 'deal_cards' },
         (payload) => {
           console.log('[Dashboard] Realtime: New deal inserted', payload);
+          const newDeal = payload.new as Deal;
+          // Directly prepend to pendingDeals state
+          setPendingDeals(prev => [newDeal, ...prev]);
+          // Update document title
+          document.title = `🔔 ${isRTL ? 'عرض جديد' : 'New Offer'} - ${isRTL ? 'مباشر' : 'Directly'}`;
+          // Show toast notification
+          toast.info(tLocal('عرض جديد وصل', 'New offer received'));
+          // Also fetch in background for consistency
           fetchPendingDeals();
         }
       )
@@ -643,6 +664,7 @@ export default function Dashboard() {
 
           const convId = newMessage.deal_id || otherUserId;
 
+          // Directly update conversations state
           setConversations(prev => {
             const existingIndex = prev.findIndex(c => c.id === convId);
             if (existingIndex === -1) {
@@ -678,6 +700,17 @@ export default function Dashboard() {
             // Re-sort by last_message_time descending
             return updated.sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
           });
+
+          // Show toast notification for incoming messages (not sent by current user)
+          if (newMessage.sender_id !== currentUserId) {
+            const preview = newMessage.content?.substring(0, 40) || '';
+            toast.success(`${tLocal('رسالة جديدة', 'New message')}: ${preview}...`);
+            // Update document title
+            document.title = `💬 ${tLocal('رسالة جديدة', 'New Message')} - ${isRTL ? 'مباشر' : 'Directly'}`;
+          }
+
+          // Also fetch in background for consistency
+          fetchConversations();
         }
       )
       .on('postgres_changes',
@@ -692,7 +725,7 @@ export default function Dashboard() {
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
           const convId = updatedMessage.deal_id || otherUserId;
 
@@ -751,7 +784,7 @@ export default function Dashboard() {
       }
       subscription.unsubscribe();
     };
-  }, [user, authLoading, managedCelebrityId, role, fetchPendingDeals, fetchConversations]);
+  }, [user, authLoading, managedCelebrityId, role, fetchPendingDeals, fetchConversations, isRTL]);
 
   // Refresh when navigating back to dashboard
   useEffect(() => {
@@ -824,6 +857,12 @@ export default function Dashboard() {
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                 <ShieldCheck className="h-3 w-3" />
                 {tLocal('وكيل', 'Agent')}
+              </span>
+            )}
+            {/* Unread total badge */}
+            {unreadTotal > 0 && (
+              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 font-medium">
+                {unreadTotal > 99 ? '99+' : unreadTotal}
               </span>
             )}
           </div>
