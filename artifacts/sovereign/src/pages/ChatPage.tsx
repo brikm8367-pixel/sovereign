@@ -6,7 +6,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal, AlertCircle, ShieldCheck, CheckCheck, Info } from 'lucide-react';
+import { Send, Loader2, User, ArrowLeft, ArrowRight, Mic, Image as ImageIcon, X, Shield, Briefcase, ChevronDown, ChevronUp, Globe, Calendar, FileText, Building2, DollarSign, UserCheck, MoreHorizontal, AlertCircle, ShieldCheck, CheckCheck, Info, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -939,6 +939,18 @@ export default function ChatPage() {
                 ? managedCelebrityProfiles.get(msg.managed_celebrity_id)?.display_name 
                 : null;
 
+              // Check for agent decision message
+              const isAgentDecision = msg.content.startsWith('{"type":"agent_decision"');
+              let parsedDecision: { type: string; decision: string; dealId: string; agentName: string } | null = null;
+              
+              if (isAgentDecision) {
+                try {
+                  parsedDecision = JSON.parse(msg.content);
+                } catch (e) {
+                  console.error('[ChatPage] Failed to parse agent decision message:', e);
+                }
+              }
+
               return (
                 <div key={msg.id}>
                   {showDateSep && (
@@ -961,6 +973,53 @@ export default function ChatPage() {
 
                   <div className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
                     <div className="max-w-[75%]">
+                      {/* Agent Decision Card - Special rendering for agent decision messages */}
+                      {isAgentDecision && parsedDecision && (
+                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 shadow-sm mb-2">
+                          {/* Deal Card above the decision card */}
+                          <DealCardInline 
+                            dealId={parsedDecision.dealId} 
+                            isRTL={isRTL} 
+                            onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
+                            showDetails={false} 
+                          />
+                          <div className="mt-3 text-center">
+                            <div className={cn(
+                              'inline-flex items-center justify-center w-12 h-12 rounded-full mb-3',
+                              parsedDecision.decision === 'accepted' 
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' 
+                                : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                            )}>
+                              {parsedDecision.decision === 'accepted' ? (
+                                <CheckCheck className="h-6 w-6" />
+                              ) : (
+                                <XCircle className="h-6 w-6" />
+                              )}
+                            </div>
+                            <p className="font-semibold text-base text-foreground mb-1">
+                              {tLocal('قرار وكيلك', 'Your Agent Decision')}
+                            </p>
+                            <p className="text-sm text-muted-foreground mb-1">
+                              {parsedDecision.agentName}
+                            </p>
+                            <p className={cn(
+                              'font-medium text-sm',
+                              parsedDecision.decision === 'accepted' 
+                                ? 'text-green-700 dark:text-green-400' 
+                                : 'text-red-700 dark:text-red-400'
+                            )}>
+                              {parsedDecision.decision === 'accepted' 
+                                ? tLocal('بدأ التفاوض', 'Started Negotiation') 
+                                : tLocal('رفض العرض', 'Declined Offer')}
+                            </p>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 mt-2">
+                              <ShieldCheck className="h-2.5 w-2.5" />
+                              {tLocal('وكيل مفوض', 'Authorized Agent')}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       <div className={cn(
                         'px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm relative',
                         isMine 
@@ -968,7 +1027,7 @@ export default function ChatPage() {
                           : 'bg-card border border-border/50 rounded-ee-sm shadow-[0_1px_2px_rgba(0,0,0,0.03)]'
                       )}>
                         {/* Deal context label for messages in a deal thread */}
-                        {msg.deal_id && !isDealAccepted && (
+                        {msg.deal_id && !isDealAccepted && !isAgentDecision && (
                           <div className="absolute -top-2 left-3 right-3 -mx-3 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-t-xl text-[10px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
                             <Briefcase className="h-3 w-3" />
                             {t.dashboard.regardingDeal}
@@ -976,7 +1035,7 @@ export default function ChatPage() {
                         )}
                         
                         {/* Agent badge for messages from managers */}
-                        {!isMine && isFromManager && (
+                        {!isMine && isFromManager && !isAgentDecision && (
                           <div className="mb-1.5 flex items-center gap-1.5">
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                               <ShieldCheck className="h-2.5 w-2.5" />
@@ -1000,7 +1059,7 @@ export default function ChatPage() {
                             <Mic className="h-5 w-5 text-muted-foreground" />
                             <span className="text-sm text-muted-foreground">{t.dashboard.voiceMessage}</span>
                           </div>
-                        ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
+                        ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) && !isAgentDecision ? (
                           <p className="whitespace-pre-wrap">
                             {msg._decryptionFailed ? (
                               <span className="flex items-center gap-1.5 text-muted-foreground/60 italic text-sm">
