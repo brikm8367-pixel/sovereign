@@ -471,19 +471,6 @@ export default function Dashboard() {
 
       if (updateError) throw updateError;
 
-      // @ts-ignore
-      const { error: msgError } = await supabase
-        .from('messages')
-        .insert({
-          sender_id: celebrityId,
-          receiver_id: deal.sender_id,
-          deal_id: dealId,
-          content: t.dashboard.offerRejected,
-          category: 'work'
-        });
-
-      if (msgError) throw msgError;
-
       // Role-specific toast
       if (role === 'manager') {
         toast.success(isRTL ? 'تم رفض العرض للموهبة التي تديرها' : 'Offer declined for talent you manage');
@@ -907,10 +894,10 @@ export default function Dashboard() {
                         <Button
                           onClick={() => handleInterested(deal.id)}
                           disabled={isProcessing}
-                          className="flex-1 h-11 rounded-xl bg-green-600 hover:bg-green-700 text-xs font-semibold touch-feedback"
+                          className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold touch-feedback"
                         >
-                          <Check className="h-3.5 w-3.5 mr-1" />
-                          {t.dashboard.accept}
+                          <MessageCircle className="h-3.5 w-3.5 mr-1" />
+                          {t('بدء التفاوض', 'Start Negotiation')}
                         </Button>
                         <Button
                           onClick={() => handleReject(deal.id)}
