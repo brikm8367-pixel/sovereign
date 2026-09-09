@@ -71,9 +71,9 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
-// Install event: skip waiting to activate new SW immediately
+// Install event: wait for user confirmation before activating (via SKIP_WAITING message)
 self.addEventListener("install", () => {
-  self.skipWaiting();
+  // Service worker will wait until user presses update button which sends SKIP_WAITING message
 });
 
 // Activate event: claim clients immediately
