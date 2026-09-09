@@ -402,15 +402,22 @@ export default function Dashboard() {
       const celebrityId = managedCelebrityId || deal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
 
+      // Determine the correct sender_id for the conversation
+      // For managers: use agent's user.id so company can decrypt with agent's key
+      // For celebrities: use celebrityId (existing behavior)
+      const senderIdForConversation = role === 'manager' && managedCelebrityId ? user.id : celebrityId;
+
       // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
-          sender_id: celebrityId,
+          sender_id: senderIdForConversation,
           receiver_id: deal.sender_id,
           deal_id: dealId,
           content: t.dashboard.offerAccepted,
-          category: 'work'
+          category: 'work',
+          sender_role: role === 'manager' ? 'manager' : 'celebrity',
+          managed_celebrity_id: role === 'manager' ? managedCelebrityId : null
         });
 
       if (msgError) throw msgError;
@@ -419,7 +426,8 @@ export default function Dashboard() {
         .from('deal_cards')
         .update({
           status: 'accepted',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          conversation_partner_id: senderIdForConversation
         })
         .eq('id', dealId);
 
@@ -685,7 +693,7 @@ export default function Dashboard() {
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
           const convId = updatedMessage.deal_id || otherUserId;
 

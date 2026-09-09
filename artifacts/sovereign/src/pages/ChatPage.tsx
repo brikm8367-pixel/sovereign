@@ -301,6 +301,19 @@ export default function ChatPage() {
             if (res.success) {
               return { ...msg, content: res.plaintext };
             }
+            // Primary decryption failed - try fallback with managed_celebrity_id if available
+            if (msg.managed_celebrity_id && msg.managed_celebrity_id !== msg.sender_id) {
+              console.log('[ChatPage] Primary decryption failed, trying fallback with managed_celebrity_id:', msg.managed_celebrity_id);
+              const fallbackRes = await decryptFromSender(msg.content, msg.managed_celebrity_id);
+              if (fallbackRes.success) {
+                console.log('[ChatPage] Fallback decryption succeeded with managed_celebrity_id');
+                return { 
+                  ...msg, 
+                  content: fallbackRes.plaintext,
+                  sender_id: msg.managed_celebrity_id // Update sender_id for consistency
+                };
+              }
+            }
             // Decryption failed - return readable fallback
             return { 
               ...msg, 
@@ -422,7 +435,17 @@ export default function ChatPage() {
                   if (res.success) {
                     processedMsg = { ...newMsg, content: res.plaintext };
                   } else {
-                    processedMsg = { ...newMsg, content: t.dashboard.error, _decryptionFailed: true };
+                    // Try fallback with managed_celebrity_id
+                    if (newMsg.managed_celebrity_id && newMsg.managed_celebrity_id !== newMsg.sender_id) {
+                      const fallbackRes = await decryptFromSender(newMsg.content, newMsg.managed_celebrity_id);
+                      if (fallbackRes.success) {
+                        processedMsg = { ...newMsg, content: fallbackRes.plaintext, sender_id: newMsg.managed_celebrity_id };
+                      } else {
+                        processedMsg = { ...newMsg, content: t.dashboard.error, _decryptionFailed: true };
+                      }
+                    } else {
+                      processedMsg = { ...newMsg, content: t.dashboard.error, _decryptionFailed: true };
+                    }
                   }
                 } catch {
                   processedMsg = { ...newMsg, content: t.dashboard.error, _decryptionFailed: true };
