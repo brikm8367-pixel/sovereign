@@ -66,6 +66,7 @@ export default function ChatPage() {
   const { user } = useAuth();
   const { role, managedCelebrityId } = useRole();
   const { isRTL, t } = useLanguage();
+  const tLocal = (ar: string, en: string) => isRTL ? ar : en;
   const navigate = useNavigate();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -778,7 +779,6 @@ export default function ChatPage() {
 
   // ===== CONTEXT-AWARE HEADER LOGIC =====
   const getHeaderContext = () => {
-    const tLocal = (ar: string, en: string) => isRTL ? ar : en;
     
     // Company sender role
     if (role === 'company' || (user && deal && deal.sender_id === user.id)) {
