@@ -629,7 +629,7 @@ export default function Dashboard() {
           if (!updatedMessage || updatedMessage.category !== 'work') return;
           
           const currentUserId = user?.id;
-          if (!currentUserId) return;
+          if (!currentUserId) return.
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
@@ -897,7 +897,7 @@ export default function Dashboard() {
                           className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold touch-feedback"
                         >
                           <MessageCircle className="h-3.5 w-3.5 mr-1" />
-                          {t('بدء التفاوض', 'Start Negotiation')}
+                          {tLocal('بدء التفاوض', 'Start Negotiation')}
                         </Button>
                         <Button
                           onClick={() => handleReject(deal.id)}
