@@ -636,7 +636,7 @@ export default function Dashboard() {
           // Update document title
           document.title = `🔔 ${isRTL ? 'عرض جديد' : 'New Offer'} - ${isRTL ? 'مباشر' : 'Directly'}`;
           // Show toast notification
-          toast.info(tLocal('عرض جديد وصل', 'New offer received'));
+          toast.info(tLocal('عرض جديد', 'New offer'));
           // Also fetch in background for consistency
           fetchPendingDeals();
         }
@@ -664,19 +664,27 @@ export default function Dashboard() {
 
           const convId = newMessage.deal_id || otherUserId;
 
-          // Directly update conversations state
+          // Directly update conversations state IMMEDIATELY
           setConversations(prev => {
             const existingIndex = prev.findIndex(c => c.id === convId);
             if (existingIndex === -1) {
-              // Conversation doesn't exist locally, fallback to full fetch (batched)
-              console.log('[Dashboard] Conversation not found locally, scheduling batched fetch');
-              if (fetchConversationsTimeoutRef.current) {
-                clearTimeout(fetchConversationsTimeoutRef.current);
-              }
-              fetchConversationsTimeoutRef.current = setTimeout(() => {
-                fetchConversations();
-              }, 500);
-              return prev;
+              // Conversation doesn't exist locally - create new entry
+              console.log('[Dashboard] Creating new conversation entry for:', convId);
+              const newConv: Conversation = {
+                id: convId,
+                user_id: otherUserId,
+                display_name: 'مستخدم',
+                username: '',
+                avatar_url: null,
+                last_message: newMessage.content || '',
+                last_message_time: newMessage.created_at,
+                unread_count: (!newMessage.is_read && newMessage.receiver_id === currentUserId) ? 1 : 0,
+                deal_id: newMessage.deal_id || null,
+                category: newMessage.category || 'work',
+                sender_role: newMessage.sender_role || null,
+                deal_status: newMessage.deal_status || null
+              };
+              return [newConv, ...prev].sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
             }
 
             const updated = [...prev];
@@ -707,6 +715,14 @@ export default function Dashboard() {
             toast.success(`${tLocal('رسالة جديدة', 'New message')}: ${preview}...`);
             // Update document title
             document.title = `💬 ${tLocal('رسالة جديدة', 'New Message')} - ${isRTL ? 'مباشر' : 'Directly'}`;
+            // Play sound
+            try {
+              import('@/utils/sounds').then(({ resumeAudioContext }) => {
+                resumeAudioContext();
+              }).catch(() => {});
+            } catch (e) {
+              // Ignore sound errors
+            }
           }
 
           // Also fetch in background for consistency
@@ -725,7 +741,7 @@ export default function Dashboard() {
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return.
+          if (!otherUserId) return;
 
           const convId = updatedMessage.deal_id || otherUserId;
 

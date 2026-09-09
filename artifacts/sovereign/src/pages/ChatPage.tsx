@@ -356,6 +356,10 @@ export default function ChatPage() {
         const unreadIds = decrypted.filter(m => m.receiver_id === user.id && !m.is_read).map(m => m.id);
         if (unreadIds.length > 0) {
           await supabase.from('messages').update({ is_read: true }).in('id', unreadIds);
+          // Show toast with count of unread messages
+          if (unreadIds.length > 0) {
+            toast.info(`${tLocal('لديك', 'You have')} ${unreadIds.length} ${tLocal('رسائل غير مقروءة', 'unread messages')}`);
+          }
         }
       }
     } catch (error) {
@@ -472,6 +476,31 @@ export default function ChatPage() {
               new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
             );
           });
+
+          // Show toast notification for incoming messages (not sent by current user)
+          if (newMsg.sender_id !== currentUser.id) {
+            // Get sender name
+            let senderName = 'Someone';
+            if (newMsg.sender_role === 'manager' && newMsg.managed_celebrity_id) {
+              const celebProfile = managedCelebrityProfiles.get(newMsg.managed_celebrity_id);
+              senderName = celebProfile?.display_name || tLocal('الوكيل', 'Agent');
+            } else if (recipient) {
+              senderName = recipient.display_name || recipient.username || 'Someone';
+            }
+            const preview = newMsg.content?.substring(0, 40) || '';
+            toast.success(`${senderName}: ${preview}...`);
+            // Play sound
+            try {
+              resumeAudioContext();
+            } catch (e) {
+              // Ignore sound errors
+            }
+            // Update document title with unread count
+            const unreadCount = messages.filter(m => m.receiver_id === currentUser.id && !m.is_read).length + 1;
+            if (unreadCount > 0) {
+              document.title = `(${unreadCount}) ${isRTL ? 'مباشر' : 'Directly'}`;
+            }
+          }
 
           // Also trigger a full reload for consistency (mark as read, etc.)
           if (loadMessagesRef.current) {
