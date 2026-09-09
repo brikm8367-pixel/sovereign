@@ -629,7 +629,7 @@ export default function Dashboard() {
           if (!updatedMessage || updatedMessage.category !== 'work') return;
           
           const currentUserId = user?.id;
-          if (!currentUserId) return.
+          if (!currentUserId) return;
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
