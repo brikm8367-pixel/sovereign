@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { DealCardInline } from '@/components/deals/DealCardInline';
 import MessageComposer from '@/components/messaging/MessageComposer';
 import { initE2EKeys, ensureUserE2EReady } from '@/utils/e2eManager';
+import { encryptForRecipient } from '@/utils/e2eManager';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 
 // Module-level cache for E2E key verification
@@ -583,6 +584,15 @@ export default function Dashboard() {
       // Log the exact receiver_id being used
       console.log('[Dashboard] Ask Talent receiver_id:', celebrityId, '(managedCelebrityId:', managedCelebrityId, ', deal.celebrity_id:', askTalentDeal.celebrity_id, ')');
 
+      // Encrypt the question for the celebrity
+      let contentToSend = question;
+      const enc = await encryptForRecipient(question, celebrityId);
+      if (enc.success) {
+        contentToSend = enc.payload;
+      } else {
+        console.warn('[Dashboard] Encryption failed for Ask Talent question, sending as plaintext:', enc.reason);
+      }
+
       // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
@@ -590,7 +600,7 @@ export default function Dashboard() {
           sender_id: user.id, // Agent's own user.id for E2E
           receiver_id: celebrityId, // Use managedCelebrityId first, fallback to deal.celebrity_id
           deal_id: askTalentDeal.id,
-          content: question,
+          content: contentToSend,
           category: 'work',
           sender_role: 'manager',
           managed_celebrity_id: managedCelebrityId
@@ -658,6 +668,24 @@ export default function Dashboard() {
           const currentUserId = user?.id;
           if (!currentUserId) return;
 
+          // Check for agent_decision messages
+          const isAgentDecision = typeof newMessage.content === 'string' && newMessage.content.startsWith('{"type":"agent_decision"');
+          
+          // If this is an agent_decision message for the current user, show special toast
+          if (isAgentDecision && newMessage.receiver_id === currentUserId) {
+            toast.info(tLocal('قرار من وكيلك', 'Decision from your agent'));
+            // Play sound
+            try {
+              import('@/utils/sounds').then(({ resumeAudioContext }) => {
+                resumeAudioContext();
+              }).catch(() => {});
+            } catch (e) {
+              // Ignore sound errors
+            }
+            // Update document title
+            document.title = `🔔 ${tLocal('قرار وكيلك', 'Agent Decision')} - ${isRTL ? 'مباشر' : 'Directly'}`;
+          }
+
           // Determine the other user ID
           const otherUserId = newMessage.sender_id === currentUserId ? newMessage.receiver_id : newMessage.sender_id;
           if (!otherUserId) return;
@@ -710,7 +738,7 @@ export default function Dashboard() {
           });
 
           // Show toast notification for incoming messages (not sent by current user)
-          if (newMessage.sender_id !== currentUserId) {
+          if (newMessage.sender_id !== currentUserId && !isAgentDecision) {
             const preview = newMessage.content?.substring(0, 40) || '';
             toast.success(`${tLocal('رسالة جديدة', 'New message')}: ${preview}...`);
             // Update document title
@@ -741,7 +769,7 @@ export default function Dashboard() {
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
           const convId = updatedMessage.deal_id || otherUserId;
 
