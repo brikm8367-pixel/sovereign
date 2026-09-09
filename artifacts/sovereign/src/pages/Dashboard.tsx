@@ -693,7 +693,7 @@ export default function Dashboard() {
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return.
+          if (!otherUserId) return;
 
           const convId = updatedMessage.deal_id || otherUserId;
 
