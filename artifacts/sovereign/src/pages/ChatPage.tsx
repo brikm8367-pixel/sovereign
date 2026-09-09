@@ -487,7 +487,7 @@ export default function ChatPage() {
             } else if (recipient) {
               senderName = recipient.display_name || recipient.username || 'Someone';
             }
-            const preview = newMsg.content?.substring(0, 40) || '';
+            const preview = typeof newMsg.content === 'string' ? newMsg.content.substring(0, 40) : '';
             toast.success(`${senderName}: ${preview}...`);
             // Play sound
             try {
@@ -505,6 +505,40 @@ export default function ChatPage() {
           // Also trigger a full reload for consistency (mark as read, etc.)
           if (loadMessagesRef.current) {
             await loadMessagesRef.current();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'deal_cards',
+        },
+        async (payload) => {
+          const updatedDeal = payload.new as Deal;
+          if (!updatedDeal) return;
+
+          // Check if this deal involves the current user
+          const isRelevant = 
+            updatedDeal.sender_id === currentUser.id ||
+            updatedDeal.celebrity_id === currentUser.id ||
+            (currentRole === 'manager' && currentManagedCelebrityId && updatedDeal.celebrity_id === currentManagedCelebrityId);
+
+          if (!isRelevant) return;
+
+          console.log('[ChatPage] Realtime: Deal updated', updatedDeal);
+
+          // Show toast for status changes
+          if (updatedDeal.status === 'accepted') {
+            toast.info(tLocal('تم قبول عرضك', 'Your offer was accepted'));
+          } else if (updatedDeal.status === 'declined') {
+            toast.info(tLocal('تم رفض عرضك', 'Your offer was declined'));
+          }
+
+          // Refresh deal if it's the current deal
+          if (currentDealId && updatedDeal.id === currentDealId) {
+            setDeal(updatedDeal);
           }
         }
       )
@@ -991,8 +1025,8 @@ export default function ChatPage() {
                 ? managedCelebrityProfiles.get(msg.managed_celebrity_id)?.display_name 
                 : null;
 
-              // Check for agent decision message
-              const isAgentDecision = msg.content.startsWith('{"type":"agent_decision"');
+              // Check for agent decision message - FIX: handle null/undefined content
+              const isAgentDecision = typeof msg.content === 'string' && msg.content.startsWith('{"type":"agent_decision"');
               let parsedDecision: { type: string; decision: string; dealId: string; agentName: string } | null = null;
               
               if (isAgentDecision) {
@@ -1111,14 +1145,14 @@ export default function ChatPage() {
                             <Mic className="h-5 w-5 text-muted-foreground" />
                             <span className="text-sm text-muted-foreground">{t.dashboard.voiceMessage}</span>
                           </div>
-                        ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) && !isAgentDecision ? (
+                        ) : msg.content && !['📷', '🎥', '🎤'].includes(typeof msg.content === 'string' ? msg.content : '') && !isAgentDecision ? (
                           <p className="whitespace-pre-wrap">
                             {msg._decryptionFailed ? (
                               <span className="flex items-center gap-1.5 text-muted-foreground/60 italic text-sm">
                                 <Info className="h-3.5 w-3.5 flex-shrink-0" />
-                                {msg.content}
+                                {typeof msg.content === 'string' ? msg.content : ''}
                               </span>
-                            ) : msg.content}
+                            ) : typeof msg.content === 'string' ? msg.content : ''}
                           </p>
                         ) : null}
                         <div className={cn('flex items-center gap-1.5 mt-1.5', isMine ? 'justify-end' : '')}>
