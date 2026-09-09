@@ -427,7 +427,6 @@ export default function Dashboard() {
         .update({
           status: 'accepted',
           updated_at: new Date().toISOString(),
-          conversation_partner_id: senderIdForConversation
         })
         .eq('id', dealId);
 
