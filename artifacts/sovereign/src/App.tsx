@@ -98,6 +98,7 @@ const App = () => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const currentVersionRef = useRef<string | null>(null);
+  const pendingReloadRef = useRef(false);
 
   useEffect(() => {
     const visited = sessionStorage.getItem('directly_visited');
@@ -145,6 +146,9 @@ const App = () => {
 
   // Automatic version-based update detection every 60 seconds
   useEffect(() => {
+    let visibilityListener: (() => void) | null = null;
+    let controllerChangeListener: (() => void) | null = null;
+
     const checkForUpdates = async () => {
       try {
         const response = await fetch('/index.html', { cache: 'no-store' });
@@ -153,10 +157,30 @@ const App = () => {
         if (match) {
           const newVersion = match[0];
           if (currentVersionRef.current !== null && currentVersionRef.current !== newVersion) {
-            updateServiceWorker(true);
-            setTimeout(() => {
-              window.location.reload();
-            }, 500);
+            // Version mismatch detected
+            if (document.hidden) {
+              // Tab is hidden - update and reload immediately
+              updateServiceWorker(true);
+              setTimeout(() => {
+                window.location.reload();
+              }, 500);
+            } else {
+              // Tab is visible - set pending reload and wait for visibility change
+              pendingReloadRef.current = true;
+              
+              // Register visibility change listener if not already registered
+              if (!visibilityListener) {
+                visibilityListener = () => {
+                  if (document.hidden && pendingReloadRef.current) {
+                    updateServiceWorker(true);
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 500);
+                  }
+                };
+                document.addEventListener('visibilitychange', visibilityListener);
+              }
+            }
           } else {
             currentVersionRef.current = newVersion;
           }
@@ -166,13 +190,38 @@ const App = () => {
       }
     };
 
+    // Listen for service worker controller change (new SW took control)
+    controllerChangeListener = () => {
+      if (pendingReloadRef.current) {
+        window.location.reload();
+      }
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', controllerChangeListener);
+
+    // Also check when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkForUpdates();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     // Initial check
     checkForUpdates();
 
     // Set up interval to check every 60 seconds
     const intervalId = setInterval(checkForUpdates, 60000);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (visibilityListener) {
+        document.removeEventListener('visibilitychange', visibilityListener);
+      }
+      if (controllerChangeListener) {
+        navigator.serviceWorker.removeEventListener('controllerchange', controllerChangeListener);
+      }
+    };
   }, [updateServiceWorker]);
 
   const handleUpdate = () => {

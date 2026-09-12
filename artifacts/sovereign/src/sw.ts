@@ -69,11 +69,14 @@ registerRoute(
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+  if (event.data?.type === "FORCE_UPDATE") self.skipWaiting();
 });
 
 // Install event: wait for user confirmation before activating (via SKIP_WAITING message)
 self.addEventListener("install", () => {
   // Service worker will wait until user presses update button which sends SKIP_WAITING message
+  // Also skip waiting immediately to ensure fast updates
+  self.skipWaiting();
 });
 
 // Activate event: claim clients immediately
