@@ -12,7 +12,7 @@ import {
 import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield, Briefcase, AlertCircle, ShieldCheck, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { encryptForRecipient, ensureUserE2EReady } from '@/utils/e2eManager';
+import { encryptForRecipient, ensureUserE2EReady, storeOwnMessagePlaintext } from '@/utils/e2eManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
 
@@ -123,18 +123,23 @@ export default function MessageComposer({
       const category = 'work';
 
       // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
-      // This ensures each pair of users has exactly ONE work conversation
+      // This ensures each pair of users has exactly ONE work conversation per deal
       let parentId: string | null = null;
       
       // Build sender/receiver filter using only user.id (not managedCelebrityId)
       const senderIds = [senderId];
       const receiverIds = [senderId];
       
-      const { data: rootMsg } = await supabase
+      let rootQuery = supabase
         .from('messages')
         .select('id')
-        .is('parent_id', null)
-        .eq('category', 'work')
+        .eq('category', 'work');
+      
+      if (dealId) {
+        rootQuery = rootQuery.eq('deal_id', dealId);
+      }
+
+      const { data: rootMsg } = await rootQuery
         .or(
           senderIds.map(sid => 
             receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
@@ -277,6 +282,11 @@ export default function MessageComposer({
         managed_celebrity_id: managedCelebrityIdField,
       } as any).select('id').single();
       if (error) throw error;
+
+      // Cache the plaintext for our own message using the database-generated ID
+      if (insertedMsg?.id) {
+        await storeOwnMessagePlaintext(insertedMsg.id, contentToSend);
+      }
 
       // Push notification with conversationId - use agent's own display name for managers
       let senderName = '';
