@@ -12,7 +12,7 @@ import {
 import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield, Briefcase, AlertCircle, ShieldCheck, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { encryptForRecipient, ensureUserE2EReady, storeOwnMessagePlaintext } from '@/utils/e2eManager';
+import { encryptForRecipient, ensureUserE2EReady, storeOwnMessagePlaintext, getOwnMessagePlaintext } from '@/utils/e2eManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
 
@@ -126,9 +126,9 @@ export default function MessageComposer({
       // This ensures each pair of users has exactly ONE work conversation per deal
       let parentId: string | null = null;
       
-      // Build sender/receiver filter using only user.id (not managedCelebrityId)
-      const senderIds = [senderId];
-      const receiverIds = [senderId];
+      // Build sender/receiver filter using both sender and recipient IDs
+      const senderIds = [senderId, recipient.id];
+      const receiverIds = [senderId, recipient.id];
       
       let rootQuery = supabase
         .from('messages')
@@ -286,6 +286,9 @@ export default function MessageComposer({
       // Cache the plaintext for our own message using the database-generated ID
       if (insertedMsg?.id) {
         await storeOwnMessagePlaintext(insertedMsg.id, contentToSend);
+        // Verify cache was written correctly
+        const verified = await getOwnMessagePlaintext(insertedMsg.id);
+        console.log('[MessageComposer] Plaintext cache', verified === contentToSend ? 'OK' : 'FAILED', { id: insertedMsg.id, hasCache: !!verified });
       }
 
       // Push notification with conversationId - use agent's own display name for managers

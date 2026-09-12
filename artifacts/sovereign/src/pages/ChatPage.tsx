@@ -289,6 +289,7 @@ export default function ChatPage() {
         // For own messages, check IndexedDB cache first
         if (msg.sender_id === user.id) {
           const cached = await getOwnMessagePlaintext(msg.id);
+          console.log('[ChatPage] Own message cache check', { id: msg.id, found: !!cached });
           if (cached) {
             return { ...msg, content: cached };
           }
@@ -685,8 +686,10 @@ export default function ChatPage() {
     // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
     // This ensures each pair of users has exactly ONE work conversation per deal
     let parentId: string | null = null;
-    const senderIds = [user.id];
-    const receiverIds = [user.id];
+    
+    // Build sender/receiver filter using both user IDs
+    const senderIds = [user.id, userId];
+    const receiverIds = [user.id, userId];
     
     let rootQuery = supabase
       .from('messages')
