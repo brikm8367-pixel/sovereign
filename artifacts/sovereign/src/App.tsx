@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -97,6 +97,7 @@ const App = () => {
   const [isFirstVisit, setIsFirstVisit] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
+  const currentVersionRef = useRef<string | null>(null);
 
   useEffect(() => {
     const visited = sessionStorage.getItem('directly_visited');
@@ -141,6 +142,38 @@ const App = () => {
       setShowUpdatePrompt(false);
     },
   });
+
+  // Automatic version-based update detection every 60 seconds
+  useEffect(() => {
+    const checkForUpdates = async () => {
+      try {
+        const response = await fetch('/index.html', { cache: 'no-store' });
+        const html = await response.text();
+        const match = html.match(/assets\/index-[A-Za-z0-9_-]+\.js/);
+        if (match) {
+          const newVersion = match[0];
+          if (currentVersionRef.current !== null && currentVersionRef.current !== newVersion) {
+            updateServiceWorker(true);
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          } else {
+            currentVersionRef.current = newVersion;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check for updates:', error);
+      }
+    };
+
+    // Initial check
+    checkForUpdates();
+
+    // Set up interval to check every 60 seconds
+    const intervalId = setInterval(checkForUpdates, 60000);
+
+    return () => clearInterval(intervalId);
+  }, [updateServiceWorker]);
 
   const handleUpdate = () => {
     setIsUpdating(true);
