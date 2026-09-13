@@ -877,6 +877,29 @@ export default function ChatPage() {
       const celebrityName = managedCelebrityProfiles.get(managedCelebrityId)?.display_name || tLocal('الموهبة', 'Talent');
       const companyName = deal?.company_name || recipient?.display_name || tLocal('الشركة', 'Company');
       
+      // Check if deal is accepted
+      const isDealAccepted = deal && deal.status === 'accepted';
+      
+      if (!isDealAccepted) {
+        // Non-accepted deal: show "Talent Questions"
+        return (
+          <div className="text-start min-w-0">
+            <p className="font-semibold text-base truncate">
+              {celebrityName}
+            </p>
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                <UserCheck className="h-2.5 w-2.5" />
+                {tLocal('وكيل مفوض', 'Authorized Agent')}
+              </span>
+              <p className="text-[11px] text-muted-foreground">{tLocal('تمثل', 'representing')}</p>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{tLocal('أسئلة الموهبة', 'Talent Questions')}</p>
+          </div>
+        );
+      }
+      
+      // Accepted deal: show company name
       return (
         <div className="text-start min-w-0">
           <p className="font-semibold text-base truncate">
@@ -903,6 +926,24 @@ export default function ChatPage() {
         : (recipient?.display_name || tLocal('الوكيل', 'Agent'));
       const companyName = deal?.company_name || tLocal('الشركة', 'Company');
       
+      // Check if deal is accepted
+      const isDealAccepted = deal && deal.status === 'accepted';
+      
+      if (!isDealAccepted) {
+        // Non-accepted deal: show "Your agent's questions"
+        return (
+          <div className="text-start min-w-0">
+            <p className="font-semibold text-base truncate">
+              {tLocal('وكيلك', 'Your agent')} {agentName}
+            </p>
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <p className="text-[11px] text-muted-foreground">{tLocal('أسئلة وكيلك', "Your agent's questions")}</p>
+            </div>
+          </div>
+        );
+      }
+      
+      // Accepted deal: show company name
       return (
         <div className="text-start min-w-0">
           <p className="font-semibold text-base truncate">

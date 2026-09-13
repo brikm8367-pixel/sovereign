@@ -446,32 +446,6 @@ export default function Dashboard() {
 
       if (updateError) throw updateError;
 
-      // Send agent decision message to celebrity when manager accepts
-      if (role === 'manager' && managedCelebrityId) {
-        const agentDecisionContent = JSON.stringify({
-          type: 'agent_decision',
-          decision: 'accepted',
-          dealId: dealId,
-          agentName: user.display_name || 'Agent'
-        });
-        
-        const { error: agentMsgError } = await supabase
-          .from('messages')
-          .insert({
-            sender_id: user.id,
-            receiver_id: celebrityId,
-            deal_id: dealId,
-            content: agentDecisionContent,
-            category: 'work',
-            sender_role: 'manager',
-            managed_celebrity_id: celebrityId
-          });
-        
-        if (agentMsgError) {
-          console.error('[Dashboard] Failed to send agent decision message:', agentMsgError);
-        }
-      }
-
       // Role-specific toast
       if (role === 'manager') {
         toast.success(isRTL ? 'تم قبول العرض للموهبة التي تديرها' : 'Offer accepted for talent you manage');
@@ -517,32 +491,6 @@ export default function Dashboard() {
         .eq('id', dealId);
 
       if (updateError) throw updateError;
-
-      // Send agent decision message to celebrity when manager rejects
-      if (role === 'manager' && managedCelebrityId) {
-        const agentDecisionContent = JSON.stringify({
-          type: 'agent_decision',
-          decision: 'declined',
-          dealId: dealId,
-          agentName: user.display_name || 'Agent'
-        });
-        
-        const { error: agentMsgError } = await supabase
-          .from('messages')
-          .insert({
-            sender_id: user.id,
-            receiver_id: celebrityId,
-            deal_id: dealId,
-            content: agentDecisionContent,
-            category: 'work',
-            sender_role: 'manager',
-            managed_celebrity_id: celebrityId
-          });
-        
-        if (agentMsgError) {
-          console.error('[Dashboard] Failed to send agent decision message:', agentMsgError);
-        }
-      }
 
       // Role-specific toast
       if (role === 'manager') {

@@ -133,11 +133,10 @@ export default function MessageComposer({
       let rootQuery = supabase
         .from('messages')
         .select('id')
+        .is('parent_id', null)
         .eq('category', 'work');
       
-      if (dealId) {
-        rootQuery = rootQuery.eq('deal_id', dealId);
-      }
+      // Removed deal_id filter to ensure ONE conversation per user pair for all questions
 
       const { data: rootMsg } = await rootQuery
         .or(
