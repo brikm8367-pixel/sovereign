@@ -1,5 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MessageCircle } from 'lucide-react';
+import { useLanguage } from '@/i18n/LanguageContext';
+import { Briefcase, MessageCircle, Mail, Users } from 'lucide-react';
 
 interface Conversation {
   id: string;
@@ -12,6 +12,8 @@ interface Conversation {
   unread_count: number;
   deal_id: string | null;
   category: string;
+  sender_role?: string | null;
+  deal_status?: string | null;
 }
 
 interface InboxSectionProps {
@@ -25,6 +27,8 @@ export function InboxSection({
   isLoading,
   onConversationClick,
 }: InboxSectionProps) {
+  const { isRTL } = useLanguage();
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -42,41 +46,98 @@ export function InboxSection({
     );
   }
 
+  const t = (ar: string, en: string) => (isRTL ? ar : en);
+
+  const getConversationMeta = (conv: Conversation) => {
+    if (conv.sender_role === 'manager' && conv.deal_status === 'accepted') {
+      return {
+        icon: Briefcase,
+        iconBg: 'bg-blue-100 dark:bg-blue-900/30',
+        iconColor: 'text-blue-600 dark:text-blue-400',
+        titleAr: 'تفاوض',
+        titleEn: 'Negotiation',
+        subtitlePrefixAr: 'مع',
+        subtitlePrefixEn: 'with',
+      };
+    } else if (conv.sender_role === 'manager') {
+      return {
+        icon: MessageCircle,
+        iconBg: 'bg-purple-100 dark:bg-purple-900/30',
+        iconColor: 'text-purple-600 dark:text-purple-400',
+        titleAr: 'أسئلة',
+        titleEn: 'Questions',
+        subtitlePrefixAr: 'من',
+        subtitlePrefixEn: 'from',
+      };
+    } else {
+      return {
+        icon: Mail,
+        iconBg: 'bg-gray-100 dark:bg-gray-800',
+        iconColor: 'text-gray-600 dark:text-gray-400',
+        titleAr: 'رسائل',
+        titleEn: 'Messages',
+        subtitlePrefixAr: 'من',
+        subtitlePrefixEn: 'from',
+      };
+    }
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return t('منذ قليل', 'just now');
+    if (diffMins < 60) return t(`${diffMins} دقيقة`, `${diffMins}m`);
+    if (diffHours < 24) return t(`${diffHours} ساعة`, `${diffHours}h`);
+    if (diffDays < 7) return t(`${diffDays} يوم`, `${diffDays}d`);
+    return date.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' });
+  };
+
   return (
     <div className="space-y-1.5">
-      {conversations.map((conv) => (
-        <button
-          key={conv.id}
-          onClick={() => onConversationClick(conv)}
-          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors touch-feedback text-left"
-        >
-          <Avatar className="h-12 w-12 ring-2 ring-primary/10">
-            <AvatarImage src={conv.avatar_url || undefined} />
-            <AvatarFallback className="bg-primary/10 text-primary">
-              {conv.display_name?.[0]?.toUpperCase() || '?'}
-            </AvatarFallback>
-          </Avatar>
+      {conversations.map((conv) => {
+        const meta = getConversationMeta(conv);
+        const Icon = meta.icon;
+        const time = formatTime(conv.last_message_time);
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-sm truncate">{conv.display_name}</p>
-              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                {new Date(conv.last_message_time).toLocaleTimeString('ar-SA', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
+        return (
+          <button
+            key={conv.id}
+            onClick={() => onConversationClick(conv)}
+            className="w-full flex items-start gap-3 p-3.5 rounded-2xl bg-card border border-border/50 hover:border-primary/30 hover:bg-muted/30 transition-all touch-feedback text-left"
+          >
+            <div className={`shrink-0 h-11 w-11 rounded-xl flex items-center justify-center ${meta.iconBg}`}>
+              <Icon className={`h-5 w-5 ${meta.iconColor}`} />
             </div>
-            <p className="text-xs text-muted-foreground truncate">{conv.last_message}</p>
-          </div>
 
-          {conv.unread_count > 0 && (
-            <span className="h-5 min-w-5 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center px-1.5">
-              {conv.unread_count}
-            </span>
-          )}
-        </button>
-      ))}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <h3 className="font-bold text-sm truncate">
+                  {isRTL ? meta.titleAr : meta.titleEn}
+                </h3>
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                  {time}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground truncate mb-1.5">{conv.display_name}</p>
+              <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border/40">
+                <span className="text-[10px] text-muted-foreground/70 truncate">
+                  {time}
+                </span>
+                {conv.unread_count > 0 && (
+                  <span className="h-5 min-w-5 rounded-full bg-red-500 text-[10px] font-semibold text-white flex items-center justify-center px-1.5 shrink-0">
+                    {conv.unread_count}
+                  </span>
+                )}
+              </div>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
