@@ -12,3 +12,4 @@ SOVEREIGN_TECH_REPORT*.md
 .env
 node_modules/
 .env
+.vercel
