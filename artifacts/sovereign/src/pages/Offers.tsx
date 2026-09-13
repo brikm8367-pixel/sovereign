@@ -35,7 +35,10 @@ export default function OffersPage() {
   const navigate = useNavigate();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState<'all' | 'sent' | 'seen' | 'accepted' | 'declined'>('all');
+  const [selectedTab, setSelectedTab] = useState<'all' | 'sent' | 'seen' | 'pending' | 'accepted' | 'declined'>('all');
+  const [hasManager, setHasManager] = useState<boolean | null>(null);
+  const [checkingManager, setCheckingManager] = useState(false);
+  const useAgentLabels = role === 'celebrity' && hasManager === true;
 
   // Redirect managers to home
   useEffect(() => {
@@ -44,18 +47,51 @@ export default function OffersPage() {
     }
   }, [loading, role, navigate]);
 
-  // Fetch deals for sender (company)
+  // Check for active manager link for celebrities
   useEffect(() => {
-    if (!user || role !== 'sender') return;
+    if (!user || role !== 'celebrity') {
+      setHasManager(false);
+      setCheckingManager(false);
+      return;
+    }
+    let cancelled = false;
+    setCheckingManager(true);
+    const checkManager = async () => {
+      try {
+        const { data } = await supabase
+          .from('manager_links')
+          .select('id')
+          .eq('celebrity_id', user.id)
+          .eq('status', 'active')
+          .limit(1);
+        if (!cancelled) setHasManager(!!data && data.length > 0);
+      } catch (err) {
+        console.error('[Offers] Error checking manager link:', err);
+        if (!cancelled) setHasManager(false);
+      } finally {
+        if (!cancelled) setCheckingManager(false);
+      }
+    };
+    checkManager();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, role]);
+
+  // Fetch deals for sender (company) or celebrity
+  useEffect(() => {
+    if (!user || (role !== 'sender' && role !== 'celebrity')) return;
     
     const fetchDeals = async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('deal_cards')
-          .select('*')
-          .eq('sender_id', user.id)
-          .order('created_at', { ascending: false });
+        let query = supabase.from('deal_cards').select('*');
+        if (role === 'sender') {
+          query = query.eq('sender_id', user.id);
+        } else {
+          query = query.eq('celebrity_id', user.id);
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) throw error;
         setDeals(data || []);
@@ -69,10 +105,11 @@ export default function OffersPage() {
     fetchDeals();
 
     // Realtime subscription for deal updates
+    const filterColumn = role === 'sender' ? 'sender_id' : 'celebrity_id';
     const channel = supabase
       .channel('offers-realtime-' + user.id)
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'deal_cards', filter: `sender_id=eq.${user.id}` },
+        { event: '*', schema: 'public', table: 'deal_cards', filter: `${filterColumn}=eq.${user.id}` },
         () => {
           fetchDeals();
         }
@@ -96,6 +133,14 @@ export default function OffersPage() {
     return null;
   }
 
+  if (role === 'celebrity' && (checkingManager || hasManager === null)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   const t = (ar: string, en: string) => (isRTL ? ar : en);
 
   const CURRENCY_FLAGS: Record<string, string> = {
@@ -111,14 +156,14 @@ export default function OffersPage() {
     switch (status) {
       case 'accepted':
         return {
-          label: t('تم القبول', 'Accepted'),
+          label: useAgentLabels ? t('بدأ التفاوض', 'Negotiation Started') : t('تم القبول', 'Accepted'),
           bg: 'bg-green-100 dark:bg-green-900/30',
           text: 'text-green-700 dark:text-green-400',
           border: 'border-green-200 dark:border-green-800',
         };
       case 'declined':
         return {
-          label: t('تم الرفض', 'Declined'),
+          label: useAgentLabels ? t('رفض وكيلي', 'Declined by Agent') : t('تم الرفض', 'Declined'),
           bg: 'bg-red-100 dark:bg-red-900/30',
           text: 'text-red-700 dark:text-red-400',
           border: 'border-red-200 dark:border-red-800',
@@ -133,7 +178,7 @@ export default function OffersPage() {
       case 'pending':
       default:
         return {
-          label: t('قيد المراجعة', 'Pending'),
+          label: useAgentLabels ? t('قيد مراجعة وكيلي', 'Under Review by Agent') : t('قيد المراجعة', 'Pending'),
           bg: 'bg-amber-100 dark:bg-amber-900/30',
           text: 'text-amber-700 dark:text-amber-400',
           border: 'border-amber-200 dark:border-amber-800',
@@ -208,13 +253,20 @@ export default function OffersPage() {
         return deal.status === 'accepted';
       case 'declined':
         return deal.status === 'declined';
+      case 'pending':
+        return deal.status === 'pending';
       case 'all':
       default:
         return true;
     }
   });
 
-  const tabs = [
+  const tabs = useAgentLabels ? [
+    { id: 'all', label: { ar: 'الكل', en: 'All' } },
+    { id: 'pending', label: { ar: 'قيد مراجعة وكيلي', en: 'Under Review' } },
+    { id: 'accepted', label: { ar: 'بدأ التفاوض', en: 'Negotiation' } },
+    { id: 'declined', label: { ar: 'مرفوضة', en: 'Declined' } },
+  ] : [
     { id: 'all', label: { ar: 'الكل', en: 'All' } },
     { id: 'sent', label: { ar: 'مرسلة', en: 'Sent' } },
     { id: 'seen', label: { ar: 'شوهدت', en: 'Seen' } },
@@ -227,7 +279,7 @@ export default function OffersPage() {
       <header className="fixed top-0 right-0 left-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border safe-area-inset-top">
         <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
           <h1 className="font-bold text-lg">
-            {t('عروضي', 'My Offers')}
+            {useAgentLabels ? t('قرار وكيلي', "My Agent's Decision") : t('عروضي', 'My Offers')}
             {deals.length > 0 && (
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary ml-2">
                 {deals.length}
