@@ -266,8 +266,6 @@ export default function Dashboard() {
     retryTimeoutsRef.current.add(timeoutId);
     return '...';
   }, []);
-
-  const fetchPendingDeals = useCallback(async () => {
     if (!user) return;
     
     // STEP 3: Use roleRef.current
