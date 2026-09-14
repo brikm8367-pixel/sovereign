@@ -458,6 +458,22 @@ export default function Dashboard() {
     }
   }, [conversationsFromQuery]);
 
+  // TanStack Query for pendingDeals - caches for 15 seconds
+  const { data: pendingDealsFromQuery, isLoading: isLoadingPendingFromQuery } = useQuery({
+    queryKey: ['pendingDeals', user?.id, managedCelebrityId],
+    queryFn: fetchPendingDeals,
+    staleTime: 15000,
+    enabled: !!user
+  });
+
+  // Sync query result into existing state - keeps all consumers working
+  useEffect(() => {
+    if (pendingDealsFromQuery) {
+      setPendingDeals(pendingDealsFromQuery);
+      setIsLoadingDeals(false);
+    }
+  }, [pendingDealsFromQuery]);
+
   // Store refs for use in effects
   useEffect(() => {
     fetchConversationsRef.current = fetchConversations;
@@ -811,7 +827,7 @@ export default function Dashboard() {
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
           const convId = updatedMessage.deal_id || otherUserId;
 
