@@ -209,19 +209,6 @@ export default function Dashboard() {
     };
   }, [user]);
 
-  // Reset data when managedCelebrityId changes
-  useEffect(() => {
-    if (roleRef.current === 'manager' && managedCelebrityId) {
-      console.log('[Dashboard] Celebrity changed, resetting data for:', managedCelebrityId);
-      setPendingDeals([]);
-      setConversations([]);
-      setIsLoadingDeals(true);
-      setIsLoadingMessages(true);
-      fetchPendingDeals();
-      fetchConversations();
-    }
-  }, [managedCelebrityId, fetchPendingDeals, fetchConversations]);
-
   // Helper to resolve display content for a message (decrypt if needed)
   const resolveDisplayContent = async (
     msgContent: string,
@@ -454,6 +441,19 @@ export default function Dashboard() {
   useEffect(() => {
     fetchPendingDealsRef.current = fetchPendingDeals;
   }, [fetchPendingDeals]);
+
+  // Reset data when managedCelebrityId changes - MOVED AFTER fetchPendingDeals/fetchConversations definitions
+  useEffect(() => {
+    if (roleRef.current === 'manager' && managedCelebrityId) {
+      console.log('[Dashboard] Celebrity changed, resetting data for:', managedCelebrityId);
+      setPendingDeals([]);
+      setConversations([]);
+      setIsLoadingDeals(true);
+      setIsLoadingMessages(true);
+      fetchPendingDeals();
+      fetchConversations();
+    }
+  }, [managedCelebrityId, fetchPendingDeals, fetchConversations]);
 
   // Calculate unread total whenever conversations change
   useEffect(() => {
@@ -782,7 +782,7 @@ export default function Dashboard() {
           if (!updatedMessage || updatedMessage.category !== 'work') return;
           
           const currentUserId = user?.id;
-          if (!currentUserId) return;
+          if (!currentUserId) return.
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
