@@ -1,5 +1,6 @@
 import { useLanguage } from '@/i18n/LanguageContext';
-import { Briefcase, MessageCircle, Mail, Users } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Briefcase, MessageCircle, Mail } from 'lucide-react';
 
 interface Conversation {
   id: string;
@@ -46,18 +47,14 @@ export function InboxSection({
     );
   }
 
-  const t = (ar: string, en: string) => (isRTL ? ar : en);
-
   const getConversationMeta = (conv: Conversation) => {
     if (conv.sender_role === 'manager' && conv.deal_status === 'accepted') {
       return {
         icon: Briefcase,
-        iconBg: 'bg-blue-100 dark:bg-blue-900/30',
-        iconColor: 'text-blue-600 dark:text-blue-400',
+        iconBg: 'bg-amber-100 dark:bg-amber-900/30',
+        iconColor: 'text-amber-600 dark:text-amber-400',
         titleAr: 'تفاوض',
         titleEn: 'Negotiation',
-        subtitlePrefixAr: 'مع',
-        subtitlePrefixEn: 'with',
       };
     } else if (conv.sender_role === 'manager') {
       return {
@@ -66,8 +63,6 @@ export function InboxSection({
         iconColor: 'text-purple-600 dark:text-purple-400',
         titleAr: 'أسئلة',
         titleEn: 'Questions',
-        subtitlePrefixAr: 'من',
-        subtitlePrefixEn: 'from',
       };
     } else {
       return {
@@ -76,25 +71,8 @@ export function InboxSection({
         iconColor: 'text-gray-600 dark:text-gray-400',
         titleAr: 'رسائل',
         titleEn: 'Messages',
-        subtitlePrefixAr: 'من',
-        subtitlePrefixEn: 'from',
       };
     }
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return t('منذ قليل', 'just now');
-    if (diffMins < 60) return t(`${diffMins} دقيقة`, `${diffMins}m`);
-    if (diffHours < 24) return t(`${diffHours} ساعة`, `${diffHours}h`);
-    if (diffDays < 7) return t(`${diffDays} يوم`, `${diffDays}d`);
-    return date.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' });
   };
 
   return (
@@ -102,39 +80,37 @@ export function InboxSection({
       {conversations.map((conv) => {
         const meta = getConversationMeta(conv);
         const Icon = meta.icon;
-        const time = formatTime(conv.last_message_time);
+        const time = new Date(conv.last_message_time).toLocaleTimeString('ar-SA', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
 
         return (
           <button
             key={conv.id}
             onClick={() => onConversationClick(conv)}
-            className="w-full flex items-start gap-3 p-3.5 rounded-2xl bg-card border border-border/50 hover:border-primary/30 hover:bg-muted/30 transition-all touch-feedback text-left"
+            className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl bg-card border border-border/40 hover:border-primary/30 hover:bg-muted/20 hover:shadow-sm transition-all duration-200 touch-feedback text-left group"
           >
-            <div className={`shrink-0 h-11 w-11 rounded-xl flex items-center justify-center ${meta.iconBg}`}>
-              <Icon className={`h-5 w-5 ${meta.iconColor}`} />
+            <div className={cn('shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center transition-transform duration-200 group-hover:scale-105', meta.iconBg)}>
+              <Icon className={cn('h-5 w-5', meta.iconColor)} />
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <h3 className="font-bold text-sm truncate">
-                  {isRTL ? meta.titleAr : meta.titleEn}
-                </h3>
-                <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
-                  {time}
-                </span>
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-semibold text-[15px] truncate text-foreground">{conv.display_name}</p>
+                <span className="text-[10px] text-muted-foreground/80 whitespace-nowrap shrink-0 font-medium">{time}</span>
               </div>
-              <p className="text-xs text-muted-foreground truncate mb-1.5">{conv.display_name}</p>
-              <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border/40">
-                <span className="text-[10px] text-muted-foreground/70 truncate">
-                  {time}
-                </span>
-                {conv.unread_count > 0 && (
-                  <span className="h-5 min-w-5 rounded-full bg-red-500 text-[10px] font-semibold text-white flex items-center justify-center px-1.5 shrink-0">
-                    {conv.unread_count}
-                  </span>
-                )}
-              </div>
+              <p className={cn('text-[11px] font-medium mt-0.5 tracking-wide', meta.iconColor)}>
+                {isRTL ? meta.titleAr : meta.titleEn}
+              </p>
+              <p className="text-xs text-muted-foreground/70 truncate mt-1 leading-relaxed">{conv.last_message}</p>
             </div>
+
+            {conv.unread_count > 0 && (
+              <span className="h-5 min-w-5 rounded-full bg-primary text-[10px] font-semibold text-primary-foreground flex items-center justify-center px-1.5 shrink-0 shadow-sm">
+                {conv.unread_count}
+              </span>
+            )}
           </button>
         );
       })}
