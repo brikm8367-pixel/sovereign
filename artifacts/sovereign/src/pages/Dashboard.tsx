@@ -254,9 +254,16 @@ export default function Dashboard() {
     } catch (e) {
       console.warn('[Dashboard] Decryption failed for message:', messageId, e);
     }
-    // Fallback
-    decryptedCacheRef.current.set(messageId, '🔒');
-    return '🔒';
+    // Fallback: schedule retry in background, show '...' immediately
+    setTimeout(() => {
+      resolveDisplayContent(msgContent, senderId, messageId, currentUserId, managedCelebrityId).then(fresh => {
+        if (fresh && fresh !== '...' && fresh !== '🔒') {
+          decryptedCacheRef.current.set(messageId, fresh);
+          setConversations(prev => prev.map(c => c.last_message === '...' ? { ...c, last_message: fresh } : c));
+        }
+      });
+    }, 5000);
+    return '...';
   };
 
   const fetchPendingDeals = useCallback(async () => {

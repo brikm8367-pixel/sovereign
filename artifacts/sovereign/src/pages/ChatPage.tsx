@@ -81,8 +81,9 @@ export default function ChatPage() {
   const [celebrityProfile, setCelebrityProfile] = useState<Profile | null>(null);
   const [dealCache, setDealCache] = useState<Map<string, Deal>>(new Map());
   const [recipientE2EReady, setRecipientE2EReady] = useState<boolean | null>(null);
-  const [managedCelebrityProfiles, setManagedCelebrityProfiles] = useState<Map<string, Profile>>(new Map());
-  const [ownMessagesCache, setOwnMessagesCache] = useState<Map<string, string>>(new Map());
+  // BUG 1 FIX: Convert from useState to useRef to prevent re-renders
+  const managedCelebrityProfilesRef = useRef<Map<string, Profile>>(new Map());
+  const ownMessagesCacheRef = useRef<Map<string, string>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -105,8 +106,8 @@ export default function ChatPage() {
 
   // Fetch managed celebrity profile for display
   const fetchManagedCelebrityProfile = useCallback(async (celebrityId: string): Promise<Profile | null> => {
-    if (managedCelebrityProfiles.has(celebrityId)) {
-      return managedCelebrityProfiles.get(celebrityId) || null;
+    if (managedCelebrityProfilesRef.current.has(celebrityId)) {
+      return managedCelebrityProfilesRef.current.get(celebrityId) || null;
     }
     try {
       const { data } = await supabase
@@ -116,14 +117,14 @@ export default function ChatPage() {
         .single();
       if (data) {
         const profile = data as Profile;
-        setManagedCelebrityProfiles(prev => new Map(prev).set(celebrityId, profile));
+        managedCelebrityProfilesRef.current.set(celebrityId, profile);
         return profile;
       }
     } catch (error) {
       console.error('Error fetching managed celebrity profile:', error);
     }
     return null;
-  }, [managedCelebrityProfiles]);
+  }, []);
 
   // Determine display profile based on role and deal context
   const getDisplayProfile = useCallback((): Profile | null => {
@@ -316,17 +317,17 @@ export default function ChatPage() {
                 };
               }
             }
-            // Decryption failed - return readable fallback
+            // Decryption failed - return '...' temporarily, will retry in background
             return { 
               ...msg, 
-              content: t.dashboard.error,
+              content: '...',
               _decryptionFailed: true
             };
           } catch (decryptError) {
             console.error('[ChatPage] Decryption failed for message:', msg.id, decryptError);
             return { 
               ...msg, 
-              content: t.dashboard.error,
+              content: '...',
               _decryptionFailed: true
             };
           }
@@ -343,7 +344,7 @@ export default function ChatPage() {
       });
       
       for (const celebId of celebrityIds) {
-        if (!managedCelebrityProfiles.has(celebId)) {
+        if (!managedCelebrityProfilesRef.current.has(celebId)) {
           await fetchManagedCelebrityProfile(celebId);
         }
       }
@@ -371,7 +372,7 @@ export default function ChatPage() {
         setIsLoading(false);
       }
     }
-  }, [user?.id, userId, dealId, managedCelebrityProfiles, fetchManagedCelebrityProfile, role, managedCelebrityId, ownMessagesCache, isRTL]);
+  }, [user?.id, userId, dealId, fetchManagedCelebrityProfile, role, managedCelebrityId, isRTL]);
 
   // Store ref for use in effects
   useEffect(() => {
@@ -447,18 +448,18 @@ export default function ChatPage() {
                       if (fallbackRes.success) {
                         processedMsg = { ...newMsg, content: fallbackRes.plaintext, sender_id: newMsg.managed_celebrity_id };
                       } else {
-                        processedMsg = { ...newMsg, content: t.dashboard.error, _decryptionFailed: true };
+                        processedMsg = { ...newMsg, content: '...', _decryptionFailed: true };
                       }
                     } else {
-                      processedMsg = { ...newMsg, content: t.dashboard.error, _decryptionFailed: true };
+                      processedMsg = { ...newMsg, content: '...', _decryptionFailed: true };
                     }
                   }
                 } catch {
-                  processedMsg = { ...newMsg, content: t.dashboard.error, _decryptionFailed: true };
+                  processedMsg = { ...newMsg, content: '...', _decryptionFailed: true };
                 }
               }
               // Also fetch managed celebrity profile if needed
-              if (processedMsg.managed_celebrity_id && !managedCelebrityProfiles.has(processedMsg.managed_celebrity_id)) {
+              if (processedMsg.managed_celebrity_id && !managedCelebrityProfilesRef.current.has(processedMsg.managed_celebrity_id)) {
                 await fetchManagedCelebrityProfile(processedMsg.managed_celebrity_id);
               }
               setMessages(prevMsgs => {
@@ -483,7 +484,7 @@ export default function ChatPage() {
             // Get sender name
             let senderName = 'Someone';
             if (newMsg.sender_role === 'manager' && newMsg.managed_celebrity_id) {
-              const celebProfile = managedCelebrityProfiles.get(newMsg.managed_celebrity_id);
+              const celebProfile = managedCelebrityProfilesRef.current.get(newMsg.managed_celebrity_id);
               senderName = celebProfile?.display_name || tLocal('الوكيل', 'Agent');
             } else if (recipient) {
               senderName = recipient.display_name || recipient.username || 'Someone';
@@ -551,7 +552,7 @@ export default function ChatPage() {
       console.log('[ChatPage] Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
-  }, [user?.id, userId, dealId, deal, role, managedCelebrityId, managedCelebrityProfiles, fetchManagedCelebrityProfile]);
+  }, [user?.id, userId, dealId, deal, role, managedCelebrityId, fetchManagedCelebrityProfile]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -598,7 +599,7 @@ export default function ChatPage() {
       toast.error(
         isRTL
           ? 'Le destinataire n\'a pas encore configuré le chiffrement. Il doit se connecter une fois pour initialiser ses clés.'
-          : 'Recipient has not set up encryption yet. They need to log in once to initialize their keys.',
+          : 'Recipient has not set up encryption yet. They need to log in once to initialize their end-to-end encryption.',
         { duration: 7000 }
       );
       setIsSending(false);
@@ -874,7 +875,7 @@ export default function ChatPage() {
     
     // Agent manager role
     if (role === 'manager' && managedCelebrityId) {
-      const celebrityName = managedCelebrityProfiles.get(managedCelebrityId)?.display_name || tLocal('الموهبة', 'Talent');
+      const celebrityName = managedCelebrityProfilesRef.current.get(managedCelebrityId)?.display_name || tLocal('الموهبة', 'Talent');
       const companyName = deal?.company_name || recipient?.display_name || tLocal('الشركة', 'Company');
       
       // Check if deal is accepted
@@ -922,7 +923,7 @@ export default function ChatPage() {
       // Find agent name from messages (sender_role === 'manager')
       const agentMessage = messages.find(m => m.sender_role === 'manager' && m.sender_id !== user.id);
       const agentName = agentMessage?.managed_celebrity_id 
-        ? managedCelebrityProfiles.get(agentMessage.managed_celebrity_id)?.display_name 
+        ? managedCelebrityProfilesRef.current.get(agentMessage.managed_celebrity_id)?.display_name 
         : (recipient?.display_name || tLocal('الوكيل', 'Agent'));
       const companyName = deal?.company_name || tLocal('الشركة', 'Company');
       
@@ -1066,7 +1067,7 @@ export default function ChatPage() {
               // Check if message is from a manager (agent)
               const isFromManager = msg.sender_role === 'manager' && msg.managed_celebrity_id;
               const managedCelebrityName = isFromManager && msg.managed_celebrity_id 
-                ? managedCelebrityProfiles.get(msg.managed_celebrity_id)?.display_name 
+                ? managedCelebrityProfilesRef.current.get(msg.managed_celebrity_id)?.display_name 
                 : null;
 
               // Check for agent decision message - FIX: handle null/undefined content
