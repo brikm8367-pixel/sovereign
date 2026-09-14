@@ -136,6 +136,13 @@ export default function Dashboard() {
   const fetchPendingDealsRef = useRef<() => Promise<void>>();
   const fetchConversationsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const decryptedCacheRef = useRef<Map<string, string>>(new Map());
+  // STEP 1: Stabilize role reference
+  const roleRef = useRef(role);
+
+  // STEP 2: Keep roleRef current
+  useEffect(() => {
+    roleRef.current = role;
+  }, [role]);
 
   // Auto-initialize E2E keys for existing users who may not have them yet
   useEffect(() => {
@@ -204,7 +211,7 @@ export default function Dashboard() {
 
   // Reset data when managedCelebrityId changes
   useEffect(() => {
-    if (role === 'manager' && managedCelebrityId) {
+    if (roleRef.current === 'manager' && managedCelebrityId) {
       console.log('[Dashboard] Celebrity changed, resetting data for:', managedCelebrityId);
       setPendingDeals([]);
       setConversations([]);
@@ -213,7 +220,7 @@ export default function Dashboard() {
       fetchPendingDeals();
       fetchConversations();
     }
-  }, [managedCelebrityId, role]);
+  }, [managedCelebrityId, fetchPendingDeals, fetchConversations]);
 
   // Helper to resolve display content for a message (decrypt if needed)
   const resolveDisplayContent = async (
@@ -269,7 +276,8 @@ export default function Dashboard() {
   const fetchPendingDeals = useCallback(async () => {
     if (!user) return;
     
-    if (role === 'manager' && !managedCelebrityId) {
+    // STEP 3: Use roleRef.current
+    if (roleRef.current === 'manager' && !managedCelebrityId) {
       if (isMountedRef.current) {
         setPendingDeals([]);
         setIsLoadingDeals(false);
@@ -278,15 +286,16 @@ export default function Dashboard() {
     }
 
     try {
-      console.log('[Dashboard] Fetching pending deals for:', role === 'manager' ? managedCelebrityId : user.id);
+      console.log('[Dashboard] Fetching pending deals for:', roleRef.current === 'manager' ? managedCelebrityId : user.id);
       const query = supabase
         .from('deal_cards')
         .select('*')
         .eq('status', 'pending');
 
-      if (role === 'manager' && managedCelebrityId) {
+      // STEP 3: Use roleRef.current
+      if (roleRef.current === 'manager' && managedCelebrityId) {
         query.eq('celebrity_id', managedCelebrityId);
-      } else if (role === 'sender') {
+      } else if (roleRef.current === 'sender') {
         query.eq('sender_id', user.id);
       } else {
         query.eq('celebrity_id', user.id);
@@ -307,12 +316,13 @@ export default function Dashboard() {
         setIsLoadingDeals(false);
       }
     }
-  }, [user, role, managedCelebrityId]);
+  }, [user, managedCelebrityId]);
 
   const fetchConversations = useCallback(async () => {
     if (!user) return;
 
-    if (role === 'manager' && !managedCelebrityId) {
+    // STEP 4: Use roleRef.current
+    if (roleRef.current === 'manager' && !managedCelebrityId) {
       if (isMountedRef.current) {
         setConversations([]);
         setIsLoadingMessages(false);
@@ -324,7 +334,7 @@ export default function Dashboard() {
       // FIX: Always use user.id as currentUserId since messages are sent with sender_id = user.id (agent's own identity)
       const currentUserId = user.id;
 
-      console.log('[Dashboard] Fetching conversations for:', currentUserId, 'role:', role);
+      console.log('[Dashboard] Fetching conversations for:', currentUserId, 'role:', roleRef.current);
 
       let query = supabase
         .from('messages')
@@ -434,7 +444,7 @@ export default function Dashboard() {
         setIsLoadingMessages(false);
       }
     }
-  }, [user, role, managedCelebrityId, resolveDisplayContent]);
+  }, [user, managedCelebrityId, resolveDisplayContent]);
 
   // Store refs for use in effects
   useEffect(() => {
@@ -474,10 +484,8 @@ export default function Dashboard() {
       const celebrityId = managedCelebrityId || deal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
 
-      // Determine the correct sender_id for the conversation
-      // For managers: use agent's user.id so company can decrypt with agent's key
-      // For celebrities: use celebrityId (existing behavior)
-      const senderIdForConversation = role === 'manager' && managedCelebrityId ? user.id : celebrityId;
+      // STEP 7: Use roleRef.current
+      const senderIdForConversation = roleRef.current === 'manager' && managedCelebrityId ? user.id : celebrityId;
 
       // @ts-ignore
       const { error: msgError } = await supabase
@@ -488,8 +496,8 @@ export default function Dashboard() {
           deal_id: dealId,
           content: t.dashboard.offerAccepted,
           category: 'work',
-          sender_role: role === 'manager' ? 'manager' : 'celebrity',
-          managed_celebrity_id: role === 'manager' ? managedCelebrityId : null
+          sender_role: roleRef.current === 'manager' ? 'manager' : 'celebrity',
+          managed_celebrity_id: roleRef.current === 'manager' ? managedCelebrityId : null
         });
 
       if (msgError) throw msgError;
@@ -504,10 +512,10 @@ export default function Dashboard() {
 
       if (updateError) throw updateError;
 
-      // Role-specific toast
-      if (role === 'manager') {
+      // STEP 7: Use roleRef.current
+      if (roleRef.current === 'manager') {
         toast.success(isRTL ? 'تم قبول العرض للموهبة التي تديرها' : 'Offer accepted for talent you manage');
-      } else if (role === 'sender') {
+      } else if (roleRef.current === 'sender') {
         toast.success(isRTL ? 'تم تحديث حالة عرضك' : 'Your offer status updated');
       } else {
         toast.success(isRTL ? 'تم قبول العرض' : 'Offer accepted');
@@ -550,10 +558,10 @@ export default function Dashboard() {
 
       if (updateError) throw updateError;
 
-      // Role-specific toast
-      if (role === 'manager') {
+      // STEP 7: Use roleRef.current
+      if (roleRef.current === 'manager') {
         toast.success(isRTL ? 'تم رفض العرض للموهبة التي تديرها' : 'Offer declined for talent you manage');
-      } else if (role === 'sender') {
+      } else if (roleRef.current === 'sender') {
         toast.success(isRTL ? 'تم تحديث حالة عرضك' : 'Your offer status updated');
       } else {
         toast.success(isRTL ? 'تم رفض العرض' : 'Offer declined');
@@ -614,8 +622,8 @@ export default function Dashboard() {
 
       if (msgError) throw msgError;
 
-      // Role-specific toast
-      if (role === 'manager') {
+      // STEP 7: Use roleRef.current
+      if (roleRef.current === 'manager') {
         toast.success(isRTL ? 'تم إرسال السؤال للموهبة التي تديرها' : 'Question sent to talent you manage');
       } else {
         toast.success(isRTL ? 'تم إرسال السؤال' : 'Question sent');
@@ -844,7 +852,8 @@ export default function Dashboard() {
       }
       subscription.unsubscribe();
     };
-  }, [user, authLoading, managedCelebrityId, role, fetchPendingDeals, fetchConversations, isRTL]);
+  // STEP 5: Remove `role` from dependency array
+  }, [user, authLoading, managedCelebrityId, fetchPendingDeals, fetchConversations, isRTL]);
 
   // Refresh when navigating back to dashboard
   useEffect(() => {
@@ -910,10 +919,10 @@ export default function Dashboard() {
         <div className="max-w-lg mx-auto flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <h1 className="font-bold text-lg">
-              {role === 'manager' ? t.dashboard.agentDashboard : t.dashboard.home}
+              {roleRef.current === 'manager' ? t.dashboard.agentDashboard : t.dashboard.home}
             </h1>
             {/* Agent badge in header */}
-            {role === 'manager' && (
+            {roleRef.current === 'manager' && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                 <ShieldCheck className="h-3 w-3" />
                 {tLocal('وكيل', 'Agent')}
@@ -953,7 +962,7 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-lg mx-auto pt-16 pb-20 px-4 space-y-6">
-        {role === 'manager' && managedCelebrities.length > 0 && (
+        {roleRef.current === 'manager' && managedCelebrities.length > 0 && (
           <div className="space-y-3">
             {/* Label above celebrity switcher */}
             <p className="text-xs text-muted-foreground uppercase tracking-wider px-1">
@@ -1000,7 +1009,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {role === 'manager' && (
+        {roleRef.current === 'manager' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-base flex items-center gap-2">
