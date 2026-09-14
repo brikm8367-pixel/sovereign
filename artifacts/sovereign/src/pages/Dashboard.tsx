@@ -32,8 +32,7 @@ import {
 import { cn } from '@/lib/utils';
 import { DealCardInline } from '@/components/deals/DealCardInline';
 import MessageComposer from '@/components/messaging/MessageComposer';
-import { initE2EKeys, ensureUserE2EReady } from '@/utils/e2eManager';
-import { encryptForRecipient } from '@/utils/e2eManager';
+import { initE2EKeys, ensureUserE2EReady, decryptFromSender, getOwnMessagePlaintext, isEncryptedMessage } from '@/utils/e2eManager';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 
 // Module-level cache for E2E key verification
@@ -136,6 +135,7 @@ export default function Dashboard() {
   const fetchConversationsRef = useRef<() => Promise<void>>();
   const fetchPendingDealsRef = useRef<() => Promise<void>>();
   const fetchConversationsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const decryptedCacheRef = useRef<Map<string, string>>(new Map());
 
   // Auto-initialize E2E keys for existing users who may not have them yet
   useEffect(() => {
@@ -215,6 +215,50 @@ export default function Dashboard() {
     }
   }, [managedCelebrityId, role]);
 
+  // Helper to resolve display content for a message (decrypt if needed)
+  const resolveDisplayContent = async (
+    msgContent: string,
+    senderId: string,
+    messageId: string,
+    currentUserId: string,
+    managedCelebrityId: string | null
+  ): Promise<string> => {
+    if (typeof msgContent !== 'string') return '';
+    if (!isEncryptedMessage(msgContent)) return msgContent;
+    if (decryptedCacheRef.current.has(messageId)) {
+      return decryptedCacheRef.current.get(messageId)!;
+    }
+    try {
+      // If message is from current user, try fast IndexedDB lookup
+      if (senderId === currentUserId) {
+        const ownPlaintext = await getOwnMessagePlaintext(messageId);
+        if (ownPlaintext) {
+          decryptedCacheRef.current.set(messageId, ownPlaintext);
+          return ownPlaintext;
+        }
+      }
+      // Try decrypt with sender's key
+      const decrypted = await decryptFromSender(msgContent, senderId);
+      if (decrypted.success && decrypted.plaintext) {
+        decryptedCacheRef.current.set(messageId, decrypted.plaintext);
+        return decrypted.plaintext;
+      }
+      // If managed celebrity and different from sender, try with managed celebrity's key
+      if (managedCelebrityId && managedCelebrityId !== senderId) {
+        const decrypted2 = await decryptFromSender(msgContent, managedCelebrityId);
+        if (decrypted2.success && decrypted2.plaintext) {
+          decryptedCacheRef.current.set(messageId, decrypted2.plaintext);
+          return decrypted2.plaintext;
+        }
+      }
+    } catch (e) {
+      console.warn('[Dashboard] Decryption failed for message:', messageId, e);
+    }
+    // Fallback
+    decryptedCacheRef.current.set(messageId, '🔒');
+    return '🔒';
+  };
+
   const fetchPendingDeals = useCallback(async () => {
     if (!user) return;
     
@@ -281,7 +325,7 @@ export default function Dashboard() {
         .eq('category', 'work')
         .not('deal_cards.status', 'eq', 'declined')
         .order('created_at', { ascending: false })
-        .limit(50); // Limit to 50 most recent messages per conversation
+        .limit(200); // Limit to 200 most recent messages per conversation
 
       // FIX: Use user.id for all roles including manager - messages are sent with agent's user.id
       query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
@@ -292,6 +336,13 @@ export default function Dashboard() {
 
       const messages = (data as any[]) || [];
       
+      // Resolve display content for all messages in parallel
+      const resolvedMap = new Map<string, string>();
+      await Promise.all(messages.map(async (msg) => {
+        const r = await resolveDisplayContent(msg.content || '', msg.sender_id, msg.id, currentUserId, managedCelebrityId || null);
+        resolvedMap.set(msg.id, r);
+      }));
+
       // Collect all unique otherUserIds
       const otherUserIds = new Set<string>();
       for (const msg of messages) {
@@ -336,7 +387,7 @@ export default function Dashboard() {
             display_name: profile?.display_name || profile?.username || 'مستخدم',
             username: profile?.username || '',
             avatar_url: profile?.avatar_url || null,
-            last_message: msg.content || '',
+            last_message: resolvedMap.get(msg.id) || '',
             last_message_time: msg.created_at,
             unread_count: msg.is_read ? 0 : 1,
             deal_id: msg.deal_id || null,
@@ -347,7 +398,7 @@ export default function Dashboard() {
         } else {
           const existing = conversationsMap.get(convId)!;
           if (new Date(msg.created_at) > new Date(existing.last_message_time)) {
-            existing.last_message = msg.content || '';
+            existing.last_message = resolvedMap.get(msg.id) || '';
             existing.last_message_time = msg.created_at;
             // Update sender_role and deal_status from latest message
             existing.sender_role = msg.sender_role || null;
@@ -376,7 +427,7 @@ export default function Dashboard() {
         setIsLoadingMessages(false);
       }
     }
-  }, [user, role, managedCelebrityId]);
+  }, [user, role, managedCelebrityId, resolveDisplayContent]);
 
   // Store refs for use in effects
   useEffect(() => {
@@ -640,49 +691,52 @@ export default function Dashboard() {
 
           const convId = newMessage.deal_id || otherUserId;
 
-          // Directly update conversations state IMMEDIATELY
-          setConversations(prev => {
-            const existingIndex = prev.findIndex(c => c.id === convId);
-            if (existingIndex === -1) {
-              // Conversation doesn't exist locally - create new entry
-              console.log('[Dashboard] Creating new conversation entry for:', convId);
-              const newConv: Conversation = {
-                id: convId,
-                user_id: otherUserId,
-                display_name: 'مستخدم',
-                username: '',
-                avatar_url: null,
-                last_message: newMessage.content || '',
-                last_message_time: newMessage.created_at,
-                unread_count: (!newMessage.is_read && newMessage.receiver_id === currentUserId) ? 1 : 0,
-                deal_id: newMessage.deal_id || null,
-                category: newMessage.category || 'work',
-                sender_role: newMessage.sender_role || null,
-                deal_status: newMessage.deal_status || null
-              };
-              return [newConv, ...prev].sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
-            }
+          // Resolve display content for the new message
+          resolveDisplayContent(newMessage.content || '', newMessage.sender_id, newMessage.id, currentUserId, managedCelebrityId || null).then(resolved => {
+            // Directly update conversations state IMMEDIATELY
+            setConversations(prev => {
+              const existingIndex = prev.findIndex(c => c.id === convId);
+              if (existingIndex === -1) {
+                // Conversation doesn't exist locally - create new entry
+                console.log('[Dashboard] Creating new conversation entry for:', convId);
+                const newConv: Conversation = {
+                  id: convId,
+                  user_id: otherUserId,
+                  display_name: 'مستخدم',
+                  username: '',
+                  avatar_url: null,
+                  last_message: resolved,
+                  last_message_time: newMessage.created_at,
+                  unread_count: (!newMessage.is_read && newMessage.receiver_id === currentUserId) ? 1 : 0,
+                  deal_id: newMessage.deal_id || null,
+                  category: newMessage.category || 'work',
+                  sender_role: newMessage.sender_role || null,
+                  deal_status: newMessage.deal_status || null
+                };
+                return [newConv, ...prev].sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
+              }
 
-            const updated = [...prev];
-            const conv = { ...updated[existingIndex] };
-            
-            // Update last message and time if newer
-            if (new Date(newMessage.created_at) > new Date(conv.last_message_time)) {
-              conv.last_message = newMessage.content || '';
-              conv.last_message_time = newMessage.created_at;
-              conv.sender_role = newMessage.sender_role || null;
-              conv.deal_status = newMessage.deal_status || null;
-            }
-            
-            // Increment unread if message is for current user and unread
-            if (!newMessage.is_read && newMessage.receiver_id === currentUserId) {
-              conv.unread_count += 1;
-            }
+              const updated = [...prev];
+              const conv = { ...updated[existingIndex] };
+              
+              // Update last message and time if newer
+              if (new Date(newMessage.created_at) > new Date(conv.last_message_time)) {
+                conv.last_message = resolved;
+                conv.last_message_time = newMessage.created_at;
+                conv.sender_role = newMessage.sender_role || null;
+                conv.deal_status = newMessage.deal_status || null;
+              }
+              
+              // Increment unread if message is for current user and unread
+              if (!newMessage.is_read && newMessage.receiver_id === currentUserId) {
+                conv.unread_count += 1;
+              }
 
-            updated[existingIndex] = conv;
-            
-            // Re-sort by last_message_time descending
-            return updated.sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
+              updated[existingIndex] = conv;
+              
+              // Re-sort by last_message_time descending
+              return updated.sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
+            });
           });
 
           // Show toast notification for incoming messages (not sent by current user)
@@ -740,10 +794,17 @@ export default function Dashboard() {
             
             // Update last message and time if newer
             if (new Date(updatedMessage.created_at) > new Date(conv.last_message_time)) {
-              conv.last_message = updatedMessage.content || '';
-              conv.last_message_time = updatedMessage.created_at;
-              conv.sender_role = updatedMessage.sender_role || null;
-              conv.deal_status = updatedMessage.deal_status || null;
+              // We need to resolve the content for the updated message
+              // Since this is an update, we can't easily resolve async here, so we'll trigger a background fetch
+              // and keep the old content for now to avoid flicker
+              console.log('[Dashboard] Message updated, scheduling batched fetch for decryption');
+              if (fetchConversationsTimeoutRef.current) {
+                clearTimeout(fetchConversationsTimeoutRef.current);
+              }
+              fetchConversationsTimeoutRef.current = setTimeout(() => {
+                fetchConversations();
+              }, 500);
+              return prev;
             }
             
             // Handle read status change - decrement unread if message was marked as read
