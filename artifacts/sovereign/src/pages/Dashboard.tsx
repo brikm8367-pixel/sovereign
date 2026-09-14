@@ -34,6 +34,7 @@ import { DealCardInline } from '@/components/deals/DealCardInline';
 import MessageComposer from '@/components/messaging/MessageComposer';
 import { initE2EKeys, ensureUserE2EReady, decryptFromSender, getOwnMessagePlaintext, isEncryptedMessage } from '@/utils/e2eManager';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Module-level cache for E2E key verification
 let lastVerifiedUserId: string | null = null;
@@ -138,6 +139,10 @@ export default function Dashboard() {
   const decryptedCacheRef = useRef<Map<string, string>>(new Map());
   // STEP 1: Stabilize role reference
   const roleRef = useRef(role);
+  // STEP 9: Ref for tracking retry timeouts
+  const retryTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
+  // STEP 6: TanStack Query client
+  const queryClient = useQueryClient();
 
   // STEP 2: Keep roleRef current
   useEffect(() => {
@@ -209,8 +214,8 @@ export default function Dashboard() {
     };
   }, [user]);
 
-  // Helper to resolve display content for a message (decrypt if needed)
-  const resolveDisplayContent = async (
+  // STEP 1: Wrap resolveDisplayContent in useCallback with empty deps
+  const resolveDisplayContent = useCallback(async (
     msgContent: string,
     senderId: string,
     messageId: string,
@@ -249,7 +254,8 @@ export default function Dashboard() {
       console.warn('[Dashboard] Decryption failed for message:', messageId, e);
     }
     // Fallback: schedule retry in background, show '...' immediately
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
+      retryTimeoutsRef.current.delete(timeoutId);
       resolveDisplayContent(msgContent, senderId, messageId, currentUserId, managedCelebrityId).then(fresh => {
         if (fresh && fresh !== '...' && fresh !== '🔒') {
           decryptedCacheRef.current.set(messageId, fresh);
@@ -257,8 +263,9 @@ export default function Dashboard() {
         }
       });
     }, 5000);
+    retryTimeoutsRef.current.add(timeoutId);
     return '...';
-  };
+  }, []);
 
   const fetchPendingDeals = useCallback(async () => {
     if (!user) return;
@@ -431,7 +438,7 @@ export default function Dashboard() {
         setIsLoadingMessages(false);
       }
     }
-  }, [user, managedCelebrityId, resolveDisplayContent]);
+  }, [user, managedCelebrityId]);
 
   // Store refs for use in effects
   useEffect(() => {
@@ -680,7 +687,7 @@ export default function Dashboard() {
           if (!newMessage || newMessage.category !== 'work') return;
           
           const currentUserId = user?.id;
-          if (!currentUserId) return;
+          if (!currentUserId) return.
 
           // Check for agent_decision messages
           const isAgentDecision = typeof newMessage.content === 'string' && newMessage.content.startsWith('{"type":"agent_decision"');
@@ -779,14 +786,14 @@ export default function Dashboard() {
         (payload) => {
           console.log('[Dashboard] Realtime: Message updated', payload);
           const updatedMessage = payload.new as Message;
-          if (!updatedMessage || updatedMessage.category !== 'work') return;
+          if (!updatedMessage || updatedMessage.category !== 'work') return.
           
           const currentUserId = user?.id;
-          if (!currentUserId) return;
+          if (!currentUserId) return.
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
           const convId = updatedMessage.deal_id || otherUserId;
 
@@ -850,6 +857,9 @@ export default function Dashboard() {
       if (fetchConversationsTimeoutRef.current) {
         clearTimeout(fetchConversationsTimeoutRef.current);
       }
+      // STEP 9: Clean up all retry timeouts on unmount
+      retryTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
+      retryTimeoutsRef.current.clear();
       subscription.unsubscribe();
     };
   // STEP 5: Remove `role` from dependency array
