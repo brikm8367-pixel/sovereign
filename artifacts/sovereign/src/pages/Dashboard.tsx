@@ -266,6 +266,8 @@ export default function Dashboard() {
     retryTimeoutsRef.current.add(timeoutId);
     return '...';
   }, []);
+
+  const fetchPendingDeals = useCallback(async () => {
     if (!user) return;
     
     // STEP 3: Use roleRef.current
@@ -430,13 +432,31 @@ export default function Dashboard() {
         setIsLoadingMessages(false);
         console.log('[Dashboard] Fetched conversations:', conversationsList.length);
       }
+      return conversationsList;
     } catch (error) {
       console.error('Error fetching conversations:', error);
       if (isMountedRef.current) {
         setIsLoadingMessages(false);
       }
+      throw error;
     }
   }, [user, managedCelebrityId]);
+
+  // TanStack Query for conversations - caches for 30 seconds
+  const { data: conversationsFromQuery, isLoading: isLoadingConversations } = useQuery({
+    queryKey: ['conversations', user?.id, managedCelebrityId],
+    queryFn: fetchConversations,
+    staleTime: 30000,
+    enabled: !!user && !(roleRef.current === 'manager' && !managedCelebrityId)
+  });
+
+  // Sync query result into existing state - keeps all consumers working
+  useEffect(() => {
+    if (conversationsFromQuery) {
+      setConversations(conversationsFromQuery);
+      setIsLoadingMessages(false);
+    }
+  }, [conversationsFromQuery]);
 
   // Store refs for use in effects
   useEffect(() => {
@@ -707,7 +727,7 @@ export default function Dashboard() {
 
           // Determine the other user ID
           const otherUserId = newMessage.sender_id === currentUserId ? newMessage.receiver_id : newMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
           const convId = newMessage.deal_id || otherUserId;
 
@@ -784,14 +804,14 @@ export default function Dashboard() {
         (payload) => {
           console.log('[Dashboard] Realtime: Message updated', payload);
           const updatedMessage = payload.new as Message;
-          if (!updatedMessage || updatedMessage.category !== 'work') return;
+          if (!updatedMessage || updatedMessage.category !== 'work') return.
           
           const currentUserId = user?.id;
-          if (!currentUserId) return;
+          if (!currentUserId) return.
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
           const convId = updatedMessage.deal_id || otherUserId;
 
