@@ -84,13 +84,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         setSession(session);
         setUser(session?.user ?? null);
+        // Set loading false IMMEDIATELY after session/user are set
+        if (mounted) setLoading(false);
         
-        // Initialize E2E keys for existing session before marking loading as false
+        // Initialize E2E keys for existing session in background (non-awaited)
         if (session?.user) {
-          const hasKeys = await ensureUserE2EReady(session.user.id);
-          if (!hasKeys) {
-            await initE2EKeys(session.user.id);
-          }
+          ensureUserE2EReady(session.user.id).then(hasKeys => {
+            if (!hasKeys) return initE2EKeys(session.user.id);
+          }).catch(err => console.warn('[Auth] Background E2E init failed', err));
         }
       } catch (e) {
         console.error('[Auth] Initialization error', e);
@@ -106,19 +107,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       
-      // Ensure E2E keys are initialized whenever a user session is established
+      // Set loading false IMMEDIATELY after session/user are set
+      if (mounted) setLoading(false);
+      
+      // Ensure E2E keys are initialized whenever a user session is established (background, non-awaited)
       if (session?.user) {
         try {
-          const hasKeys = await ensureUserE2EReady(session.user.id);
-          if (!hasKeys) {
-            await initE2EKeys(session.user.id);
-          }
+          ensureUserE2EReady(session.user.id).then(hasKeys => {
+            if (!hasKeys) return initE2EKeys(session.user.id);
+          }).catch(err => console.error('[Auth] E2E key initialization failed on auth state change', err));
         } catch (e) {
           console.error('[Auth] E2E key initialization failed on auth state change', e);
         }
       }
-      
-      if (mounted) setLoading(false);
     });
 
     return () => {

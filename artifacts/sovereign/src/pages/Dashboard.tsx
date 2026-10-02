@@ -163,11 +163,11 @@ export default function Dashboard() {
       }
 
       try {
-        // Add 2 second timeout for E2E initialization (reduced from 5000ms)
+        // Add 10 second timeout for E2E initialization (increased from 2000ms)
         const hasKeys = await Promise.race([
           ensureUserE2EReady(user.id),
           new Promise<boolean>((_, reject) => 
-            setTimeout(() => reject(new Error('E2E initialization timeout')), 2000)
+            setTimeout(() => reject(new Error('E2E initialization timeout')), 10000)
           )
         ]);
         

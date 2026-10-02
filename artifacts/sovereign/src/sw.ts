@@ -35,7 +35,7 @@ registerRoute(
   },
   new NetworkFirst({
     cacheName: "pages-cache",
-    networkTimeoutSeconds: 5,
+    networkTimeoutSeconds: 30,
     plugins: [new CacheableResponsePlugin({ statuses: [0, 200] })],
   }),
 );
