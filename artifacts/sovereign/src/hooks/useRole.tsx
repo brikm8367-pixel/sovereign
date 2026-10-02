@@ -40,6 +40,12 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const roleRef = useRef(role);
   const accountTypeRef = useRef(accountType);
   
+  // STEP 2B: Add refs to track previous values and prevent unnecessary state updates
+  const lastRoleRef = useRef<string | null>(null);
+  const lastCelebRef = useRef<string | null>(null);
+  const lastAccountTypeRef = useRef<string | null>(null);
+  const lastCelebritiesKeyRef = useRef<string>('');
+  
   managedCelebrityIdRef.current = managedCelebrityId;
   userRef.current = user;
   roleRef.current = role;
@@ -48,10 +54,27 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     const currentUser = userRef.current;
     if (!currentUser) {
-      setAccountType('sender');
-      setRole('sender');
-      setManagedCelebrityId(null);
-      setManagedCelebrities([]);
+      // STEP 2C: Wrap setRole with change check
+      if (lastRoleRef.current !== 'sender') {
+        lastRoleRef.current = 'sender';
+        setRole('sender');
+      }
+      // STEP 2E: Wrap setAccountType with change check
+      if (lastAccountTypeRef.current !== 'sender') {
+        lastAccountTypeRef.current = 'sender';
+        setAccountType('sender');
+      }
+      // STEP 2D: Wrap setManagedCelebrityId with change check
+      if (lastCelebRef.current !== null) {
+        lastCelebRef.current = null;
+        setManagedCelebrityId(null);
+      }
+      // STEP 2F: Wrap setManagedCelebrities with change check
+      const key = '';
+      if (lastCelebritiesKeyRef.current !== key) {
+        lastCelebritiesKeyRef.current = key;
+        setManagedCelebrities([]);
+      }
       setLoading(false);
       return;
     }
@@ -92,12 +115,30 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         } else {
           // Manager links exist but no celebrity IDs - clear managedCelebrityId
           managedCelebrityIdRef.current = null;
-          setManagedCelebrityId(null);
+          // STEP 2D: Wrap setManagedCelebrityId with change check
+          if (lastCelebRef.current !== null) {
+            lastCelebRef.current = null;
+            setManagedCelebrityId(null);
+          }
         }
 
-        setAccountType('sender');
-        setRole('manager');
-        setManagedCelebrities(managed);
+        // STEP 2E: Wrap setAccountType with change check
+        if (lastAccountTypeRef.current !== 'sender') {
+          lastAccountTypeRef.current = 'sender';
+          setAccountType('sender');
+        }
+        // STEP 2C: Wrap setRole with change check
+        if (lastRoleRef.current !== 'manager') {
+          lastRoleRef.current = 'manager';
+          setRole('manager');
+        }
+        
+        // STEP 2F: Wrap setManagedCelebrities with change check
+        const key = managed.map(c => c.id).join(',');
+        if (lastCelebritiesKeyRef.current !== key) {
+          lastCelebritiesKeyRef.current = key;
+          setManagedCelebrities(managed);
+        }
         
         // Validate managedCelebrityId against fetched managed list
         // If current managedCelebrityId is not in the managed list, reset to first managed celebrity
@@ -105,11 +146,19 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         if (managedCelebrityIdRef.current && !managed.some(c => c.id === managedCelebrityIdRef.current)) {
           const newId = managed[0]?.id || null;
           managedCelebrityIdRef.current = newId;
-          setManagedCelebrityId(newId);
+          // STEP 2D: Wrap setManagedCelebrityId with change check
+          if (lastCelebRef.current !== newId) {
+            lastCelebRef.current = newId;
+            setManagedCelebrityId(newId);
+          }
         } else if (!managedCelebrityIdRef.current && managed.length > 0) {
           // Set managedCelebrityId to first managed celebrity if not already set
           managedCelebrityIdRef.current = managed[0].id;
-          setManagedCelebrityId(managed[0].id);
+          // STEP 2D: Wrap setManagedCelebrityId with change check
+          if (lastCelebRef.current !== managed[0].id) {
+            lastCelebRef.current = managed[0].id;
+            setManagedCelebrityId(managed[0].id);
+          }
         }
         // If managedCelebrityIdRef.current is valid and exists in managed list, keep it (do not clear)
         
@@ -190,8 +239,16 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      setAccountType(determinedAccountType);
-      setRole(determinedRole);
+      // STEP 2E: Wrap setAccountType with change check
+      if (lastAccountTypeRef.current !== determinedAccountType) {
+        lastAccountTypeRef.current = determinedAccountType;
+        setAccountType(determinedAccountType);
+      }
+      // STEP 2C: Wrap setRole with change check
+      if (lastRoleRef.current !== determinedRole) {
+        lastRoleRef.current = determinedRole;
+        setRole(determinedRole);
+      }
 
       // 5. Fetch managed celebrity profiles if any
       if (celebrityIds.length > 0) {
@@ -205,32 +262,72 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         }
         
         const managed = (profiles as ManagedCelebrity[]) || [];
-        setManagedCelebrities(managed);
+        
+        // STEP 2F: Wrap setManagedCelebrities with change check
+        const key = managed.map(c => c.id).join(',');
+        if (lastCelebritiesKeyRef.current !== key) {
+          lastCelebritiesKeyRef.current = key;
+          setManagedCelebrities(managed);
+        }
         
         // Validate managedCelebrityId against fetched managed list
         if (managedCelebrityIdRef.current && !managed.some(c => c.id === managedCelebrityIdRef.current)) {
           const newId = managed[0]?.id || null;
           managedCelebrityIdRef.current = newId;
-          setManagedCelebrityId(newId);
+          // STEP 2D: Wrap setManagedCelebrityId with change check
+          if (lastCelebRef.current !== newId) {
+            lastCelebRef.current = newId;
+            setManagedCelebrityId(newId);
+          }
         } else if (!managedCelebrityIdRef.current && managed.length > 0) {
           // Set active celebrity if not set
           managedCelebrityIdRef.current = managed[0].id;
-          setManagedCelebrityId(managed[0].id);
+          // STEP 2D: Wrap setManagedCelebrityId with change check
+          if (lastCelebRef.current !== managed[0].id) {
+            lastCelebRef.current = managed[0].id;
+            setManagedCelebrityId(managed[0].id);
+          }
         }
         // If managedCelebrityIdRef.current is valid and exists in managed list, keep it (do not clear)
       } else {
-        setManagedCelebrities([]);
+        // STEP 2F: Wrap setManagedCelebrities with change check
+        const key = '';
+        if (lastCelebritiesKeyRef.current !== key) {
+          lastCelebritiesKeyRef.current = key;
+          setManagedCelebrities([]);
+        }
         if (!managedCelebrityIdRef.current) {
-          setManagedCelebrityId(null);
+          // STEP 2D: Wrap setManagedCelebrityId with change check
+          if (lastCelebRef.current !== null) {
+            lastCelebRef.current = null;
+            setManagedCelebrityId(null);
+          }
         }
       }
     } catch (error) {
       console.error('Error refreshing role:', error);
       // On error, reset to safe defaults
-      setAccountType('sender');
-      setRole('sender');
-      setManagedCelebrities([]);
-      setManagedCelebrityId(null);
+      // STEP 2E: Wrap setAccountType with change check
+      if (lastAccountTypeRef.current !== 'sender') {
+        lastAccountTypeRef.current = 'sender';
+        setAccountType('sender');
+      }
+      // STEP 2C: Wrap setRole with change check
+      if (lastRoleRef.current !== 'sender') {
+        lastRoleRef.current = 'sender';
+        setRole('sender');
+      }
+      // STEP 2F: Wrap setManagedCelebrities with change check
+      const key = '';
+      if (lastCelebritiesKeyRef.current !== key) {
+        lastCelebritiesKeyRef.current = key;
+        setManagedCelebrities([]);
+      }
+      // STEP 2D: Wrap setManagedCelebrityId with change check
+      if (lastCelebRef.current !== null) {
+        lastCelebRef.current = null;
+        setManagedCelebrityId(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -262,7 +359,11 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       if (link) {
         // Update ref immediately so refresh() knows a celebrity is selected
         managedCelebrityIdRef.current = celebrityId;
-        setManagedCelebrityId(celebrityId);
+        // STEP 2D: Wrap setManagedCelebrityId with change check
+        if (lastCelebRef.current !== celebrityId) {
+          lastCelebRef.current = celebrityId;
+          setManagedCelebrityId(celebrityId);
+        }
         // Refresh to sync managedCelebrities list and ensure context is up to date (non-blocking)
         refresh().catch(err => console.error('refresh failed after switch', err));
         console.log('[useRole] Successfully switched to celebrity:', celebrityId);
@@ -276,9 +377,10 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     }
   }, [refresh]);
 
+  // STEP 2A: Change dependency from user to user?.id
   useEffect(() => {
     refresh();
-  }, [refresh, user]);
+  }, [refresh, user?.id]);
 
   return (
     <RoleContext.Provider value={{

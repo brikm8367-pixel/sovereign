@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { initE2EKeys, ensureUserE2EReady } from '@/utils/e2eManager';
@@ -68,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // STEP 1A: Add ref to track if initial session has been handled
+  const initialSessionHandledRef = useRef(false);
+
   useEffect(() => {
     let mounted = true;
     // Safety timeout: force loading to false after 10 seconds to prevent stuck loading screen
@@ -84,6 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         setSession(session);
         setUser(session?.user ?? null);
+        // STEP 1B: Mark initial session as handled
+        initialSessionHandledRef.current = true;
         // Set loading false IMMEDIATELY after session/user are set
         if (mounted) setLoading(false);
         
@@ -104,21 +109,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
+      
+      // STEP 1C: Skip duplicate INITIAL_SESSION event that fires right after initializeAuth
+      if (!initialSessionHandledRef.current && _event === 'INITIAL_SESSION') {
+        initialSessionHandledRef.current = true;
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       
       // Set loading false IMMEDIATELY after session/user are set
       if (mounted) setLoading(false);
       
-      // Ensure E2E keys are initialized whenever a user session is established (background, non-awaited)
+      // STEP 1D: Clean E2E initialization block - no outer try/catch, promise owns its errors
       if (session?.user) {
-        try {
-          ensureUserE2EReady(session.user.id).then(hasKeys => {
-            if (!hasKeys) return initE2EKeys(session.user.id);
-          }).catch(err => console.error('[Auth] E2E key initialization failed on auth state change', err));
-        } catch (e) {
-          console.error('[Auth] E2E key initialization failed on auth state change', e);
-        }
+        ensureUserE2EReady(session.user.id).then(hasKeys => {
+          if (!hasKeys) return initE2EKeys(session.user.id);
+        }).catch(err => console.error('[Auth] E2E key initialization failed on auth state change', err));
       }
     });
 
