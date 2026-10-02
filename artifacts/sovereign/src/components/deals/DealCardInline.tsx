@@ -16,6 +16,8 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+// STEP 11: Add useAuth import
+import { useAuth } from '@/hooks/useAuth';
 
 interface Deal {
   id: string;
@@ -159,10 +161,14 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
   const [deal, setDeal] = useState<Deal | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // STEP 12: Add useAuth hook
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
     const loadDeal = async () => {
+      // STEP 13: Add guard at very top - wait for auth to be ready
+      if (authLoading || !user?.id) return;
       setIsLoading(true);
       setError(null);
       try {
@@ -170,7 +176,8 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
           .from('deal_cards')
           .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
           .eq('id', dealId)
-          .single();
+          // STEP 14: Change .single() to .maybeSingle()
+          .maybeSingle();
         
         if (!cancelled) {
           if (fetchError) {
@@ -178,6 +185,9 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
             setError('Erreur de chargement');
           } else if (data) {
             setDeal(data as unknown as Deal);
+          } else {
+            // STEP 16: When data is null, keep loading spinner or show nothing - do NOT set error state for null
+            console.log('[DealCardInline] No deal found for id:', dealId);
           }
           setIsLoading(false);
         }
@@ -191,7 +201,7 @@ export function DealCardInline({ dealId, isRTL, onToggleDetails, showDetails, cl
     };
     loadDeal();
     return () => { cancelled = true; };
-  }, [dealId]);
+  }, [dealId, authLoading, user?.id]); // STEP 15: Add authLoading and user?.id to dependency array
 
   if (isLoading) {
     return (

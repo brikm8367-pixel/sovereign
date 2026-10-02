@@ -81,6 +81,8 @@ export default function ChatPage() {
   const [celebrityProfile, setCelebrityProfile] = useState<Profile | null>(null);
   const [dealCache, setDealCache] = useState<Map<string, Deal>>(new Map());
   const [recipientE2EReady, setRecipientE2EReady] = useState<boolean | null>(null);
+  // STEP 5: Add e2eReady state
+  const [e2eReady, setE2eReady] = useState<boolean | null>(null);
   // BUG 1 FIX: Convert from useState to useRef to prevent re-renders
   const managedCelebrityProfilesRef = useRef<Map<string, Profile>>(new Map());
   const ownMessagesCacheRef = useRef<Map<string, string>>(new Map());
@@ -153,6 +155,16 @@ export default function ChatPage() {
     };
     fetchRecipient();
   }, [userId]);
+
+  // STEP 6: Add E2E readiness check for current user
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    ensureUserE2EReady(user.id).then(ready => {
+      if (!cancelled) setE2eReady(ready);
+    });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   // Check recipient E2E readiness when recipient is loaded
   useEffect(() => {
@@ -259,6 +271,9 @@ export default function ChatPage() {
   // Fetch all messages between current user and recipient (full thread)
   const loadMessages = useCallback(async () => {
     if (!user || !userId) return;
+    // STEP 7: Guard - wait for E2E keys to be ready
+    if (e2eReady !== true) return;
+    
     setIsLoading(true);
     
     // Add 3-second timeout to prevent stuck loading
@@ -372,7 +387,7 @@ export default function ChatPage() {
         setIsLoading(false);
       }
     }
-  }, [user?.id, userId, dealId, fetchManagedCelebrityProfile, role, managedCelebrityId, isRTL]);
+  }, [user?.id, userId, dealId, fetchManagedCelebrityProfile, role, managedCelebrityId, isRTL, e2eReady]); // STEP 8: Add e2eReady to dependency array
 
   // Store ref for use in effects
   useEffect(() => {
@@ -408,6 +423,9 @@ export default function ChatPage() {
           filter,
         },
         async (payload) => {
+          // STEP 9: Guard - wait for E2E keys to be ready before processing new messages
+          if (e2eReady !== true) return;
+          
           const newMsg = payload.new as Message;
           if (!newMsg) return;
 
@@ -552,7 +570,7 @@ export default function ChatPage() {
       console.log('[ChatPage] Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
-  }, [user?.id, userId, dealId, deal, role, managedCelebrityId, fetchManagedCelebrityProfile]);
+  }, [user?.id, userId, dealId, deal, role, managedCelebrityId, fetchManagedCelebrityProfile, e2eReady]); // STEP 10: Add e2eReady to dependency array
 
   // Scroll to bottom
   useEffect(() => {

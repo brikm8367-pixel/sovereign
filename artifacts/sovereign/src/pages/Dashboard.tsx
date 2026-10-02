@@ -143,6 +143,8 @@ export default function Dashboard() {
   const retryTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
   // STEP 6: TanStack Query client
   const queryClient = useQueryClient();
+  // STEP 1: Add ref to track last handled celebrity id
+  const lastHandledCelebRef = useRef<string | null>(null);
 
   // STEP 2: Keep roleRef current
   useEffect(() => {
@@ -484,7 +486,12 @@ export default function Dashboard() {
   }, [fetchPendingDeals]);
 
   // Reset data when managedCelebrityId changes - MOVED AFTER fetchPendingDeals/fetchConversations definitions
+  // STEP 2: Add guard to run exactly once per unique celebrity id
   useEffect(() => {
+    if (!managedCelebrityId) return;
+    if (lastHandledCelebRef.current === managedCelebrityId) return;
+    lastHandledCelebRef.current = managedCelebrityId;
+    
     if (roleRef.current === 'manager' && managedCelebrityId) {
       console.log('[Dashboard] Celebrity changed, resetting data for:', managedCelebrityId);
       setPendingDeals([]);
@@ -494,7 +501,7 @@ export default function Dashboard() {
       fetchPendingDeals();
       fetchConversations();
     }
-  }, [managedCelebrityId, fetchPendingDeals, fetchConversations]);
+  }, [managedCelebrityId]); // STEP 3: Keep only managedCelebrityId in dependency array
 
   // Calculate unread total whenever conversations change
   useEffect(() => {
@@ -896,7 +903,7 @@ export default function Dashboard() {
       retryTimeoutsRef.current.clear();
       subscription.unsubscribe();
     };
-  // STEP 5: Remove `role` from dependency array
+  // STEP 4: Add guard for manager without managedCelebrityId, remove role from deps
   }, [user, authLoading, managedCelebrityId, fetchPendingDeals, fetchConversations, isRTL]);
 
   // Refresh when navigating back to dashboard
