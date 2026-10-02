@@ -281,10 +281,10 @@ export default function ChatPage() {
     // Add 3-second timeout to prevent stuck loading
     const loadingTimeout = setTimeout(() => {
       if (isMountedRef.current) {
-        console.warn('[ChatPage] loadMessages timeout after 3s, setting loading to false');
+        console.warn('[ChatPage] loadMessages timeout after 15s, setting loading to false');
         setIsLoading(false);
       }
-    }, 3000);
+    }, 15000);
 
     try {
       // FIX: Direct query between user.id and userId (conversation partner from URL)
