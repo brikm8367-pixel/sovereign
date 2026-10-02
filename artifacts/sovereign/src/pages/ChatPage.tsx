@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
 import { encryptForRecipient, decryptFromSender, isEncryptedMessage, ensureUserE2EReady, storeOwnMessagePlaintext, getOwnMessagePlaintext } from '@/utils/e2eManager';
 import { resumeAudioContext } from '@/utils/sounds';
 import { DealCardInline } from '@/components/deals/DealCardInline';
+// STEP 4: Add getStoredKeysSecure import
+import { getStoredKeysSecure } from '@/utils/encryption';
 
 interface Profile {
   id: string;
@@ -241,7 +243,7 @@ export default function ChatPage() {
   // Infer deal from messages when no dealId in URL (for backward compatibility)
   useEffect(() => {
     if (dealId) return;
-    if (messages.length === 0) return;
+    if (messages.length === 0) return.
 
     const validUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
@@ -427,11 +429,11 @@ export default function ChatPage() {
           if (e2eReady !== true) return;
           
           const newMsg = payload.new as Message;
-          if (!newMsg) return;
+          if (!newMsg) return.
 
           // Additional filtering for deal_id if needed (done in JS since filter is limited)
           if (currentDealId && newMsg.deal_id !== currentDealId) return;
-          if (!currentDealId && currentDeal && newMsg.deal_id !== currentDeal.id) return;
+          if (!currentDealId && currentDeal && newMsg.deal_id !== currentDeal.id) return.
 
           // Check if message involves managed celebrity for managers
           if (currentRole === 'manager' && currentManagedCelebrityId) {
@@ -537,7 +539,7 @@ export default function ChatPage() {
         },
         async (payload) => {
           const updatedDeal = payload.new as Deal;
-          if (!updatedDeal) return;
+          if (!updatedDeal) return.
 
           // Check if this deal involves the current user
           const isRelevant = 
@@ -545,7 +547,7 @@ export default function ChatPage() {
             updatedDeal.celebrity_id === currentUser.id ||
             (currentRole === 'manager' && currentManagedCelebrityId && updatedDeal.celebrity_id === currentManagedCelebrityId);
 
-          if (!isRelevant) return;
+          if (!isRelevant) return.
 
           console.log('[ChatPage] Realtime: Deal updated', updatedDeal);
 
@@ -748,6 +750,14 @@ export default function ChatPage() {
       }
 
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '🎤');
+      
+      // STEP 4: Auto-recover missing local keys before encryption
+      let localKeys = await getStoredKeysSecure();
+      if (!localKeys && user) {
+        console.warn('[ChatPage] Local keys missing, auto-initializing...');
+        await initE2EKeys(user.id);
+      }
+
       const enc = await encryptForRecipient(contentToSend, userId);
       if (!enc.success) {
         // Encryption failed — block sending with clear error
@@ -767,7 +777,7 @@ export default function ChatPage() {
         setIsSending(false);
         return;
       }
-      const finalContent = enc.payload;
+      const finalContent = enc.payload.
 
       // FIX: Always use user.id as sender_id (agent's own identity for E2E encryption)
       // Add metadata fields: sender_role and managed_celebrity_id
@@ -775,7 +785,7 @@ export default function ChatPage() {
       const managedCelebrityIdField = role === 'manager' && managedCelebrityId ? managedCelebrityId : null;
       
       // FIX: Always send to userId from URL (the conversation partner) so loadMessages finds the message
-      const receiverId = userId;
+      const receiverId = userId.
 
       // Insert message with category 'work' and parent_id pointing to conversation root
       // Include deal_id and celebrity_id from the deal
@@ -795,7 +805,7 @@ export default function ChatPage() {
         managed_celebrity_id: managedCelebrityIdField,
       } as any).select().single();
       
-      if (error) throw error;
+      if (error) throw error.
 
       // Cache the plaintext for our own message using the database-generated ID
       if (insertedMsg?.id) {

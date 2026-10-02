@@ -12,9 +12,11 @@ import {
 import { Send, Loader2, User, Mic, Image as ImageIcon, X, Shield, Briefcase, AlertCircle, ShieldCheck, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { encryptForRecipient, ensureUserE2EReady, storeOwnMessagePlaintext, getOwnMessagePlaintext } from '@/utils/e2eManager';
+import { encryptForRecipient, ensureUserE2EReady, storeOwnMessagePlaintext, getOwnMessagePlaintext, initE2EKeys } from '@/utils/e2eManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole.tsx';
+// STEP 1: Add getStoredKeysSecure import
+import { getStoredKeysSecure } from '@/utils/encryption';
 
 interface Profile {
   id: string;
@@ -207,6 +209,13 @@ export default function MessageComposer({
             return;
           }
         }
+      }
+
+      // STEP 2: Auto-recover missing local keys before encryption
+      let localKeys = await getStoredKeysSecure();
+      if (!localKeys && user) {
+        console.warn('[MessageComposer] Local keys missing, auto-initializing...');
+        await initE2EKeys(user.id);
       }
 
       // Encrypt the message content — encryption MUST succeed, no unencrypted fallback

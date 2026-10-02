@@ -35,6 +35,8 @@ import MessageComposer from '@/components/messaging/MessageComposer';
 import { initE2EKeys, ensureUserE2EReady, decryptFromSender, getOwnMessagePlaintext, isEncryptedMessage } from '@/utils/e2eManager';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+// STEP 3: Add getStoredKeysSecure import
+import { getStoredKeysSecure } from '@/utils/encryption';
 
 // Module-level cache for E2E key verification
 let lastVerifiedUserId: string | null = null;
@@ -646,6 +648,13 @@ export default function Dashboard() {
       // Log the exact receiver_id being used
       console.log('[Dashboard] Ask Talent receiver_id:', celebrityId, '(managedCelebrityId:', managedCelebrityId, ', deal.celebrity_id:', askTalentDeal.celebrity_id, ')');
 
+      // STEP 3: Auto-recover missing local keys before encryption
+      let localKeys = await getStoredKeysSecure();
+      if (!localKeys && user) {
+        console.warn('[Dashboard] Local keys missing, auto-initializing...');
+        await initE2EKeys(user.id);
+      }
+
       // Encrypt the question for the celebrity
       let contentToSend = question;
       const enc = await encryptForRecipient(question, celebrityId);
@@ -830,11 +839,11 @@ export default function Dashboard() {
           if (!updatedMessage || updatedMessage.category !== 'work') return;
           
           const currentUserId = user?.id;
-          if (!currentUserId) return;
+          if (!currentUserId) return.
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
           const convId = updatedMessage.deal_id || otherUserId;
 
