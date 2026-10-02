@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GTA Style Game</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:system-ui,sans-serif;color:#fff}
+canvas{display:block}
+#ui{position:fixed;left:12px;top:12px;font-size:13px;line-height:1.7;background:#0008;padding:10px 14px;border-radius:8px;direction:rtl;pointer-events:none}
+#hud{position:fixed;right:12px;bottom:12px;font-size:22px;font-weight:700;text-shadow:0 0 6px #000;direction:ltr}
+#load{position:fixed;inset:0;background:#0b0b10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:9;text-align:center;padding:20px}
+#bar{width:min(380px,80vw);height:8px;background:#333;border-radius:4px;overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:#f5c518}
+</style></head><body>
+<div id="load"><div id="msg">جاري التحميل...</div><div id="bar"><i id="fill"></i></div></div>
+<div id="ui">WASD تحرك · Shift جري · الماوس: الكاميرا (اضغط للتفعيل)<br>E ركوب/نزول من السيارة · C تبديل الشخصية (Franklin / Cyberpunk)<br>V تبديل السيارة (Alfa / Police) · H الذهاب للبيت المسكون · P مطاردة الشرطة · Space فرامل · R إعادة</div>
+<div id="hud"></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {clone as skClone} from 'three/addons/utils/SkeletonUtils.js';
+
+const $=id=>document.getElementById(id);
+if(location.protocol==='file:'){ $('msg').innerHTML='افتح اللعبة عبر سيرفر محلي (المتصفح يمنع تحميل الملفات من file://)<br><br><code dir="ltr">python -m http.server 8000</code><br>ثم افتح <code dir="ltr">http://localhost:8000</code>'; $('bar').remove(); throw 0; }
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true; renderer.toneMapping=THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9fc4e8); scene.fog=new THREE.Fog(0x9fc4e8,150,900);
+const cam=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,2500);
+scene.add(new THREE.HemisphereLight(0xcfe4ff,0x555544,1.1));
+const sun=new THREE.DirectionalLight(0xfff2d0,2.2); sun.position.set(200,300,120); scene.add(sun);
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+
+// ---------- loading ----------
+const loader=new GLTFLoader(); const files={
+ city:'london_city.glb',franklin:'franklin_walking.glb',cyber:'cyberpunk_character.glb',
+ alfa:'2024_alfa_romeo_33_stradale_ice.glb',police:'police_car.glb',house:'haunted_house.glb'};
+const prog={}; const gl={};
+function upd(){const v=Object.values(prog);$('fill').style.width=(v.reduce((a,b)=>a+b,0)/Object.keys(files).length*100)+'%'}
+await Promise.all(Object.entries(files).map(([k,f])=>new Promise((res,rej)=>loader.load(f,g=>{gl[k]=g;prog[k]=1;upd();res()},e=>{if(e.total){prog[k]=e.loaded/e.total;upd()}},()=>{$('msg').textContent='ما لقيتش الملف: '+f+' — حطه في نفس مجلد index.html';rej()}))));
+
+// ---------- helpers ----------
+const box=new THREE.Box3(), sz=new THREE.Vector3(), ctr=new THREE.Vector3();
+// wrap model: scale longest dim to `target`, center on XZ, bottom at y=0
+function norm(obj,target,{lengthAlongZ=false}={}){
+  const w=new THREE.Group(); w.add(obj);
+  box.setFromObject(obj); box.getSize(sz);
+  if(lengthAlongZ && sz.x>sz.z){obj.rotation.y=Math.PI/2; obj.updateMatrixWorld(true); box.setFromObject(obj); box.getSize(sz);}
+  const s=target/Math.max(sz.x,sz.y,sz.z); obj.scale.multiplyScalar(s); obj.updateMatrixWorld(true);
+  box.setFromObject(obj); box.getCenter(ctr); obj.position.sub(new THREE.Vector3(ctr.x,box.min.y,ctr.z));
+  w.traverse(o=>{if(o.isMesh){o.castShadow=false;o.frustumCulled=true}});
+  return w;
+}
+
+// ---------- city ----------
+let cityRoot=gl.city.scene;
+box.setFromObject(cityRoot); box.getSize(sz);
+const small=sz.x<sz.y&&sz.x<sz.z?'x':sz.y<sz.z?'y':'z';           // smallest axis = up
+if(small==='z') cityRoot.rotation.x=-Math.PI/2; else if(small==='x') cityRoot.rotation.z=Math.PI/2;
+cityRoot.updateMatrixWorld(true); box.setFromObject(cityRoot); box.getSize(sz);
+const city=norm(cityRoot,1000); scene.add(city);
+city.updateMatrixWorld(true);
+const cityMeshes=[]; city.traverse(o=>{if(o.isMesh)cityMeshes.push(o)});
+const ray=new THREE.Raycaster(); const DOWN=new THREE.Vector3(0,-1,0);
+const cityTop=new THREE.Box3().setFromObject(city).max.y+20;
+function groundY(x,z,fallback=0){ray.set(new THREE.Vector3(x,cityTop,z),DOWN);ray.far=cityTop+200;const h=ray.intersectObjects(cityMeshes,false);
+  // ignore roofs: take first hit below player height if we know it
+  return h.length?h : null}
+function ground(x,z,refY){const h=groundY(x,z); if(!h)return refY??0;
+  // choose hit closest to (but not far above) refY so we don't snap onto rooftops
+  let best=h[0].point.y; if(refY!==undefined){let d=1e9;for(const p of h){const dd=Math.abs(p.point.y-refY-0.3);if(dd<d&&p.point.y<=refY+1.2){d=dd;best=p.point.y}}}
+  else best=h[h.length-1].point.y; return best}
+const fwdRay=new THREE.Raycaster();
+function wallAhead(pos,dir,dist,h){fwdRay.set(new THREE.Vector3(pos.x,pos.y+h,pos.z),dir);fwdRay.far=dist;return fwdRay.intersectObjects(cityMeshes,false).length>0}
+
+// ---------- spawn point: near map centre on lowest ground ----------
+const spawn=new THREE.Vector3(0,0,0); spawn.y=ground(0,0);
+
+// ---------- haunted house ----------
+const house=norm(gl.house.scene,38); scene.add(house);
+const housePos=new THREE.Vector3(140,0,-120); housePos.y=ground(housePos.x,housePos.z); house.position.copy(housePos);
+const hl=new THREE.PointLight(0x66ff99,60,60); hl.position.copy(housePos).add(new THREE.Vector3(0,8,0)); scene.add(hl);
+
+// ---------- characters ----------
+const chars=[]; function mkChar(key,name){const m=skClone(gl[key].scene); const w=norm(m,1.8); scene.add(w);
+  let mixer=null,act=null; if(gl[key].animations.length){mixer=new THREE.AnimationMixer(m);act=mixer.clipAction(gl[key].animations[0]);act.play();act.paused=true}
+  w.visible=false; return {name,w,mixer,act}}
+chars.push(mkChar('franklin','Franklin'),mkChar('cyber','Cyberpunk'));
+let ci=0, player={pos:spawn.clone().add(new THREE.Vector3(0,0,0)),yaw:0,vy:0}; chars[ci].w.visible=true;
+
+// ---------- vehicles ----------
+const vehicles=[]; function mkCar(key,len,x,z,name,flip=false){const m=skClone(gl[key].scene); const w=norm(m,len,{lengthAlongZ:true});
+  const holder=new THREE.Group(); holder.add(w); if(flip)w.rotation.y=Math.PI; scene.add(holder);
+  const v={name,o:holder,speed:0,yaw:0,pos:new THREE.Vector3(x,0,z),ai:false,blocked:false}; v.pos.y=ground(x,z); holder.position.copy(v.pos); vehicles.push(v); return v}
+const alfa=mkCar('alfa',4.6,spawn.x+6,spawn.z,'Alfa Romeo 33 Stradale');
+const cop=mkCar('police',4.8,spawn.x-8,spawn.z+4,'Police Car'); cop.yaw=Math.PI/2;
+let drive=null, wanted=false;
+
+// ---------- input ----------
+const keys={}; let camYaw=0,camPitch=0.35;
+addEventListener('keydown',e=>{keys[e.code]=true;
+  if(e.code==='KeyE')toggleCar(); if(e.code==='KeyC'&&!drive)switchChar(); if(e.code==='KeyH')tpHouse();
+  if(e.code==='KeyP'){wanted=!wanted;cop.ai=wanted&&drive!==cop} if(e.code==='KeyR')reset(); if(e.code==='KeyV'&&drive)swapCar()});
+addEventListener('keyup',e=>keys[e.code]=false);
+renderer.domElement.addEventListener('click',()=>renderer.domElement.requestPointerLock());
+addEventListener('mousemove',e=>{if(document.pointerLockElement||e.buttons){camYaw-=e.movementX*0.004;camPitch=THREE.MathUtils.clamp(camPitch+e.movementY*0.003,-0.1,1.2)}});
+function switchChar(){chars[ci].w.visible=false;ci=(ci+1)%chars.length;chars[ci].w.visible=true}
+function tpHouse(){const p=housePos.clone().add(new THREE.Vector3(0,0,28));if(drive){drive.pos.copy(p);drive.pos.y=ground(p.x,p.z)}else{player.pos.copy(p);player.pos.y=ground(p.x,p.z)}}
+function reset(){drive=null;player.pos.copy(spawn);player.vy=0;vehicles.forEach(v=>v.speed=0);chars[ci].w.visible=true}
+function toggleCar(){
+  if(drive){player.pos.copy(drive.pos).add(new THREE.Vector3(Math.cos(drive.yaw)*2.5,0,-Math.sin(drive.yaw)*2.5));player.pos.y=ground(player.pos.x,player.pos.z,drive.pos.y);
+    drive.speed=0;drive=null;chars[ci].w.visible=true;if(wanted)cop.ai=true;return}
+  let best=null,d=7;for(const v of vehicles){const k=v.pos.distanceTo(player.pos);if(k<d){d=k;best=v}}
+  if(best){drive=best;best.ai=false;chars[ci].w.visible=false}}
+function swapCar(){const n=vehicles.find(v=>v!==drive&&!v.ai)||vehicles.find(v=>v!==drive); if(!n)return; n.pos.copy(drive.pos).add(new THREE.Vector3(6,0,0)); n.yaw=drive.yaw; drive=n}
+
+// ---------- update ----------
+const clock=new THREE.Clock(); let frame=0; const tmp=new THREE.Vector3();
+function stepCar(v,dt,thr,steer,brake){
+  v.speed+=thr*(thr>0?22:14)*dt; v.speed*=Math.pow(brake?0.02:0.6,dt); v.speed=THREE.MathUtils.clamp(v.speed,-12,55);
+  v.yaw+=steer*Math.min(1,Math.abs(v.speed)/6)*Math.sign(v.speed)*1.6*dt;
+  tmp.set(Math.sin(v.yaw),0,Math.cos(v.yaw));
+  if(frame%3===0)v.blocked=Math.abs(v.speed)>1&&wallAhead(v.pos,tmp.clone().multiplyScalar(Math.sign(v.speed)),3.2,0.8);
+  if(v.blocked){v.speed*=-0.2}
+  v.pos.addScaledVector(tmp,v.speed*dt);
+  if(frame%2===0)v.pos.y=THREE.MathUtils.lerp(v.pos.y,ground(v.pos.x,v.pos.z,v.pos.y),0.4);
+  v.o.position.copy(v.pos); v.o.rotation.y=v.yaw;}
+
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),0.05);frame++;
+  const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0), s=(keys.KeyA||keys.ArrowLeft?1:0)-(keys.KeyD||keys.ArrowRight?1:0);
+  let focus;
+  if(drive){stepCar(drive,dt,f,s,keys.Space);focus=drive.pos;}
+  else{const c=chars[ci]; const run=keys.ShiftLeft?9:4.5; const moving=f||s;
+    if(moving){
+      const mv=new THREE.Vector3(-Math.sin(camYaw)*f-Math.cos(camYaw)*s,0,-Math.cos(camYaw)*f+Math.sin(camYaw)*s).normalize();
+      player.yaw=Math.atan2(mv.x,mv.z);
+      if(frame%3===0)player.blocked=wallAhead(player.pos,mv,0.9,1);
+      if(!player.blocked)player.pos.addScaledVector(mv,run*dt);}
+    if(frame%2===0)player.pos.y=THREE.MathUtils.lerp(player.pos.y,ground(player.pos.x,player.pos.z,player.pos.y),0.35);
+    c.w.position.copy(player.pos); c.w.rotation.y=player.yaw;
+    if(c.mixer){c.act.paused=!moving;c.act.timeScale=run>5?1.6:1;c.mixer.update(dt)} else if(moving){c.w.position.y+=Math.abs(Math.sin(performance.now()/110))*0.08}
+    focus=player.pos;}
+  // police AI chase
+  if(cop.ai&&drive!==cop){const target=(drive||{pos:player.pos}).pos;const dx=target.x-cop.pos.x,dz=target.z-cop.pos.z;
+    const want=Math.atan2(dx,dz);let d=((want-cop.yaw+Math.PI*3)%(Math.PI*2))-Math.PI;
+    stepCar(cop,dt,Math.hypot(dx,dz)>8?0.9:-0.3,THREE.MathUtils.clamp(d*2,-1,1),false);}
+  else if(drive!==cop){cop.speed*=0.9}
+  // camera
+  const dist=drive?9:5; const cy=(drive?2.8:1.6);
+  const tgt=new THREE.Vector3(focus.x,focus.y+cy,focus.z);
+  if(drive&&!document.pointerLockElement)camYaw=THREE.MathUtils.lerp(camYaw,drive.yaw+Math.PI,0.06);
+  cam.position.set(tgt.x+Math.sin(camYaw)*Math.cos(camPitch)*dist,tgt.y+Math.sin(camPitch)*dist,tgt.z+Math.cos(camYaw)*Math.cos(camPitch)*dist);
+  cam.lookAt(tgt);
+  $('hud').textContent=drive?Math.round(Math.abs(drive.speed)*3.6)+' km/h — '+drive.name:chars[ci].name+(wanted?'  ⭐ مطلوب':'');
+  renderer.render(scene,cam);}
+$('load').remove(); reset(); loop();
+</script></body></html>

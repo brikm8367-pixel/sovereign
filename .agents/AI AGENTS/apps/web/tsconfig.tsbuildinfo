@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/services/speechoutputservice.ts","./src/services/voiceservice.ts","./src/services/wakewordservice.ts"],"version":"5.9.3"}
