@@ -17,6 +17,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { InviteManagerDialog } from '@/components/profile/InviteManagerDialog';
+import { KeyBackupCard } from '@/components/profile/KeyBackupCard';
 import { buildShareLink } from '@/lib/appUrl';
 
 interface Profile {
@@ -544,6 +545,8 @@ export default function ProfilePage() {
             </>
           )}
         </Button>
+
+        <KeyBackupCard />
 
         <p className="text-center text-xs text-muted-foreground mt-4 mb-2">Sovereign v1.0 · © 2026</p>
       </main>
