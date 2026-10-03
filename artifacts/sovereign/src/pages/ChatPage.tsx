@@ -1100,6 +1100,19 @@ export default function ChatPage() {
 
               // Check for agent decision message - FIX: handle null/undefined content
               const isAgentDecision = typeof msg.content === 'string' && msg.content.startsWith('{"type":"agent_decision"');
+              
+              // STEP 2: Add offer_accepted detection
+              const isOfferAccepted = typeof msg.content === 'string' && msg.content.startsWith('{"type":"offer_accepted"');
+              let parsedAccepted: { type: string; dealId: string; acceptorName: string; acceptorRole: string } | null = null;
+              
+              if (isOfferAccepted) {
+                try {
+                  parsedAccepted = JSON.parse(msg.content);
+                } catch (e) {
+                  console.error('[ChatPage] Failed to parse offer_accepted:', e);
+                }
+              }
+              
               let parsedDecision: { type: string; decision: string; dealId: string; agentName: string } | null = null;
               
               if (isAgentDecision) {
@@ -1179,6 +1192,29 @@ export default function ChatPage() {
                         </div>
                       )}
 
+                      {/* STEP 3: Add offer_accepted celebratory card */}
+                      {isOfferAccepted && parsedAccepted && (
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 rounded-2xl p-4 shadow-md mb-2">
+                          <DealCardInline 
+                            dealId={parsedAccepted.dealId} 
+                            isRTL={isRTL} 
+                            onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
+                            showDetails={false} 
+                          />
+                          <div className="mt-4 text-center">
+                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-3 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 shadow-sm">
+                              <CheckCheck className="h-7 w-7" />
+                            </div>
+                            <p className="font-bold text-lg text-green-700 dark:text-green-400 mb-1">{tLocal('🎉 قبل وكيلك عرضك', '🎉 Your agent accepted your offer')}</p>
+                            <p className="text-sm text-muted-foreground mb-3">{parsedAccepted.acceptorName}</p>
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                              <ShieldCheck className="h-3 w-3" />
+                              {parsedAccepted.acceptorRole === 'manager' ? tLocal('وكيل مفوض', 'Authorized Agent') : tLocal('الموهبة', 'Talent')}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       <div className={cn(
                         'px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm relative',
                         isMine 
@@ -1186,7 +1222,7 @@ export default function ChatPage() {
                           : 'bg-card border border-border/50 rounded-ee-sm shadow-[0_1px_2px_rgba(0,0,0,0.03)]'
                       )}>
                         {/* Deal context label for messages in a deal thread */}
-                        {msg.deal_id && !isDealAccepted && !isAgentDecision && (
+                        {msg.deal_id && !isDealAccepted && !isAgentDecision && !isOfferAccepted && (
                           <div className="absolute -top-2 left-3 right-3 -mx-3 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-t-xl text-[10px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
                             <Briefcase className="h-3 w-3" />
                             {t.dashboard.regardingDeal}
@@ -1194,7 +1230,7 @@ export default function ChatPage() {
                         )}
                         
                         {/* Agent badge for messages from managers */}
-                        {!isMine && isFromManager && !isAgentDecision && (
+                        {!isMine && isFromManager && !isAgentDecision && !isOfferAccepted && (
                           <div className="mb-1.5 flex items-center gap-1.5">
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                               <ShieldCheck className="h-2.5 w-2.5" />
@@ -1218,7 +1254,7 @@ export default function ChatPage() {
                             <Mic className="h-5 w-5 text-muted-foreground" />
                             <span className="text-sm text-muted-foreground">{t.dashboard.voiceMessage}</span>
                           </div>
-                        ) : msg.content && !['📷', '🎥', '🎤'].includes(typeof msg.content === 'string' ? msg.content : '') && !isAgentDecision ? (
+                        ) : msg.content && !['📷', '🎥', '🎤'].includes(typeof msg.content === 'string' ? msg.content : '') && !isAgentDecision && !isOfferAccepted ? (
                           <p className="whitespace-pre-wrap">
                             {msg._decryptionFailed ? (
                               <span className="flex items-center gap-1.5 text-muted-foreground/60 italic text-sm">

@@ -537,6 +537,16 @@ export default function Dashboard() {
       // STEP 7: Use roleRef.current
       const senderIdForConversation = roleRef.current === 'manager' && managedCelebrityId ? user.id : celebrityId;
 
+      // STEP 1: Replace plain text with structured JSON message
+      const acceptorName = user.display_name || (roleRef.current === 'manager' ? 'Agent' : 'Talent');
+      const acceptorRole = roleRef.current === 'manager' ? 'manager' : 'celebrity';
+      const acceptanceMessage = JSON.stringify({
+        type: 'offer_accepted',
+        dealId: dealId,
+        acceptorName: acceptorName,
+        acceptorRole: acceptorRole
+      });
+
       // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
@@ -544,7 +554,7 @@ export default function Dashboard() {
           sender_id: senderIdForConversation,
           receiver_id: deal.sender_id,
           deal_id: dealId,
-          content: t.dashboard.offerAccepted,
+          content: acceptanceMessage,
           category: 'work',
           sender_role: roleRef.current === 'manager' ? 'manager' : 'celebrity',
           managed_celebrity_id: roleRef.current === 'manager' ? managedCelebrityId : null
