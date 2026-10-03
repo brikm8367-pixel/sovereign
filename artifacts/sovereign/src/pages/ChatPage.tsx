@@ -1205,7 +1205,7 @@ export default function ChatPage() {
                             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-3 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 shadow-sm">
                               <CheckCheck className="h-7 w-7" />
                             </div>
-                            <p className="font-bold text-lg text-green-700 dark:text-green-400 mb-1">{tLocal('🎉 قبل وكيلك عرضك', '🎉 Your agent accepted your offer')}</p>
+                            <p className="font-bold text-lg text-green-700 dark:text-green-400 mb-1">{parsedAccepted.acceptorRole === 'manager' ? tLocal('🎉 قبل وكيل الموهبة عرضك', "🎉 The talent's agent accepted your offer") : tLocal('🎉 قبلت الموهبة عرضك', '🎉 The talent accepted your offer')}</p>
                             <p className="text-sm text-muted-foreground mb-3">{parsedAccepted.acceptorName}</p>
                             <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
                               <ShieldCheck className="h-3 w-3" />
