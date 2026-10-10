@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const initialSessionHandledRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -89,7 +90,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initializeAuth();
 
+    const safetyTimeout = setTimeout(() => {
+      if (mounted) {
+        const hasSession = !!Object.keys(localStorage).find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
+        if (!hasSession) {
+          console.warn('[Auth] Safety timeout reached, forcing loading=false');
+          setLoading(false);
+        }
+      }
+    }, 5000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!initialSessionHandledRef.current && _event === 'INITIAL_SESSION') {
+        initialSessionHandledRef.current = true;
+      }
       if (mounted) {
         setSession(session);
         setUser(session?.user ?? null);
@@ -100,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      clearTimeout(safetyTimeout);
     };
   }, []);
 

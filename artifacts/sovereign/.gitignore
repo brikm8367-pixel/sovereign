@@ -3,3 +3,7 @@ artifacts/sovereing/
 and
 verifying
 without
+
+# Local backups
+src/hooks/*.backup
+src/hooks/*.backup2
