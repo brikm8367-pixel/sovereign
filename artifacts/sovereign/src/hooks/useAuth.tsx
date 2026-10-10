@@ -76,8 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Safety timeout: force loading to false after 10 seconds to prevent stuck loading screen
     const safetyTimeout = setTimeout(() => {
       if (mounted) {
-        console.warn('[Auth] Safety timeout reached, forcing loading=false');
-        setLoading(false);
+        const hasSession = !!Object.keys(localStorage).find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
+        if (!hasSession) {
+          console.warn('[Auth] Safety timeout reached, forcing loading=false');
+          setLoading(false);
+        }
       }
     }, 10000);
 
@@ -113,7 +116,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // STEP 1C: Skip duplicate INITIAL_SESSION event that fires right after initializeAuth
       if (!initialSessionHandledRef.current && _event === 'INITIAL_SESSION') {
         initialSessionHandledRef.current = true;
-        return;
       }
       
       setSession(session);
