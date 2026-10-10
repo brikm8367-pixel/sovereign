@@ -344,6 +344,7 @@ export default function Dashboard() {
 
       // FIX: Use user.id for all roles including manager - messages are sent with agent's user.id
       query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
+      if (roleRef.current === 'manager' && managedCelebrityId) { query = query.or(`managed_celebrity_id.eq.${managedCelebrityId},deal_cards.celebrity_id.eq.${managedCelebrityId}`); }
 
       const { data, error } = await query;
 
