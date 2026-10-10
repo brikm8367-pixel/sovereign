@@ -343,8 +343,19 @@ export default function Dashboard() {
         .limit(200); // Limit to 200 most recent messages per conversation
 
       // FIX: Use user.id for all roles including manager - messages are sent with agent's user.id
-      query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
-      if (roleRef.current === 'manager' && managedCelebrityId) { query = query.or(`managed_celebrity_id.eq.${managedCelebrityId},deal_cards.celebrity_id.eq.${managedCelebrityId}`); }
+      if (roleRef.current === 'manager' && managedCelebrityId) {
+        const { data: celebDeals } = await supabase.from('deal_cards').select('id').eq('celebrity_id', managedCelebrityId);
+        const dealIds = (celebDeals || []).map((d: any) => d.id);
+        const parts = [`and(sender_id.eq.${user.id},managed_celebrity_id.eq.${managedCelebrityId})`, `and(receiver_id.eq.${user.id},sender_id.eq.${managedCelebrityId})`];
+        if (dealIds.length > 0) {
+          const list = dealIds.join(',');
+          parts.push(`and(sender_id.eq.${user.id},deal_id.in.(${list}))`);
+          parts.push(`and(receiver_id.eq.${user.id},deal_id.in.(${list}))`);
+        }
+        query = query.or(parts.join(','));
+      } else {
+        query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
+      }
 
       const { data, error } = await query;
 
