@@ -715,7 +715,7 @@ export default function Dashboard() {
           managed_celebrity_id: managedCelebrityId
         });
 
-      if (msgError) throw msgError.
+      if (msgError) throw msgError;
 
       // STEP 7: Use roleRef.current
       if (roleRef.current === 'manager') {
@@ -799,7 +799,7 @@ export default function Dashboard() {
           const otherUserId = newMessage.sender_id === currentUserId ? newMessage.receiver_id : newMessage.sender_id;
           if (!otherUserId) return;
 
-          const convId = newMessage.deal_id || otherUserId.
+          const convId = newMessage.deal_id || otherUserId;
 
           // Resolve display content for the new message
           resolveDisplayContent(newMessage.content || '', newMessage.sender_id, newMessage.id, currentUserId, managedCelebrityId || null).then(resolved => {
@@ -883,7 +883,7 @@ export default function Dashboard() {
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
           if (!otherUserId) return;
 
-          const convId = updatedMessage.deal_id || otherUserId.
+          const convId = updatedMessage.deal_id || otherUserId;
 
           setConversations(prev => {
             const existingIndex = prev.findIndex(c => c.id === convId);
