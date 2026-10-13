@@ -407,9 +407,9 @@ export default function ChatPage() {
     const currentUser = user;
     const currentUserId = userId;
     const currentDealId = dealId;
-    const currentDeal = deal;
-    const currentRole = role;
-    const currentManagedCelebrityId = managedCelebrityId;
+    const currentDeal = dealRef.current;
+    const currentRole = roleRef.current;
+    const currentManagedCelebrityId = managedCelebrityIdRef.current;
 
     // Build filter for the conversation: messages between current user and userId
     const filter = `or(and(sender_id.eq.${currentUser.id},receiver_id.eq.${currentUserId}),and(sender_id.eq.${currentUserId},receiver_id.eq.${currentUser.id}))`;
@@ -572,7 +572,7 @@ export default function ChatPage() {
       console.log('[ChatPage] Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
-  }, [user?.id, userId, dealId, deal, role, managedCelebrityId, fetchManagedCelebrityProfile]); // STEP 10: Add e2eReady to dependency array
+  }, [user?.id, userId, dealId]);
 
   // Scroll to bottom
   useEffect(() => {
