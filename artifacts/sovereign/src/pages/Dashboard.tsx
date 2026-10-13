@@ -271,12 +271,14 @@ export default function Dashboard() {
     return '...';
   }, []);
 
-  const fetchPendingDeals = useCallback(async () => {
+  const fetchPendingDeals = useCallback(async (celebIdOverride?: string | null) => {
     if (!user) return;
     
+    const celebId = celebIdOverride !== undefined ? celebIdOverride : managedCelebrityId;
+    
     // STEP 3: Use roleRef.current
-    if (roleRef.current === 'manager' && !managedCelebrityId) {
-      if (isMountedRef.current) {
+    if (roleRef.current === 'manager' && !celebId) {
+      if (isMountedRef.current && celebIdOverride === undefined) {
         setPendingDeals([]);
         setIsLoadingDeals(false);
       }
@@ -284,15 +286,15 @@ export default function Dashboard() {
     }
 
     try {
-      console.log('[Dashboard] Fetching pending deals for:', roleRef.current === 'manager' ? managedCelebrityId : user.id);
+      console.log('[Dashboard] Fetching pending deals for:', roleRef.current === 'manager' ? celebId : user.id);
       const query = supabase
         .from('deal_cards')
         .select('*')
         .eq('status', 'pending');
 
       // STEP 3: Use roleRef.current
-      if (roleRef.current === 'manager' && managedCelebrityId) {
-        query.eq('celebrity_id', managedCelebrityId);
+      if (roleRef.current === 'manager' && celebId) {
+        query.eq('celebrity_id', celebId);
       } else if (roleRef.current === 'sender') {
         query.eq('sender_id', user.id);
       } else {
@@ -303,25 +305,29 @@ export default function Dashboard() {
 
       if (error) throw error;
       
-      if (isMountedRef.current) {
+      if (isMountedRef.current && celebIdOverride === undefined) {
         setPendingDeals(data as Deal[] || []);
         setIsLoadingDeals(false);
         console.log('[Dashboard] Fetched pending deals:', data?.length || 0);
       }
+      return data as Deal[] || [];
     } catch (error) {
       console.error('Error fetching pending deals:', error);
-      if (isMountedRef.current) {
+      if (isMountedRef.current && celebIdOverride === undefined) {
         setIsLoadingDeals(false);
       }
+      throw error;
     }
-  }, [user, managedCelebrityId]);
+  }, [user?.id, managedCelebrityId]);
 
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (celebIdOverride?: string | null) => {
     if (!user) return;
 
+    const celebId = celebIdOverride !== undefined ? celebIdOverride : managedCelebrityId;
+    
     // STEP 4: Use roleRef.current
-    if (roleRef.current === 'manager' && !managedCelebrityId) {
-      if (isMountedRef.current) {
+    if (roleRef.current === 'manager' && !celebId) {
+      if (isMountedRef.current && celebIdOverride === undefined) {
         setConversations([]);
         setIsLoadingMessages(false);
       }
@@ -343,8 +349,8 @@ export default function Dashboard() {
         .limit(200); // Limit to 200 most recent messages per conversation
 
       // FIX: Use user.id for all roles including manager - messages are sent with agent's user.id
-      if (roleRef.current === 'manager' && managedCelebrityId) {
-        query = query.or(`and(sender_id.eq.${user.id},managed_celebrity_id.eq.${managedCelebrityId}),and(receiver_id.eq.${user.id},sender_id.eq.${managedCelebrityId})`);
+      if (roleRef.current === 'manager' && celebId) {
+        query = query.or(`and(sender_id.eq.${user.id},managed_celebrity_id.eq.${celebId}),and(receiver_id.eq.${user.id},sender_id.eq.${celebId})`);
       } else {
         query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
       }
@@ -358,7 +364,7 @@ export default function Dashboard() {
       // Resolve display content for all messages in parallel
       const resolvedMap = new Map<string, string>();
       await Promise.all(messages.map(async (msg) => {
-        const r = await resolveDisplayContent(msg.content || '', msg.sender_id, msg.id, currentUserId, managedCelebrityId || null);
+        const r = await resolveDisplayContent(msg.content || '', msg.sender_id, msg.id, currentUserId, celebId || null);
         resolvedMap.set(msg.id, r);
       }));
 
@@ -435,7 +441,7 @@ export default function Dashboard() {
       const conversationsList = Array.from(conversationsMap.values())
         .sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
 
-      if (isMountedRef.current) {
+      if (isMountedRef.current && celebIdOverride === undefined) {
         setConversations(conversationsList);
         setIsLoadingMessages(false);
         console.log('[Dashboard] Fetched conversations:', conversationsList.length);
@@ -443,12 +449,12 @@ export default function Dashboard() {
       return conversationsList;
     } catch (error) {
       console.error('Error fetching conversations:', error);
-      if (isMountedRef.current) {
+      if (isMountedRef.current && celebIdOverride === undefined) {
         setIsLoadingMessages(false);
       }
       throw error;
     }
-  }, [user, managedCelebrityId]);
+  }, [user?.id, managedCelebrityId]);
 
   // TanStack Query for conversations - caches for 30 seconds
   const { data: conversationsFromQuery, isLoading: isLoadingConversations } = useQuery({
@@ -495,6 +501,24 @@ export default function Dashboard() {
     fetchPendingDealsRef.current = fetchPendingDeals;
   }, [fetchPendingDeals]);
 
+  // Prefetch data for other celebrities when on manager dashboard
+  useEffect(() => {
+    if (role !== 'manager' || !user?.id || managedCelebrities.length === 0) return;
+    managedCelebrities.forEach((celeb) => {
+      if (celeb.id === managedCelebrityId) return;
+      queryClient.prefetchQuery({
+        queryKey: ['conversations', user.id, celeb.id],
+        queryFn: () => fetchConversations(celeb.id),
+        staleTime: 60_000
+      });
+      queryClient.prefetchQuery({
+        queryKey: ['pendingDeals', user.id, celeb.id],
+        queryFn: () => fetchPendingDeals(celeb.id),
+        staleTime: 60_000
+      });
+    });
+  }, [managedCelebrities, user?.id, role, managedCelebrityId, fetchConversations, fetchPendingDeals, queryClient]);
+
   // Reset data when managedCelebrityId changes - MOVED AFTER fetchPendingDeals/fetchConversations definitions
   // STEP 2: Add guard to run exactly once per unique celebrity id
   useEffect(() => {
@@ -504,12 +528,8 @@ export default function Dashboard() {
     
     if (roleRef.current === 'manager' && managedCelebrityId) {
       console.log('[Dashboard] Celebrity changed, resetting data for:', managedCelebrityId);
-      setPendingDeals([]);
-      setConversations([]);
       setIsLoadingDeals(true);
       setIsLoadingMessages(true);
-      fetchPendingDeals();
-      fetchConversations();
     }
   }, [managedCelebrityId]); // STEP 3: Keep only managedCelebrityId in dependency array
 
@@ -695,7 +715,7 @@ export default function Dashboard() {
           managed_celebrity_id: managedCelebrityId
         });
 
-      if (msgError) throw msgError;
+      if (msgError) throw msgError.
 
       // STEP 7: Use roleRef.current
       if (roleRef.current === 'manager') {
@@ -755,7 +775,7 @@ export default function Dashboard() {
           if (!newMessage || newMessage.category !== 'work') return;
           
           const currentUserId = user?.id;
-          if (!currentUserId) return;
+          if (!currentUserId) return.
 
           // Check for agent_decision messages
           const isAgentDecision = typeof newMessage.content === 'string' && newMessage.content.startsWith('{"type":"agent_decision"');
@@ -777,9 +797,9 @@ export default function Dashboard() {
 
           // Determine the other user ID
           const otherUserId = newMessage.sender_id === currentUserId ? newMessage.receiver_id : newMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
-          const convId = newMessage.deal_id || otherUserId;
+          const convId = newMessage.deal_id || otherUserId.
 
           // Resolve display content for the new message
           resolveDisplayContent(newMessage.content || '', newMessage.sender_id, newMessage.id, currentUserId, managedCelebrityId || null).then(resolved => {
@@ -854,14 +874,14 @@ export default function Dashboard() {
         (payload) => {
           console.log('[Dashboard] Realtime: Message updated', payload);
           const updatedMessage = payload.new as Message;
-          if (!updatedMessage || updatedMessage.category !== 'work') return;
+          if (!updatedMessage || updatedMessage.category !== 'work') return.
           
           const currentUserId = user?.id;
-          if (!currentUserId) return;
+          if (!currentUserId) return.
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
           const convId = updatedMessage.deal_id || otherUserId.
 
