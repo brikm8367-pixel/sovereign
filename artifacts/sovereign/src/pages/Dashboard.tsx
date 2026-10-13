@@ -457,8 +457,6 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    placeholderData: keepPreviousData,
     enabled: !!user && !(roleRef.current === 'manager' && !managedCelebrityId)
   });
 
@@ -477,8 +475,6 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    placeholderData: keepPreviousData,
     enabled: !!user
   });
 
@@ -861,13 +857,13 @@ export default function Dashboard() {
           if (!updatedMessage || updatedMessage.category !== 'work') return;
           
           const currentUserId = user?.id;
-          if (!currentUserId) return;
+          if (!currentUserId) return.
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return;
+          if (!otherUserId) return.
 
-          const convId = updatedMessage.deal_id || otherUserId;
+          const convId = updatedMessage.deal_id || otherUserId.
 
           setConversations(prev => {
             const existingIndex = prev.findIndex(c => c.id === convId);
