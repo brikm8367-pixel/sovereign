@@ -34,7 +34,7 @@ import { DealCardInline } from '@/components/deals/DealCardInline';
 import MessageComposer from '@/components/messaging/MessageComposer';
 import { initE2EKeys, ensureUserE2EReady, decryptFromSender, getOwnMessagePlaintext, isEncryptedMessage } from '@/utils/e2eManager';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 // STEP 3: Add getStoredKeysSecure import
 import { getStoredKeysSecure } from '@/utils/encryption';
 
@@ -344,15 +344,7 @@ export default function Dashboard() {
 
       // FIX: Use user.id for all roles including manager - messages are sent with agent's user.id
       if (roleRef.current === 'manager' && managedCelebrityId) {
-        const { data: celebDeals } = await supabase.from('deal_cards').select('id').eq('celebrity_id', managedCelebrityId);
-        const dealIds = (celebDeals || []).map((d: any) => d.id);
-        const parts = [`and(sender_id.eq.${user.id},managed_celebrity_id.eq.${managedCelebrityId})`, `and(receiver_id.eq.${user.id},sender_id.eq.${managedCelebrityId})`];
-        if (dealIds.length > 0) {
-          const list = dealIds.join(',');
-          parts.push(`and(sender_id.eq.${user.id},deal_id.in.(${list}))`);
-          parts.push(`and(receiver_id.eq.${user.id},deal_id.in.(${list}))`);
-        }
-        query = query.or(parts.join(','));
+        query = query.or(`and(sender_id.eq.${user.id},managed_celebrity_id.eq.${managedCelebrityId}),and(receiver_id.eq.${user.id},sender_id.eq.${managedCelebrityId})`);
       } else {
         query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
       }
@@ -462,7 +454,11 @@ export default function Dashboard() {
   const { data: conversationsFromQuery, isLoading: isLoadingConversations } = useQuery({
     queryKey: ['conversations', user?.id, managedCelebrityId],
     queryFn: fetchConversations,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    placeholderData: keepPreviousData,
     enabled: !!user && !(roleRef.current === 'manager' && !managedCelebrityId)
   });
 
@@ -478,7 +474,11 @@ export default function Dashboard() {
   const { data: pendingDealsFromQuery, isLoading: isLoadingPendingFromQuery } = useQuery({
     queryKey: ['pendingDeals', user?.id, managedCelebrityId],
     queryFn: fetchPendingDeals,
-    staleTime: 15000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    placeholderData: keepPreviousData,
     enabled: !!user
   });
 
