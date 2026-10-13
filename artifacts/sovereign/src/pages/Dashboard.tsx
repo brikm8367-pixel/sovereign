@@ -459,7 +459,7 @@ export default function Dashboard() {
   // TanStack Query for conversations - caches for 30 seconds
   const { data: conversationsFromQuery, isLoading: isLoadingConversations } = useQuery({
     queryKey: ['conversations', user?.id, managedCelebrityId],
-    queryFn: fetchConversations,
+    queryFn: () => fetchConversations(),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -477,7 +477,7 @@ export default function Dashboard() {
   // TanStack Query for pendingDeals - caches for 15 seconds
   const { data: pendingDealsFromQuery, isLoading: isLoadingPendingFromQuery } = useQuery({
     queryKey: ['pendingDeals', user?.id, managedCelebrityId],
-    queryFn: fetchPendingDeals,
+    queryFn: () => fetchPendingDeals(),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
