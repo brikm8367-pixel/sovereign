@@ -775,7 +775,7 @@ export default function Dashboard() {
           if (!newMessage || newMessage.category !== 'work') return;
           
           const currentUserId = user?.id;
-          if (!currentUserId) return.
+          if (!currentUserId) return;
 
           // Check for agent_decision messages
           const isAgentDecision = typeof newMessage.content === 'string' && newMessage.content.startsWith('{"type":"agent_decision"');
@@ -797,7 +797,7 @@ export default function Dashboard() {
 
           // Determine the other user ID
           const otherUserId = newMessage.sender_id === currentUserId ? newMessage.receiver_id : newMessage.sender_id;
-          if (!otherUserId) return.
+          if (!otherUserId) return;
 
           const convId = newMessage.deal_id || otherUserId.
 
@@ -874,14 +874,14 @@ export default function Dashboard() {
         (payload) => {
           console.log('[Dashboard] Realtime: Message updated', payload);
           const updatedMessage = payload.new as Message;
-          if (!updatedMessage || updatedMessage.category !== 'work') return.
+          if (!updatedMessage || updatedMessage.category !== 'work') return;
           
           const currentUserId = user?.id;
-          if (!currentUserId) return.
+          if (!currentUserId) return;
 
           // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
-          if (!otherUserId) return.
+          if (!otherUserId) return;
 
           const convId = updatedMessage.deal_id || otherUserId.
 
