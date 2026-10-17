@@ -85,6 +85,7 @@ export default function ChatPage() {
   const [recipientE2EReady, setRecipientE2EReady] = useState<boolean | null>(null);
   // STEP 5: Add e2eReady state
   const e2eReadyRef = useRef<boolean | null>(null);
+  const [e2eReady, setE2eReady] = useState<boolean | null>(null);
   // BUG 1 FIX: Convert from useState to useRef to prevent re-renders
   const managedCelebrityProfilesRef = useRef<Map<string, Profile>>(new Map());
   const ownMessagesCacheRef = useRef<Map<string, string>>(new Map());
@@ -163,7 +164,7 @@ export default function ChatPage() {
     if (!user?.id) return;
     let cancelled = false;
     ensureUserE2EReady(user.id).then(ready => {
-      if (!cancelled) e2eReadyRef.current = ready;
+      if (!cancelled) { e2eReadyRef.current = ready; setE2eReady(ready); }
     });
     return () => { cancelled = true; };
   }, [user?.id]);
@@ -274,7 +275,7 @@ export default function ChatPage() {
   const loadMessages = useCallback(async () => {
     if (!user || !userId) return;
     // STEP 7: Guard - wait for E2E keys to be ready
-    if (e2eReadyRef.current !== true) return;
+    if (e2eReady !== true) return;
     
     setIsLoading(true);
     
@@ -373,7 +374,7 @@ export default function ChatPage() {
         setIsLoading(false);
       }
     }
-  }, [user?.id, userId, dealId, isRTL]); // STEP 8: Add e2eReady to dependency array
+  }, [user?.id, userId, dealId, isRTL, e2eReady]); // STEP 8: Add e2eReady to dependency array
 
   // Store ref for use in effects
   useEffect(() => {
