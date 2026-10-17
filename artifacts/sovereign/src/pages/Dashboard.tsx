@@ -505,7 +505,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (role !== 'manager' || !user?.id || managedCelebrities.length === 0) return;
     managedCelebrities.forEach((celeb) => {
-      if (celeb.id === managedCelebrityId) return;
       queryClient.prefetchQuery({
         queryKey: ['conversations', user.id, celeb.id],
         queryFn: () => fetchConversations(celeb.id),
@@ -517,7 +516,7 @@ export default function Dashboard() {
         staleTime: 60_000
       });
     });
-  }, [managedCelebrities, user?.id, role, managedCelebrityId, fetchConversations, fetchPendingDeals, queryClient]);
+  }, [managedCelebrities, user?.id, role, fetchConversations, fetchPendingDeals, queryClient]);
 
 
   // Calculate unread total whenever conversations change
