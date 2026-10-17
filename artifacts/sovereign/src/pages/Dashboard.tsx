@@ -519,19 +519,6 @@ export default function Dashboard() {
     });
   }, [managedCelebrities, user?.id, role, managedCelebrityId, fetchConversations, fetchPendingDeals, queryClient]);
 
-  // Reset data when managedCelebrityId changes - MOVED AFTER fetchPendingDeals/fetchConversations definitions
-  // STEP 2: Add guard to run exactly once per unique celebrity id
-  useEffect(() => {
-    if (!managedCelebrityId) return;
-    if (lastHandledCelebRef.current === managedCelebrityId) return;
-    lastHandledCelebRef.current = managedCelebrityId;
-    
-    if (roleRef.current === 'manager' && managedCelebrityId) {
-      console.log('[Dashboard] Celebrity changed, resetting data for:', managedCelebrityId);
-      setIsLoadingDeals(true);
-      setIsLoadingMessages(true);
-    }
-  }, [managedCelebrityId]); // STEP 3: Keep only managedCelebrityId in dependency array
 
   // Calculate unread total whenever conversations change
   useEffect(() => {
