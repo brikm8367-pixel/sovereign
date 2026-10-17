@@ -364,7 +364,10 @@ export default function Dashboard() {
       // Resolve display content for all messages in parallel
       const resolvedMap = new Map<string, string>();
       await Promise.all(messages.map(async (msg) => {
-        const r = await resolveDisplayContent(msg.content || '', msg.sender_id, msg.id, currentUserId, celebId || null);
+        const r = await Promise.race([
+          resolveDisplayContent(msg.content || '', msg.sender_id, msg.id, currentUserId, celebId || null),
+          new Promise<string>((resolve) => setTimeout(() => resolve('🔒'), 500))
+        ]);
         resolvedMap.set(msg.id, r);
       }));
 
