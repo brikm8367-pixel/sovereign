@@ -312,41 +312,25 @@ export default function ChatPage() {
             return { ...msg, content: cached };
           }
         }
-        
+
         if (isEncryptedMessage(msg.content)) {
           try {
-            // Use message.sender_id as the key owner for decryption
-            const senderId = msg.sender_id;
-            const res = await decryptFromSender(msg.content, senderId);
-            if (res.success) {
-              return { ...msg, content: res.plaintext };
+            const r = await Promise.race([
+              decryptFromSender(msg.content, msg.sender_id),
+              new Promise<string>((resolve) => setTimeout(() => resolve('🔒'), 500))
+            ]);
+            if (r === '🔒') {
+              return { ...msg, content: '🔒', _decryptionFailed: true };
             }
-            // Primary decryption failed - try fallback with managed_celebrity_id if available
-            if (msg.managed_celebrity_id && msg.managed_celebrity_id !== msg.sender_id) {
-              console.log('[ChatPage] Primary decryption failed, trying fallback with managed_celebrity_id:', msg.managed_celebrity_id);
-              const fallbackRes = await decryptFromSender(msg.content, msg.managed_celebrity_id);
-              if (fallbackRes.success) {
-                console.log('[ChatPage] Fallback decryption succeeded with managed_celebrity_id');
-                return { 
-                  ...msg, 
-                  content: fallbackRes.plaintext,
-                  sender_id: msg.managed_celebrity_id // Update sender_id for consistency
-                };
-              }
+            // r is the decryptFromSender result object
+            if (r && typeof r === 'object' && r.success && r.plaintext) {
+              return { ...msg, content: r.plaintext };
             }
-            // Decryption failed - return '...' temporarily, will retry in background
-            return { 
-              ...msg, 
-              content: '...',
-              _decryptionFailed: true
-            };
+            // Fallback for unexpected result
+            return { ...msg, content: '🔒', _decryptionFailed: true };
           } catch (decryptError) {
             console.error('[ChatPage] Decryption failed for message:', msg.id, decryptError);
-            return { 
-              ...msg, 
-              content: '...',
-              _decryptionFailed: true
-            };
+            return { ...msg, content: '🔒', _decryptionFailed: true };
           }
         }
         return msg;
