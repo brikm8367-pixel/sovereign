@@ -140,6 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   await initE2EKeys(session.user.id);
                   await uploadKeyBackup(backupPassword, session.user.id);
                 }
+              } else {
+                await uploadKeyBackup(backupPassword, session.user.id);
               }
               clearFailedDecryptionCache();
             } catch (e) {
