@@ -117,6 +117,59 @@ export async function importKeyBackup(
   }
 }
 
+/** Upload encrypted key backup to cloud (encrypted with user password). */
+export async function uploadKeyBackup(password: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const keys = await getStoredKeysSecure();
+    if (!keys) return { success: false, error: 'no_local_keys' };
+    const { key, saltBase64 } = await deriveKeyFromPassword(password);
+    const encryptedPrivateKey = await encryptBlobAESGCM(key, keys.privateKey);
+    const encryptedPublicKey = await encryptBlobAESGCM(key, keys.publicKey);
+    const { error } = await supabase.from('encrypted_key_backups' as any).upsert({
+      user_id: userId,
+      encrypted_private_key: encryptedPrivateKey,
+      encrypted_public_key: encryptedPublicKey,
+      salt: saltBase64,
+      kdf_iterations: 200000,
+      version: 1,
+    }, { onConflict: 'user_id' });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'upload_failed' };
+  }
+}
+
+/** Download encrypted key backup from cloud and restore locally if needed. */
+export async function downloadKeyBackup(password: string, userId: string): Promise<{ success: boolean; restored?: boolean; error?: string }> {
+  try {
+    const { data, error } = await supabase.from('encrypted_key_backups' as any).select('encrypted_private_key, encrypted_public_key, salt').eq('user_id', userId).maybeSingle();
+    if (error) return { success: false, error: error.message };
+    if (!data) return { success: false, error: 'no_backup_found' };
+    const { key } = await deriveKeyFromPassword(password, data.salt);
+    let privateKey: string;
+    let publicKey: string;
+    try {
+      privateKey = await decryptBlobAESGCM(key, data.encrypted_private_key);
+      publicKey = await decryptBlobAESGCM(key, data.encrypted_public_key);
+    } catch {
+      return { success: false, error: 'wrong_password' };
+    }
+    const existing = await getStoredKeysSecure();
+    if (existing && existing.privateKey === privateKey) return { success: true, restored: false };
+    await storeKeysSecure(publicKey, privateKey, getOrCreateDeviceSecret());
+    await supabase.from('device_keys' as any).upsert({
+      user_id: userId,
+      device_id: getOrCreateDeviceId(),
+      public_key: publicKey,
+      last_seen: new Date().toISOString(),
+    }, { onConflict: 'user_id,device_id' });
+    return { success: true, restored: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'download_failed' };
+  }
+}
+
 /** Trigger a browser download of the backup file. */
 export function downloadBackupFile(file: E2EBackupFile) {
   const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
