@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+
 import {
   generateKeyPair,
   encryptMessage,
@@ -12,6 +12,7 @@ import {
 import { getOrCreateDeviceSecret, getOrCreateDeviceId, encryptSessionState, decryptSessionState } from './cryptoHelpers';
 import { setCloudSyncHandler, getSession } from './signalProtocol';
 import { set, get } from 'idb-keyval';
+import { supabase } from '../integrations/supabase/client';
 
 export type EncryptResult =
   | { success: true; payload: string }
