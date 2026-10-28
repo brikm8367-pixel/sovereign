@@ -134,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               const { downloadKeyBackup, uploadKeyBackup } = await import('@/utils/e2eBackup');
               const { getStoredKeysSecure } = await import('@/utils/encryption');
-              const { clearFailedDecryptionCache } = await import('@/utils/e2eManager');
               const localKeys = await getStoredKeysSecure();
               console.log('[AUTH-DIAG] localKeys present:', !!localKeys);
               if (!localKeys) {
@@ -147,7 +146,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 await uploadKeyBackup(backupPassword, session.user.id);
                 console.log('[AUTH-DIAG] Upload complete - should be in DB now');
               }
-              clearFailedDecryptionCache();
             } catch (e) {
               console.log('[AUTH-DIAG] Backup sync catch triggered:', e);
               console.warn('[Auth] key backup sync failed', e);
