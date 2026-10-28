@@ -126,9 +126,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // STEP 1D: Clean E2E initialization block - no outer try/catch, promise owns its errors
       if (session?.user) {
-        ensureUserE2EReady(session.user.id).then(hasKeys => {
-          if (!hasKeys) return initE2EKeys(session.user.id);
-        }).catch(err => console.error('[Auth] E2E key initialization failed on auth state change', err));
+        const backupPassword = sessionStorage.getItem('login_password_for_backup');
+        if (backupPassword && _event === 'SIGNED_IN') {
+          (async () => {
+            try {
+              const { downloadKeyBackup, uploadKeyBackup } = await import('@/utils/e2eBackup');
+              const { getStoredKeysSecure } = await import('@/utils/encryption');
+              const { clearFailedDecryptionCache } = await import('@/utils/e2eManager');
+              const localKeys = await getStoredKeysSecure();
+              if (!localKeys) {
+                const dl = await downloadKeyBackup(backupPassword, session.user.id);
+                if (!dl.success && dl.error === 'no_backup_found') {
+                  await initE2EKeys(session.user.id);
+                  await uploadKeyBackup(backupPassword, session.user.id);
+                }
+              }
+              clearFailedDecryptionCache();
+            } catch (e) {
+              console.warn('[Auth] key backup sync failed', e);
+            } finally {
+              sessionStorage.removeItem('login_password_for_backup');
+            }
+          })();
+        } else {
+          ensureUserE2EReady(session.user.id).then(hasKeys => {
+            if (!hasKeys) return initE2EKeys(session.user.id);
+          }).catch(err => console.error('[Auth] E2E key initialization failed on auth state change', err));
+        }
       }
     });
 
@@ -170,10 +194,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) {
+      sessionStorage.setItem('login_password_for_backup', password);
+      setTimeout(() => sessionStorage.removeItem('login_password_for_backup'), 60000);
+    }
     return { error };
   };
 
   const signOut = async () => {
+    sessionStorage.removeItem('login_password_for_backup');
     const { error } = await supabase.auth.signOut();
     return { error };
   };
