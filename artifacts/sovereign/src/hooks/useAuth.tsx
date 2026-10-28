@@ -200,11 +200,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    sessionStorage.setItem('login_password_for_backup', password);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (!error) {
-      console.log('[AUTH-DIAG] signIn success - storing password');
-      sessionStorage.setItem('login_password_for_backup', password);
-      console.log('[AUTH-DIAG] Password stored in sessionStorage');
+    if (error) {
+      sessionStorage.removeItem('login_password_for_backup');
+    } else {
       setTimeout(() => sessionStorage.removeItem('login_password_for_backup'), 60000);
     }
     return { error };
