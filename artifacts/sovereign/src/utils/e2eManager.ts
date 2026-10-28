@@ -268,6 +268,7 @@ export async function ensureUserE2EReady(userId: string): Promise<boolean> {
 // Encrypt — returns explicit status. Caller must handle failure (no silent plaintext fallback).
 export async function encryptForRecipient(content: string, recipientId: string): Promise<EncryptResult> {
   const keys = await getStoredKeysSecure();
+  console.log('[E2E-DIAG] Local keys:', keys ? `FOUND (privateKey length: ${keys.privateKey?.length})` : 'MISSING');
   if (!keys) return { success: false, reason: 'no_local_keys' };
 
   const recipientPubKey = await getRecipientPublicKey(recipientId);
@@ -285,15 +286,20 @@ export async function encryptForRecipient(content: string, recipientId: string):
 export async function decryptFromSender(content: string, senderId: string): Promise<DecryptResult> {
   // Check cache for previously failed decryption
   if (failedDecryptionCache.has(content)) {
+    console.log('[E2E-DIAG] Cache hit - previously failed');
     return { success: false, reason: 'decryption_failed' };
   }
 
-  if (!isEncryptedMessage(content)) return { success: false, reason: 'not_encrypted' };
+  if (!isEncryptedMessage(content)) {
+    console.log('[E2E-DIAG] Not encrypted');
+    return { success: false, reason: 'not_encrypted' };
+  }
 
   const keys = await getStoredKeysSecure();
   if (!keys) return { success: false, reason: 'no_local_keys' };
 
   const senderPubKey = await getRecipientPublicKey(senderId);
+  console.log('[E2E-DIAG] Sender pubkey:', senderPubKey ? `FOUND (length: ${senderPubKey.length})` : 'MISSING', 'senderId:', senderId);
   if (!senderPubKey) return { success: false, reason: 'sender_no_key' };
 
   try {
@@ -321,6 +327,7 @@ export async function decryptFromSender(content: string, senderId: string): Prom
     } catch {
       /* ignore */
     }
+    console.log('[E2E-DIAG] Decrypt failed:', err?.message || err);
     console.error('[E2E] decryption_failed', err);
     // Add to cache to avoid repeated attempts
     failedDecryptionCache.add(content);
