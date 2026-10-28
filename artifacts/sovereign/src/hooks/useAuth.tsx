@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+﻿import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { initE2EKeys, ensureUserE2EReady } from '@/utils/e2eManager';
@@ -17,12 +17,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function transliterateArabicToEnglish(text: string): string {
   const arabicToEnglishMap: Record<string, string> = {
-    'ا': 'a', 'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'j', 'ح': 'h', 'خ': 'kh',
-    'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh', 'ص': 's',
-    'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh', 'ف': 'f', 'ق': 'q',
-    'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n', 'ه': 'h', 'و': 'w', 'ي': 'y',
-    'ء': '', 'آ': 'a', 'أ': 'a', 'إ': 'i', 'ؤ': 'u', 'ئ': 'i', 'ة': 'h',
-    'ى': 'a',
+    'Ø§': 'a', 'Ø¨': 'b', 'Øª': 't', 'Ø«': 'th', 'Ø¬': 'j', 'Ø­': 'h', 'Ø®': 'kh',
+    'Ø¯': 'd', 'Ø°': 'dh', 'Ø±': 'r', 'Ø²': 'z', 'Ø³': 's', 'Ø´': 'sh', 'Øµ': 's',
+    'Ø¶': 'd', 'Ø·': 't', 'Ø¸': 'z', 'Ø¹': 'a', 'Øº': 'gh', 'Ù': 'f', 'Ù‚': 'q',
+    'Ùƒ': 'k', 'Ù„': 'l', 'Ù…': 'm', 'Ù†': 'n', 'Ù‡': 'h', 'Ùˆ': 'w', 'ÙŠ': 'y',
+    'Ø¡': '', 'Ø¢': 'a', 'Ø£': 'a', 'Ø¥': 'i', 'Ø¤': 'u', 'Ø¦': 'i', 'Ø©': 'h',
+    'Ù‰': 'a',
   };
   let result = '';
   for (const char of text) {
