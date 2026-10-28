@@ -122,6 +122,8 @@ export async function uploadKeyBackup(password: string, userId: string): Promise
   try {
     const keys = await getStoredKeysSecure();
     if (!keys) return { success: false, error: 'no_local_keys' };
+    await supabase.from('device_keys' as any).upsert({ user_id: userId, device_id: getOrCreateDeviceId(), public_key: keys.publicKey, last_seen: new Date().toISOString() }, { onConflict: 'user_id,device_id' });
+    await supabase.from('profiles').upsert({ id: userId, public_key: keys.publicKey }, { onConflict: 'id' });
     const { key, saltBase64 } = await deriveKeyFromPassword(password);
     const encryptedPrivateKey = await encryptBlobAESGCM(key, keys.privateKey);
     const encryptedPublicKey = await encryptBlobAESGCM(key, keys.publicKey);
