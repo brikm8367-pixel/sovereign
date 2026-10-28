@@ -127,13 +127,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // STEP 1D: Clean E2E initialization block - no outer try/catch, promise owns its errors
       if (session?.user) {
         const backupPassword = sessionStorage.getItem('login_password_for_backup');
+        console.log('[AUTH-DIAG] onAuthStateChange event:', _event, 'hasPassword:', !!backupPassword);
         if (backupPassword && _event === 'SIGNED_IN') {
+          console.log('[AUTH-DIAG] Backup sync block entered');
           (async () => {
             try {
               const { downloadKeyBackup, uploadKeyBackup } = await import('@/utils/e2eBackup');
               const { getStoredKeysSecure } = await import('@/utils/encryption');
               const { clearFailedDecryptionCache } = await import('@/utils/e2eManager');
               const localKeys = await getStoredKeysSecure();
+              console.log('[AUTH-DIAG] localKeys present:', !!localKeys);
               if (!localKeys) {
                 const dl = await downloadKeyBackup(backupPassword, session.user.id);
                 if (!dl.success && dl.error === 'no_backup_found') {
@@ -142,9 +145,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
               } else {
                 await uploadKeyBackup(backupPassword, session.user.id);
+                console.log('[AUTH-DIAG] Upload complete - should be in DB now');
               }
               clearFailedDecryptionCache();
             } catch (e) {
+              console.log('[AUTH-DIAG] Backup sync catch triggered:', e);
               console.warn('[Auth] key backup sync failed', e);
             } finally {
               sessionStorage.removeItem('login_password_for_backup');
@@ -197,7 +202,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (!error) {
+      console.log('[AUTH-DIAG] signIn success - storing password');
       sessionStorage.setItem('login_password_for_backup', password);
+      console.log('[AUTH-DIAG] Password stored in sessionStorage');
       setTimeout(() => sessionStorage.removeItem('login_password_for_backup'), 60000);
     }
     return { error };
