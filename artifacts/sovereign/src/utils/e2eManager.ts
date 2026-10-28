@@ -26,13 +26,6 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 300;
 const OWN_MESSAGE_KEY_PREFIX = 'directly_own_msg_';
 
-// Module-level cache for failed decryption attempts
-const failedDecryptionCache = new Set<string>();
-
-/** Clear the cache of previously‑failed decryption attempts. */
-export function clearFailedDecryptionCache(): void {
-  failedDecryptionCache.clear();
-}
 
 async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -290,12 +283,6 @@ export async function encryptForRecipient(content: string, recipientId: string):
 }
 
 export async function decryptFromSender(content: string, senderId: string): Promise<DecryptResult> {
-  // Check cache for previously failed decryption
-  if (failedDecryptionCache.has(content)) {
-    console.log('[E2E-DIAG] Cache hit - previously failed');
-    return { success: false, reason: 'decryption_failed' };
-  }
-
   if (!isEncryptedMessage(content)) {
     console.log('[E2E-DIAG] Not encrypted');
     return { success: false, reason: 'not_encrypted' };
@@ -335,8 +322,6 @@ export async function decryptFromSender(content: string, senderId: string): Prom
     }
     console.log('[E2E-DIAG] Decrypt failed:', err?.message || err);
     console.error('[E2E] decryption_failed', err);
-    // Add to cache to avoid repeated attempts
-    failedDecryptionCache.add(content);
     return { success: false, reason: 'decryption_failed' };
   }
 }
