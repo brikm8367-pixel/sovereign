@@ -28,6 +28,11 @@ const OWN_MESSAGE_KEY_PREFIX = 'directly_own_msg_';
 // Module-level cache for failed decryption attempts
 const failedDecryptionCache = new Set<string>();
 
+/** Clear the cache of previously‑failed decryption attempts. */
+export function clearFailedDecryptionCache(): void {
+  failedDecryptionCache.clear();
+}
+
 async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
