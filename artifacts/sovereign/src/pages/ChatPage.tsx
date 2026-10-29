@@ -41,6 +41,7 @@ interface Message {
   deal_id?: string | null;
   sender_role?: string | null;
   managed_celebrity_id?: string | null;
+  _decryptionFailed?: boolean;
 }
 
 interface Deal {
@@ -93,7 +94,7 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isMountedRef = useRef(true);
-  const loadMessagesRef = useRef<() => Promise<void>>();
+  const loadMessagesRef = useRef<(() => Promise<void>) | undefined>(undefined);
   // Refs for realtime callback to access current values without stale closures
   const userIdRef = useRef(userId);
   const dealIdRef = useRef(dealId);
@@ -134,12 +135,12 @@ export default function ChatPage() {
   // Determine display profile based on role and deal context
   const getDisplayProfile = useCallback((): Profile | null => {
     if (!dealId || !deal) return recipient;
-    
+
     // If current user is the deal sender (company), show celebrity profile
     if (user && deal.sender_id === user.id) {
       return celebrityProfile;
     }
-    
+
     // Agent side: show company profile (recipient)
     // Celebrity side (Ask Talent): show agent profile (recipient)
     return recipient;
@@ -188,7 +189,7 @@ export default function ChatPage() {
       setCelebrityProfile(null);
       return;
     }
-    
+
     const fetchCelebrity = async () => {
       const { data } = await supabase
         .from('profiles')
@@ -276,9 +277,9 @@ export default function ChatPage() {
     if (!user || !userId) return;
     // STEP 7: Guard - wait for E2E keys to be ready
     if (e2eReady !== true) return;
-    
+
     setIsLoading(true);
-    
+
     // Add 3-second timeout to prevent stuck loading
     const loadingTimeout = setTimeout(() => {
       if (isMountedRef.current) {
@@ -296,7 +297,7 @@ export default function ChatPage() {
 
       // Only apply deal_id filter when dealId exists in the URL
       if (dealId) {
-        query = query.eq('deal_id' as any, dealId);
+        query = (query as any).eq('deal_id', dealId);
       }
 
       const { data, error } = await query.order('created_at', { ascending: true }).limit(100);
@@ -344,7 +345,7 @@ export default function ChatPage() {
           celebrityIds.add(msg.managed_celebrity_id);
         }
       });
-      
+
       for (const celebId of celebrityIds) {
         if (!managedCelebrityProfilesRef.current.has(celebId)) {
           await fetchManagedCelebrityProfile(celebId);
@@ -388,7 +389,7 @@ export default function ChatPage() {
   // Realtime subscription - fixed for instant updates
   useEffect(() => {
     if (!user || !userId) return;
-    
+
     const currentUser = user;
     const currentUserId = userId;
     const currentDealId = dealId;
@@ -398,7 +399,7 @@ export default function ChatPage() {
 
     // Build filter for the conversation: messages between current user and userId
     const filter = `or(and(sender_id.eq.${currentUser.id},receiver_id.eq.${currentUserId}),and(sender_id.eq.${currentUserId},receiver_id.eq.${currentUser.id}))`;
-    
+
     const channel = supabase
       .channel(`chat-${currentUser.id}-${currentUserId}-${currentDealId || 'all'}-${Date.now()}`)
       .on(
@@ -412,7 +413,7 @@ export default function ChatPage() {
         async (payload) => {
           // STEP 9: Guard - wait for E2E keys to be ready before processing new messages
           if (e2eReadyRef.current !== true) return;
-          
+
           const newMsg = payload.new as Message;
           if (!newMsg) return;
 
@@ -422,10 +423,10 @@ export default function ChatPage() {
 
           // Check if message involves managed celebrity for managers
           if (currentRole === 'manager' && currentManagedCelebrityId) {
-            const isManagedRelevant = 
+            const isManagedRelevant =
               (newMsg.sender_id === currentUser.id && newMsg.receiver_id === currentManagedCelebrityId) ||
               (newMsg.sender_id === currentManagedCelebrityId && newMsg.receiver_id === currentUser.id);
-            const isDirectRelevant = 
+            const isDirectRelevant =
               (newMsg.sender_id === currentUser.id && newMsg.receiver_id === currentUserId) ||
               (newMsg.sender_id === currentUserId && newMsg.receiver_id === currentUser.id);
             if (!isManagedRelevant && !isDirectRelevant) return;
@@ -437,7 +438,7 @@ export default function ChatPage() {
           setMessages(prev => {
             // Avoid duplicates
             if (prev.some(m => m.id === newMsg.id)) return prev;
-            
+
             // Decrypt if needed before adding
             const addMessage = async () => {
               let processedMsg = newMsg;
@@ -469,17 +470,17 @@ export default function ChatPage() {
               }
               setMessages(prevMsgs => {
                 if (prevMsgs.some(m => m.id === processedMsg.id)) return prevMsgs;
-                return [...prevMsgs, processedMsg].sort((a, b) => 
+                return [...prevMsgs, processedMsg].sort((a, b) =>
                   new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
                 );
               });
             };
-            
+
             // Fire and forget for decryption/profile fetch
             addMessage();
-            
+
             // Return immediately with the raw message for instant UI update
-            return [...prev, newMsg].sort((a, b) => 
+            return [...prev, newMsg].sort((a, b) =>
               new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
             );
           });
@@ -527,7 +528,7 @@ export default function ChatPage() {
           if (!updatedDeal) return;
 
           // Check if this deal involves the current user
-          const isRelevant = 
+          const isRelevant =
             updatedDeal.sender_id === currentUser.id ||
             updatedDeal.celebrity_id === currentUser.id ||
             (currentRole === 'manager' && currentManagedCelebrityId && updatedDeal.celebrity_id === currentManagedCelebrityId);
@@ -574,7 +575,7 @@ export default function ChatPage() {
         loadMessages();
       }
     };
-    
+
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [user, loadMessages]);
@@ -591,14 +592,14 @@ export default function ChatPage() {
 
   const handleSend = async (text: string, voiceUrl?: string) => {
     if (!user || !userId || (!text.trim() && !voiceUrl && !mediaPreview)) return;
-    
+
     // Guard: manager must have a managed celebrity selected
     if (role === 'manager' && !managedCelebrityId) {
       toast.error(t.dashboard.selectTalent);
       setIsSending(false);
       return;
     }
-    
+
     // Early check: recipient must have E2E keys
     if (recipientE2EReady === false) {
       toast.error(
@@ -610,22 +611,19 @@ export default function ChatPage() {
       setIsSending(false);
       return;
     }
-    
+
     // Resume audio context on user interaction
     resumeAudioContext();
-    
+
     setIsSending(true);
 
     // RELAXED VALIDATION: If dealId is present in URL or message has deal_id, allow sending regardless of deal status
-    // Only enforce "accepted deal" check for messages WITHOUT a dealId (legacy direct messages)
     let hasDeal = false;
     let foundDeal: Deal | null = null;
 
     if (dealId) {
-      // 1. If dealId is in the URL, allow sending (deal-linked conversation)
       hasDeal = true;
       if (!deal) {
-        // Fetch deal details for pinned card display
         const { data: dealData } = await supabase
           .from('deal_cards')
           .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
@@ -639,8 +637,6 @@ export default function ChatPage() {
         foundDeal = deal;
       }
     } else {
-      // 2. If dealId is NOT in the URL, first check if any message in THIS conversation
-      // has a related accepted deal via deal_cards.message_id
       const validMessageIds = messages
         .map(m => m.id)
         .filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
@@ -662,11 +658,9 @@ export default function ChatPage() {
         }
       }
 
-      // 3. If not found via message_id, directly search for an accepted deal where the current user
-      // is either the sender (company) OR the celebrity, and the deal involves the other participant
       if (!hasDeal) {
         const managedCelebId = managedCelebrityId || '00000000-0000-0000-0000-000000000000';
-        
+
         const { data: acceptedDeal } = await supabase
           .from('deal_cards')
           .select('id, deal_type, company_name, budget_range, budget_cycle, timeline, details, website_url, exclusivity, deliverables, why_them, status, celebrity_id, sender_id, budget_currency')
@@ -680,7 +674,6 @@ export default function ChatPage() {
         if (acceptedDeal) {
           hasDeal = true;
           foundDeal = acceptedDeal as unknown as Deal;
-          // Update local deal state so pinned card displays
           setDeal(foundDeal);
         }
       }
@@ -689,26 +682,23 @@ export default function ChatPage() {
     // Always use 'work' category
     const category = 'work';
 
-    // Conversation root logic: find oldest root message (parent_id null) between the two users for 'work' category
-    // This ensures each pair of users has exactly ONE work conversation per deal
+    // Conversation root logic
     let parentId: string | null = null;
-    
-    // Build sender/receiver filter using both user IDs
+
     const senderIds = [user.id, userId];
     const receiverIds = [user.id, userId];
-    
+
     let rootQuery = supabase
       .from('messages')
       .select('id')
       .is('parent_id', null)
       .eq('category', 'work')
       .or(
-        senderIds.map(sid => 
+        senderIds.map(sid =>
           receiverIds.map(rid => `and(sender_id.eq.${sid},receiver_id.eq.${rid})`).join(',')
         ).join(',')
       );
 
-    // Scope root message to the deal: use dealId from URL, or foundDeal.id if inferred
     const effectiveDealId = dealId || foundDeal?.id;
     if (effectiveDealId) {
       rootQuery = (rootQuery as any).eq('deal_id', effectiveDealId);
@@ -735,7 +725,7 @@ export default function ChatPage() {
       }
 
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '🎤');
-      
+
       // STEP 4: Auto-recover missing local keys before encryption
       let localKeys = await getStoredKeysSecure(user.id);
       if (!localKeys && user) {
@@ -746,14 +736,15 @@ export default function ChatPage() {
       const enc = await encryptForRecipient(contentToSend, userId, user.id);
       if (!enc.success) {
         // Encryption failed — block sending with clear error
+        const encReason = (enc as any).reason;
         let errorMsg = '';
-        if (enc.reason === 'recipient_no_e2e') {
+        if (encReason === 'recipient_no_e2e') {
           errorMsg = isRTL
             ? 'Le destinataire n\'a pas de clés de chiffrement. Il doit se connecter à l\'application pour initialiser son chiffrement de bout en bout.'
             : 'Recipient has no encryption keys. They need to log into the app to initialize their end-to-end encryption.';
-        } else if (enc.reason === 'no_local_keys') {
+        } else if (encReason === 'no_local_keys') {
           errorMsg = isRTL
-            ? 'Vos clés de chiffrement غير مهيأة. يرجى تسجيل الخروج وتسجيل الدخول مرة أخرى.'
+            ? 'مفاتيح التشفير الخاصة بك غير مهيأة. يرجى تسجيل الخروج وتسجيل الدخول مرة أخرى.'
             : 'Your encryption keys are not initialized. Please log out and log back in.';
         } else {
           errorMsg = t.dashboard.error;
@@ -765,18 +756,14 @@ export default function ChatPage() {
       const finalContent = enc.payload;
 
       // FIX: Always use user.id as sender_id (agent's own identity for E2E encryption)
-      // Add metadata fields: sender_role and managed_celebrity_id
       const senderRole = role === 'manager' ? 'manager' : null;
       const managedCelebrityIdField = role === 'manager' && managedCelebrityId ? managedCelebrityId : null;
-      
+
       // FIX: Always send to userId from URL (the conversation partner) so loadMessages finds the message
       const receiverId = userId;
 
-      // Insert message with category 'work' and parent_id pointing to conversation root
-      // Include deal_id and celebrity_id from the deal
-      // Use .select().single() to get the inserted message back with its ID
       const { data: insertedMsg, error } = await supabase.from('messages').insert({
-        sender_id: user.id, // Always use agent's own user.id
+        sender_id: user.id,
         receiver_id: receiverId,
         content: finalContent,
         voice_url: voiceUrl || null,
@@ -789,7 +776,7 @@ export default function ChatPage() {
         sender_role: senderRole,
         managed_celebrity_id: managedCelebrityIdField,
       } as any).select().single();
-      
+
       if (error) throw error;
 
       // Cache the plaintext for our own message using the database-generated ID
@@ -800,7 +787,6 @@ export default function ChatPage() {
       // Push notification - use agent's own display name for managers
       let senderName = '';
       if (role === 'manager') {
-        // Fetch agent's own profile for notification
         const { data: agentProfile } = await supabase
           .from('profiles')
           .select('display_name')
@@ -811,7 +797,7 @@ export default function ChatPage() {
         const { data: senderProfile } = await supabase.from('profiles').select('display_name').eq('id', user.id).single();
         senderName = senderProfile?.display_name || 'Someone';
       }
-      
+
       supabase.functions.invoke('send-push-notification', {
         body: {
           receiverId: receiverId,
@@ -859,15 +845,14 @@ export default function ChatPage() {
 
   // ===== CONTEXT-AWARE HEADER LOGIC =====
   const getHeaderContext = () => {
-    
+
     // Company sender role
     if (role === 'company' || (user && deal && deal.sender_id === user.id)) {
-      // Check if recipient is agent (manager) or talent based on message sender_role
       const hasAgentMessage = messages.some(m => m.sender_role === 'manager' && m.sender_id !== user.id);
-      const recipientRoleBadge = hasAgentMessage 
-        ? tLocal('وكيل', 'Agent') 
+      const recipientRoleBadge = hasAgentMessage
+        ? tLocal('وكيل', 'Agent')
         : tLocal('موهبة', 'Talent');
-      
+
       return (
         <div className="text-start min-w-0">
           <p className="font-semibold text-base truncate">
@@ -885,17 +870,15 @@ export default function ChatPage() {
         </div>
       );
     }
-    
+
     // Agent manager role
     if (role === 'manager' && managedCelebrityId) {
       const celebrityName = managedCelebrityProfilesRef.current.get(managedCelebrityId)?.display_name || tLocal('الموهبة', 'Talent');
       const companyName = deal?.company_name || recipient?.display_name || tLocal('الشركة', 'Company');
-      
-      // Check if deal is accepted
+
       const isDealAccepted = deal && deal.status === 'accepted';
-      
+
       if (!isDealAccepted) {
-        // Non-accepted deal: show "Talent Questions"
         return (
           <div className="text-start min-w-0">
             <p className="font-semibold text-base truncate">
@@ -912,8 +895,7 @@ export default function ChatPage() {
           </div>
         );
       }
-      
-      // Accepted deal: show company name
+
       return (
         <div className="text-start min-w-0">
           <p className="font-semibold text-base truncate">
@@ -930,21 +912,18 @@ export default function ChatPage() {
         </div>
       );
     }
-    
+
     // Talent celebrity role (Ask Talent)
     if (role === 'celebrity' || (user && deal && deal.celebrity_id === user.id)) {
-      // Find agent name from messages (sender_role === 'manager')
       const agentMessage = messages.find(m => m.sender_role === 'manager' && m.sender_id !== user.id);
-      const agentName = agentMessage?.managed_celebrity_id 
-        ? managedCelebrityProfilesRef.current.get(agentMessage.managed_celebrity_id)?.display_name 
+      const agentName = agentMessage?.managed_celebrity_id
+        ? managedCelebrityProfilesRef.current.get(agentMessage.managed_celebrity_id)?.display_name
         : (recipient?.display_name || tLocal('الوكيل', 'Agent'));
       const companyName = deal?.company_name || tLocal('الشركة', 'Company');
-      
-      // Check if deal is accepted
+
       const isDealAccepted = deal && deal.status === 'accepted';
-      
+
       if (!isDealAccepted) {
-        // Non-accepted deal: show "Your agent's questions"
         return (
           <div className="text-start min-w-0">
             <p className="font-semibold text-base truncate">
@@ -956,8 +935,7 @@ export default function ChatPage() {
           </div>
         );
       }
-      
-      // Accepted deal: show company name
+
       return (
         <div className="text-start min-w-0">
           <p className="font-semibold text-base truncate">
@@ -973,8 +951,7 @@ export default function ChatPage() {
         </div>
       );
     }
-    
-    // Fallback to original display
+
     return (
       <div className="text-start min-w-0">
         <p className="font-semibold text-base truncate">
@@ -1001,7 +978,7 @@ export default function ChatPage() {
             size="icon"
             onClick={() => navigate('/home')}
             className="h-11 w-11 rounded-xl touch-feedback shrink-0"
-            aria-label={t.dashboard.back}
+            aria-label={isRTL ? 'رجوع' : 'Back'}
           >
             {isRTL ? <ArrowRight className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
           </Button>
@@ -1013,7 +990,6 @@ export default function ChatPage() {
               </AvatarFallback>
             </Avatar>
             {getHeaderContext()}
-            {/* Deal status badge in header when deal is accepted */}
             {isDealAccepted && (
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
@@ -1039,11 +1015,11 @@ export default function ChatPage() {
         {/* Pinned Deal Card - Persistent at top when deal is accepted */}
         {isDealAccepted && deal && (
           <div className="sticky top-0 z-10 mb-4 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 py-3">
-            <DealCardInline 
-              dealId={deal.id} 
-              isRTL={isRTL} 
-              onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
-              showDetails={showDealDetails} 
+            <DealCardInline
+              dealId={deal.id}
+              isRTL={isRTL}
+              onToggleDetails={() => setShowDealDetails(!showDealDetails)}
+              showDetails={showDealDetails}
               className="max-w-lg mx-auto"
             />
             <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent mt-3 -mx-4 px-4" />
@@ -1065,12 +1041,12 @@ export default function ChatPage() {
                 <p className="text-sm text-muted-foreground/70 mt-1">{t.dashboard.startConversation}</p>
               </div>
             )}
-            
+
             {messages.map((msg, i) => {
               // FIX: isMine check - only check msg.sender_id === user.id (no managedCelebrityId condition)
               const isMine = msg.sender_id === user?.id;
               const showDateSep = i === 0 || formatDate(msg.created_at) !== formatDate(messages[i - 1]?.created_at);
-              
+
               // Check if this message has a deal_id and it's the first message with this deal_id
               const hasDealId = !!msg.deal_id;
               const isFirstInDealGroup = hasDealId && (
@@ -1079,17 +1055,17 @@ export default function ChatPage() {
 
               // Check if message is from a manager (agent)
               const isFromManager = msg.sender_role === 'manager' && msg.managed_celebrity_id;
-              const managedCelebrityName = isFromManager && msg.managed_celebrity_id 
-                ? managedCelebrityProfilesRef.current.get(msg.managed_celebrity_id)?.display_name 
+              const managedCelebrityName = isFromManager && msg.managed_celebrity_id
+                ? managedCelebrityProfilesRef.current.get(msg.managed_celebrity_id)?.display_name
                 : null;
 
               // Check for agent decision message - FIX: handle null/undefined content
               const isAgentDecision = typeof msg.content === 'string' && msg.content.startsWith('{"type":"agent_decision"');
-              
+
               // STEP 2: Add offer_accepted detection
               const isOfferAccepted = typeof msg.content === 'string' && msg.content.startsWith('{"type":"offer_accepted"');
               let parsedAccepted: { type: string; dealId: string; acceptorName: string; acceptorRole: string } | null = null;
-              
+
               if (isOfferAccepted) {
                 try {
                   parsedAccepted = JSON.parse(msg.content);
@@ -1097,9 +1073,9 @@ export default function ChatPage() {
                   console.error('[ChatPage] Failed to parse offer_accepted:', e);
                 }
               }
-              
+
               let parsedDecision: { type: string; decision: string; dealId: string; agentName: string } | null = null;
-              
+
               if (isAgentDecision) {
                 try {
                   parsedDecision = JSON.parse(msg.content);
@@ -1117,14 +1093,14 @@ export default function ChatPage() {
                       </span>
                     </div>
                   )}
-                  
+
                   {/* Deal Card inline above first message of each deal_id group (only if not already pinned at top) */}
                   {isFirstInDealGroup && msg.deal_id && !isDealAccepted && (
-                    <DealCardInline 
-                      dealId={msg.deal_id} 
-                      isRTL={isRTL} 
-                      onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
-                      showDetails={showDealDetails} 
+                    <DealCardInline
+                      dealId={msg.deal_id}
+                      isRTL={isRTL}
+                      onToggleDetails={() => setShowDealDetails(!showDealDetails)}
+                      showDetails={showDealDetails}
                     />
                   )}
 
@@ -1133,18 +1109,17 @@ export default function ChatPage() {
                       {/* Agent Decision Card - Special rendering for agent decision messages */}
                       {isAgentDecision && parsedDecision && (
                         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 shadow-sm mb-2">
-                          {/* Deal Card above the decision card */}
-                          <DealCardInline 
-                            dealId={parsedDecision.dealId} 
-                            isRTL={isRTL} 
-                            onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
-                            showDetails={false} 
+                          <DealCardInline
+                            dealId={parsedDecision.dealId}
+                            isRTL={isRTL}
+                            onToggleDetails={() => setShowDealDetails(!showDealDetails)}
+                            showDetails={false}
                           />
                           <div className="mt-3 text-center">
                             <div className={cn(
                               'inline-flex items-center justify-center w-12 h-12 rounded-full mb-3',
-                              parsedDecision.decision === 'accepted' 
-                                ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' 
+                              parsedDecision.decision === 'accepted'
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
                                 : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                             )}>
                               {parsedDecision.decision === 'accepted' ? (
@@ -1161,12 +1136,12 @@ export default function ChatPage() {
                             </p>
                             <p className={cn(
                               'font-medium text-sm',
-                              parsedDecision.decision === 'accepted' 
-                                ? 'text-green-700 dark:text-green-400' 
+                              parsedDecision.decision === 'accepted'
+                                ? 'text-green-700 dark:text-green-400'
                                 : 'text-red-700 dark:text-red-400'
                             )}>
-                              {parsedDecision.decision === 'accepted' 
-                                ? tLocal('بدأ التفاوض', 'Started Negotiation') 
+                              {parsedDecision.decision === 'accepted'
+                                ? tLocal('بدأ التفاوض', 'Started Negotiation')
                                 : tLocal('رفض العرض', 'Declined Offer')}
                             </p>
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 mt-2">
@@ -1180,11 +1155,11 @@ export default function ChatPage() {
                       {/* STEP 3: Add offer_accepted celebratory card */}
                       {isOfferAccepted && parsedAccepted && (
                         <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 rounded-2xl p-4 shadow-md mb-2">
-                          <DealCardInline 
-                            dealId={parsedAccepted.dealId} 
-                            isRTL={isRTL} 
-                            onToggleDetails={() => setShowDealDetails(!showDealDetails)} 
-                            showDetails={false} 
+                          <DealCardInline
+                            dealId={parsedAccepted.dealId}
+                            isRTL={isRTL}
+                            onToggleDetails={() => setShowDealDetails(!showDealDetails)}
+                            showDetails={false}
                           />
                           <div className="mt-4 text-center">
                             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-3 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 shadow-sm">
@@ -1202,8 +1177,8 @@ export default function ChatPage() {
 
                       <div className={cn(
                         'px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm relative',
-                        isMine 
-                          ? 'bg-primary text-primary-foreground rounded-es-sm shadow-[0_1px_2px_rgba(0,0,0,0.05)]' 
+                        isMine
+                          ? 'bg-primary text-primary-foreground rounded-es-sm shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
                           : 'bg-card border border-border/50 rounded-ee-sm shadow-[0_1px_2px_rgba(0,0,0,0.03)]'
                       )}>
                         {/* Deal context label for messages in a deal thread */}
@@ -1213,7 +1188,7 @@ export default function ChatPage() {
                             {t.dashboard.regardingDeal}
                           </div>
                         )}
-                        
+
                         {/* Agent badge for messages from managers */}
                         {!isMine && isFromManager && !isAgentDecision && !isOfferAccepted && (
                           <div className="mb-1.5 flex items-center gap-1.5">
@@ -1241,7 +1216,7 @@ export default function ChatPage() {
                           </div>
                         ) : msg.content && !['📷', '🎥', '🎤'].includes(typeof msg.content === 'string' ? msg.content : '') && !isAgentDecision && !isOfferAccepted ? (
                           <p className="whitespace-pre-wrap">
-                            {(msg as any)._decryptionFailed ? (
+                            {msg._decryptionFailed ? (
                               <span className="flex items-center gap-1.5 text-muted-foreground/60 italic text-sm">
                                 <Info className="h-3.5 w-3.5 flex-shrink-0" />
                                 {typeof msg.content === 'string' ? msg.content : ''}
@@ -1312,13 +1287,13 @@ export default function ChatPage() {
                 onChange={(e) => setReplyContent(e.target.value)}
                 rows={1}
                 className="w-full resize-none text-[15px] rounded-2xl border border-border/50 bg-card px-4 py-3 min-h-11 max-h-32 focus:outline-none focus:border-primary/50 transition-colors pr-14"
-                onKeyDown={(e) => { 
-                  if (e.key === 'Enter' && !e.shiftKey) { 
-                    e.preventDefault(); 
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
                     if (replyContent.trim() || mediaPreview) {
                       handleSend(replyContent);
                     }
-                  } 
+                  }
                 }}
                 disabled={recipientE2EReady === false}
               />
@@ -1335,11 +1310,10 @@ export default function ChatPage() {
                 </div>
               )}
             </div>
-            {/* Always-visible Send button - disabled only when no content and no media or recipient not ready */}
-            <Button 
-              onClick={() => { if (replyContent.trim() || mediaPreview) handleSend(replyContent); }} 
-              disabled={isSending || (!replyContent.trim() && !mediaPreview) || recipientE2EReady === false} 
-              size="icon" 
+            <Button
+              onClick={() => { if (replyContent.trim() || mediaPreview) handleSend(replyContent); }}
+              disabled={isSending || (!replyContent.trim() && !mediaPreview) || recipientE2EReady === false}
+              size="icon"
               className="h-12 w-12 rounded-full shrink-0 touch-feedback bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:hover:bg-primary"
               aria-label={t.dashboard.send}
             >

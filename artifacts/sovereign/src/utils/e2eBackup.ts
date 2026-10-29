@@ -1,10 +1,6 @@
 /**
  * E2EE Key Backup — lets a user export their private key as an encrypted file
  * (protected by a passphrase they choose) and restore it on another device.
- *
- * The exported blob is AES-GCM encrypted with a PBKDF2-derived key, so the file
- * is useless without the passphrase. On import we re-store the keys in this
- * device's encrypted IndexedDB and re-register the public key.
  */
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -35,10 +31,9 @@ export type ImportResult =
   | { success: true }
   | { success: false; reason: 'invalid_file' | 'wrong_passphrase' | 'import_failed' };
 
-/** Export the local private/public key pair as a passphrase-encrypted backup file. */
-export async function exportKeyBackup(passphrase: string): Promise<ExportResult> {
+export async function exportKeyBackup(passphrase: string, userId: string): Promise<ExportResult> {
   try {
-    const keys = await getStoredKeysSecure();
+    const keys = await getStoredKeysSecure(userId);
     if (!keys) return { success: false, reason: 'no_local_keys' };
 
     const { key, saltBase64 } = await deriveKeyFromPassword(passphrase);
@@ -64,10 +59,10 @@ export async function exportKeyBackup(passphrase: string): Promise<ExportResult>
   }
 }
 
-/** Restore keys from a backup file + passphrase, then re-register the device key. */
 export async function importKeyBackup(
   raw: string,
   passphrase: string,
+  userId: string,
 ): Promise<ImportResult> {
   let parsed: E2EBackupFile;
   try {
@@ -93,23 +88,17 @@ export async function importKeyBackup(
   }
 
   try {
-    // Store restored keys encrypted-at-rest under this device's secret.
-    await storeKeysSecure(publicKey, privateKey, getOrCreateDeviceSecret());
+    await storeKeysSecure(publicKey, privateKey, getOrCreateDeviceSecret(userId), userId);
 
-    // Re-register this device's public key so others can encrypt to us.
-    const { data: auth } = await supabase.auth.getUser();
-    const userId = auth?.user?.id;
-    if (userId) {
-      await supabase.from('device_keys' as any).upsert(
-        {
-          user_id: userId,
-          device_id: getOrCreateDeviceId(),
-          public_key: publicKey,
-          last_seen: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,device_id' },
-      );
-    }
+    await supabase.from('device_keys' as any).upsert(
+      {
+        user_id: userId,
+        device_id: getOrCreateDeviceId(),
+        public_key: publicKey,
+        last_seen: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,device_id' },
+    );
     return { success: true };
   } catch (e) {
     console.error('[E2E] import_failed', e);
@@ -117,10 +106,9 @@ export async function importKeyBackup(
   }
 }
 
-/** Upload encrypted key backup to cloud (encrypted with user password). */
 export async function uploadKeyBackup(password: string, userId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const keys = await getStoredKeysSecure();
+    const keys = await getStoredKeysSecure(userId);
     if (!keys) return { success: false, error: 'no_local_keys' };
     await supabase.from('device_keys' as any).upsert({ user_id: userId, device_id: getOrCreateDeviceId(), public_key: keys.publicKey, last_seen: new Date().toISOString() }, { onConflict: 'user_id,device_id' });
     const { key, saltBase64 } = await deriveKeyFromPassword(password);
@@ -141,7 +129,6 @@ export async function uploadKeyBackup(password: string, userId: string): Promise
   }
 }
 
-/** Download encrypted key backup from cloud and restore locally if needed. */
 export async function downloadKeyBackup(password: string, userId: string): Promise<{ success: boolean; restored?: boolean; error?: string }> {
   try {
     const { data: rawData, error } = await supabase.from('encrypted_key_backups' as any).select('encrypted_private_key, encrypted_public_key, salt').eq('user_id', userId).maybeSingle();
@@ -157,7 +144,6 @@ export async function downloadKeyBackup(password: string, userId: string): Promi
     } catch {
       return { success: false, error: 'wrong_password' };
     }
-    // parse privateKeyRaw for possible deviceId
     let privateKey: string;
     let recoveredDeviceId: string;
     try {
@@ -172,14 +158,13 @@ export async function downloadKeyBackup(password: string, userId: string): Promi
       privateKey = privateKeyRaw;
       recoveredDeviceId = getOrCreateDeviceId();
     }
-    const existing = await getStoredKeysSecure();
+    const existing = await getStoredKeysSecure(userId);
     if (existing && existing.privateKey === privateKey) return { success: true, restored: false };
-    // persist recovered deviceId if different
     const currentDeviceId = getOrCreateDeviceId();
     if (recoveredDeviceId !== currentDeviceId) {
       localStorage.setItem('directly_device_id_v1', recoveredDeviceId);
     }
-    await storeKeysSecure(publicKey, privateKey, getOrCreateDeviceSecret());
+    await storeKeysSecure(publicKey, privateKey, getOrCreateDeviceSecret(userId), userId);
     await supabase.from('device_keys' as any).upsert({
       user_id: userId,
       device_id: recoveredDeviceId,
@@ -192,7 +177,6 @@ export async function downloadKeyBackup(password: string, userId: string): Promi
   }
 }
 
-/** Trigger a browser download of the backup file. */
 export function downloadBackupFile(file: E2EBackupFile) {
   const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

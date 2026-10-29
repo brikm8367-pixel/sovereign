@@ -25,7 +25,6 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 300;
 const OWN_MESSAGE_KEY_PREFIX = 'directly_own_msg_';
 
-
 async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -38,7 +37,6 @@ async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promis
   throw new Error('Max retries exceeded');
 }
 
-// Store sender's own plaintext copy in IndexedDB for later display
 export async function storeOwnMessagePlaintext(messageId: string, plaintext: string): Promise<void> {
   try {
     await set(`${OWN_MESSAGE_KEY_PREFIX}${messageId}`, plaintext);
@@ -47,7 +45,6 @@ export async function storeOwnMessagePlaintext(messageId: string, plaintext: str
   }
 }
 
-// Retrieve sender's own plaintext copy from IndexedDB
 export async function getOwnMessagePlaintext(messageId: string): Promise<string | null> {
   try {
     const value = await get(`${OWN_MESSAGE_KEY_PREFIX}${messageId}`);
@@ -58,27 +55,20 @@ export async function getOwnMessagePlaintext(messageId: string): Promise<string 
   }
 }
 
-// Initialize E2E keys on login. Encrypted at rest. Registers public key in device_keys
-// (does NOT overwrite profiles.public_key — each device gets its own row).
 export async function initE2EKeys(userId: string, password?: string): Promise<void> {
   try {
-    // 1. Migrate any legacy plaintext keys.
-    await migrateLegacyKeysIfPresent();
+    await migrateLegacyKeysIfPresent(userId);
 
-    const passphrase = getOrCreateDeviceSecret();
+    const passphrase = getOrCreateDeviceSecret(userId);
     const deviceId = getOrCreateDeviceId();
 
-    let keys = await getStoredKeysSecure(passphrase);
+    let keys = await getStoredKeysSecure(userId, passphrase);
 
     if (!keys) {
       keys = await generateKeyPair();
-      await storeKeysSecure(keys.publicKey, keys.privateKey, passphrase);
+      await storeKeysSecure(keys.publicKey, keys.privateKey, passphrase, userId);
     }
 
-        // Test roundtrip to verify key pair matches.
-    // CRITICAL: If this fails, DO NOT silently regenerate — that destroys the private
-    // key and makes all previously-encrypted messages undecryptable. Instead, throw
-    // so the caller can show a clear error; user may explicitly re-generate from Settings.
     const testString = 'e2e-test-roundtrip';
     try {
       const encrypted = await encryptMessage(testString, keys.privateKey, keys.publicKey);
@@ -91,7 +81,6 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
       throw new Error('e2e_key_pair_corrupted');
     }
 
-    // Upsert this device's public key with retry (one row per device, never overwrites others).
     await withRetry(async () => {
       const { error } = await supabase
         .from('device_keys' as any)
@@ -107,9 +96,6 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
       if (error) throw error;
     });
 
-          // Backwards compatibility: ensure profiles.public_key exists for legacy readers.
-    // CRITICAL: only write if the profile has no key yet, OR it already matches ours.
-    // Never overwrite another device's key — that would pollute multi-device setup.
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('public_key')
@@ -126,6 +112,7 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
         if (error) throw error;
       });
     }
+
     if (password) {
       const { uploadKeyBackup } = await import('./e2eBackup');
       const backupResult = await uploadKeyBackup(password, userId);
@@ -133,17 +120,15 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
         console.warn('[E2E] auto backup upload failed', backupResult.error);
       }
     }
-    // Restore cloud sessions if password is provided
+
     if (password) {
       await restoreCloudSessions(userId, password);
     }
 
-    // Setup cloud sync handler
     setCloudSyncHandler(async (partnerId, state) => {
       if (!password) return { success: false, conflict: false };
       const encryptedState = await encryptSessionState(JSON.stringify(state), password);
-      
-      // Optimistic concurrency: check current version and update conditionally
+
       const { data: current } = await (supabase as any)
         .from('ratchet_sessions')
         .select('state_version')
@@ -175,28 +160,49 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
 
   } catch (e) {
     console.error('[E2E] initE2EKeys failed', e);
-    throw e; // Re-throw so caller knows it failed
+    throw e;
   }
 }
 
 export async function autoRecoverKeys(userId: string, password: string): Promise<{ recovered: boolean; regenerated: boolean }> {
   try {
-    const localKeys = await getStoredKeysSecure();
+    const localKeys = await getStoredKeysSecure(userId);
     if (!localKeys) {
       await initE2EKeys(userId, password);
       return { recovered: false, regenerated: true };
     }
+
+    // Real roundtrip test — verifies Priv actually decrypts what Pub encrypts
+    let roundtripOk = false;
+    try {
+      const test = 'e2e-recover-roundtrip';
+      const enc = await encryptMessage(test, localKeys.privateKey, localKeys.publicKey);
+      const dec = await decryptMessage(enc, localKeys.privateKey, localKeys.publicKey);
+      roundtripOk = dec === test;
+    } catch {
+      roundtripOk = false;
+    }
+
     const serverPublicKey = await getRecipientPublicKey(userId);
-    if (!serverPublicKey || localKeys.publicKey === serverPublicKey) {
+
+    if (roundtripOk && serverPublicKey && localKeys.publicKey === serverPublicKey) {
       return { recovered: false, regenerated: false };
     }
+
+    if (!roundtripOk) {
+      console.warn('[E2E] autoRecoverKeys: local private key does NOT match public key — attempting recovery');
+    } else if (serverPublicKey && localKeys.publicKey !== serverPublicKey) {
+      console.warn('[E2E] autoRecoverKeys: local public key differs from server — attempting recovery');
+    }
+
     const { downloadKeyBackup } = await import('./e2eBackup');
     const result = await downloadKeyBackup(password, userId);
     if (result.success) {
       return { recovered: true, regenerated: false };
     }
-    await clearKeysSecure();
-    localStorage.removeItem('directly_device_secret_v1');
+
+    await clearKeysSecure(userId);
+    localStorage.removeItem(`directly_device_secret_v1_${userId}`);
     localStorage.removeItem('directly_device_id_v1');
     await initE2EKeys(userId, password);
     return { recovered: false, regenerated: true };
@@ -206,7 +212,6 @@ export async function autoRecoverKeys(userId: string, password: string): Promise
   }
 }
 
-// Restore sessions from cloud
 async function restoreCloudSessions(userId: string, password: string) {
   try {
     const { data: cloudSessions } = await (supabase as any)
@@ -222,10 +227,9 @@ async function restoreCloudSessions(userId: string, password: string) {
       try {
         const decryptedStateStr = await decryptSessionState(cs.encrypted_state, password);
         const cloudState = JSON.parse(decryptedStateStr);
-        
+
         const localState = localSessions[cs.partner_id];
-        
-        // Conflict resolution: adopt the state with the higher version
+
         if (!localState || (cloudState.version || 0) > (localState.version || 0)) {
           localSessions[cs.partner_id] = cloudState;
         }
@@ -240,11 +244,8 @@ async function restoreCloudSessions(userId: string, password: string) {
   }
 }
 
-// Get recipient's most-recently-seen device public key (fallback to profile).
-// Returns null if no key exists — caller must handle this (no auto-provisioning).
 export async function getRecipientPublicKey(recipientId: string): Promise<string | null> {
   try {
-    // First check device_keys (most recent device)
     const result = (await withRetry(() =>
       (supabase as any)
         .from('device_keys')
@@ -260,7 +261,6 @@ export async function getRecipientPublicKey(recipientId: string): Promise<string
     console.warn('[E2E] getRecipientPublicKey device_keys query failed', err);
   }
   try {
-    // Fallback to profiles.public_key
     const { data: profile } = await supabase.from('profiles').select('public_key').eq('id', recipientId).single();
     if (profile?.public_key) return profile.public_key;
   } catch (err) {
@@ -269,10 +269,8 @@ export async function getRecipientPublicKey(recipientId: string): Promise<string
   return null;
 }
 
-// Check if a user has valid E2E keys ready for encryption
 export async function ensureUserE2EReady(userId: string): Promise<boolean> {
   try {
-    // Check device_keys first (most reliable)
     const { data: deviceKey, error: deviceKeyError } = await supabase
       .from('device_keys' as any)
       .select('public_key')
@@ -280,23 +278,22 @@ export async function ensureUserE2EReady(userId: string): Promise<boolean> {
       .order('last_seen', { ascending: false })
       .limit(1)
       .maybeSingle();
-    
+
     if (deviceKeyError) {
       console.warn('[E2E] ensureUserE2EReady device_keys query error', deviceKeyError);
     }
     if ((deviceKey as any)?.public_key) return true;
 
-    // Fallback to profiles.public_key
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('public_key')
       .eq('id', userId)
       .single();
-    
+
     if (profileError) {
       console.warn('[E2E] ensureUserE2EReady profiles query error', profileError);
     }
-    
+
     return !!profile?.public_key;
   } catch (err) {
     console.error('[E2E] ensureUserE2EReady unexpected error', err);
@@ -304,9 +301,8 @@ export async function ensureUserE2EReady(userId: string): Promise<boolean> {
   }
 }
 
-// Encrypt — returns explicit status. Caller must handle failure (no silent plaintext fallback).
-export async function encryptForRecipient(content: string, recipientId: string): Promise<EncryptResult> {
-  const keys = await getStoredKeysSecure();
+export async function encryptForRecipient(content: string, recipientId: string, userId: string): Promise<EncryptResult> {
+  const keys = await getStoredKeysSecure(userId);
   console.log('[E2E-DIAG] Local keys:', keys ? `FOUND (privateKey length: ${keys.privateKey?.length})` : 'MISSING');
   if (!keys) return { success: false, reason: 'no_local_keys' };
 
@@ -322,13 +318,13 @@ export async function encryptForRecipient(content: string, recipientId: string):
   }
 }
 
-export async function decryptFromSender(content: string, senderId: string): Promise<DecryptResult> {
+export async function decryptFromSender(content: string, senderId: string, userId: string): Promise<DecryptResult> {
   if (!isEncryptedMessage(content)) {
     console.log('[E2E-DIAG] Not encrypted');
     return { success: false, reason: 'not_encrypted' };
   }
 
-  const keys = await getStoredKeysSecure();
+  const keys = await getStoredKeysSecure(userId);
   if (!keys) return { success: false, reason: 'no_local_keys' };
 
   const senderPubKey = await getRecipientPublicKey(senderId);
@@ -339,7 +335,6 @@ export async function decryptFromSender(content: string, senderId: string): Prom
     const plaintext = await decryptMessage(content, keys.privateKey, senderPubKey);
     return { success: true, plaintext };
   } catch (err) {
-    // Try all known device keys for this sender as fallback
     try {
       const { data: deviceKeys } = await supabase
         .from('device_keys' as any)
@@ -366,14 +361,13 @@ export async function decryptFromSender(content: string, senderId: string): Prom
   }
 }
 
-// Re-initialize keys from scratch (recovery flow).
 export async function recoverE2EKeys(userId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const passphrase = getOrCreateDeviceSecret();
+    const passphrase = getOrCreateDeviceSecret(userId);
     const deviceId = getOrCreateDeviceId();
 
     const keys = await generateKeyPair();
-    await storeKeysSecure(keys.publicKey, keys.privateKey, passphrase);
+    await storeKeysSecure(keys.publicKey, keys.privateKey, passphrase, userId);
 
     await supabase
       .from('device_keys' as any)
@@ -390,14 +384,13 @@ export async function recoverE2EKeys(userId: string): Promise<{ success: boolean
     await supabase.from('profiles').upsert({ id: userId, public_key: keys.publicKey }, { onConflict: 'id' });
     return { success: true };
   } catch (e: any) {
-    console.error('[E2E] recovery failed', e);
     return { success: false, error: e?.message ?? 'Unknown error' };
   }
 }
 
-export async function clearE2EKeysOnSignOut(): Promise<void> {
+export async function clearE2EKeysOnSignOut(userId: string): Promise<void> {
   try {
-    await clearKeysSecure();
+    await clearKeysSecure(userId);
   } catch (e) {
     console.warn('[E2E] clearKeysSecure failed on sign-out', e);
   }

@@ -68,18 +68,20 @@ export async function decryptBlobAESGCM(key: CryptoKey, base64: string): Promise
  * Future improvement: replace with WebAuthn-protected passphrase or user PIN.
  */
 const DEVICE_SECRET_KEY = 'directly_device_secret_v1';
-export function getOrCreateDeviceSecret(): string {
-  let s = localStorage.getItem(DEVICE_SECRET_KEY);
+export function getOrCreateDeviceSecret(userId?: string): string {
+  const key = userId ? `${DEVICE_SECRET_KEY}_${userId}` : DEVICE_SECRET_KEY;
+  let s = localStorage.getItem(key);
   if (!s) {
     const bytes = crypto.getRandomValues(new Uint8Array(32));
     s = toBase64(bytes);
-    localStorage.setItem(DEVICE_SECRET_KEY, s);
+    localStorage.setItem(key, s);
   }
   return s;
 }
 
-export function clearDeviceSecret(): void {
-  localStorage.removeItem(DEVICE_SECRET_KEY);
+export function clearDeviceSecret(userId?: string): void {
+  const key = userId ? `${DEVICE_SECRET_KEY}_${userId}` : DEVICE_SECRET_KEY;
+  localStorage.removeItem(key);
 }
 
 const DEVICE_ID_KEY = 'directly_device_id_v1';

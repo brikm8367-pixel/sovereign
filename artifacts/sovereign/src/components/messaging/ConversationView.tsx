@@ -173,7 +173,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       if (isEncryptedMessage(msg.content)) {
         // FIX: Use message.sender_id as the key owner for decryption
         try {
-          const res = await decryptFromSender(msg.content, msg.sender_id);
+                 const res = await decryptFromSender(msg.content, msg.sender_id, user.id);
           if (res.success) {
             return { ...msg, content: res.plaintext };
           }
@@ -429,10 +429,10 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
       }
 
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '🎤');
-      const enc = await encryptForRecipient(contentToSend, otherUserId!);
+      const enc = await encryptForRecipient(contentToSend, otherUserId!, user.id);
       if (!enc.success) {
         // Gracefully handle missing encryption keys - send unencrypted instead of blocking
-        console.warn('Encryption failed, sending unencrypted:', enc.error);
+              console.warn('Encryption failed, sending unencrypted:', (enc as any).error);
       }
       const encryptedContent = enc.success ? enc.payload : contentToSend;
 
@@ -525,8 +525,8 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
   const handleEditMessage = async (msgId: string) => {
     if (!editContent.trim()) return;
     try {
-      const enc = await encryptForRecipient(editContent, otherUserId!);
-      if (!enc.success) {
+       const enc = await encryptForRecipient(editContent, otherUserId!, user.id);
+    if (!enc.success) {
         toast.error(isRTL ? 'تعذّر التشفير' : 'Encryption failed');
         return;
       }
@@ -1007,7 +1007,7 @@ export default function ConversationView({ message, isOpen, onClose, onMessageRe
                               </div>
                             ) : msg.content && !['📷', '🎥', '🎤'].includes(msg.content) ? (
                               <p className="whitespace-pre-wrap">
-                                {msg._decryptionFailed ? (
+                                                          {(msg as any)._decryptionFailed ? (
                                   <span className="flex items-center gap-1.5 text-muted-foreground/60 italic text-sm">
                                     <Info className="h-3.5 w-3.5 flex-shrink-0" />
                                     {msg.content}

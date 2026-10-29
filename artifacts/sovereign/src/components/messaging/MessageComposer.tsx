@@ -212,7 +212,7 @@ export default function MessageComposer({
       }
 
       // STEP 2: Auto-recover missing local keys before encryption
-      let localKeys = await getStoredKeysSecure();
+            let localKeys = await getStoredKeysSecure(senderId);
       if (!localKeys && user) {
         console.warn('[MessageComposer] Local keys missing, auto-initializing...');
         await initE2EKeys(user.id);
@@ -220,15 +220,15 @@ export default function MessageComposer({
 
       // Encrypt the message content — encryption MUST succeed, no unencrypted fallback
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '');
-      const enc = await encryptForRecipient(contentToSend, recipient.id);
+            const enc = await encryptForRecipient(contentToSend, recipient.id, senderId);
       if (!enc.success) {
         // Encryption failed — block sending with clear error (no silent plaintext fallback)
         let errorMsg = '';
-        if (enc.reason === 'recipient_no_e2e') {
+               if ((enc as any).reason === 'recipient_no_e2e') {
           errorMsg = isRTL
             ? 'Le destinataire n\'a pas de clés de chiffrement. Il doit se connecter à l\'application pour initialiser son chiffrement de bout en bout.'
             : 'Recipient has no encryption keys. They need to log into the app to initialize their end-to-end encryption.';
-        } else if (enc.reason === 'no_local_keys') {
+               } else if ((enc as any).reason === 'no_local_keys') {
           errorMsg = isRTL
             ? 'Vos clés de chiffrement غير مهيأة. يرجى تسجيل الخروج وتسجيل الدخول مرة أخرى.'
             : 'Your encryption keys are not initialized. Please log out and log back in.';

@@ -68,7 +68,6 @@ export function useDealCards(celebrityId?: string | null) {
     const { error } = await supabase.from('deal_cards').update({ status }).eq('id', id);
     if (error) throw error;
     
-    // Fetch the deal card to get celebrity_id, sender_id, and deal_type for notification
     const { data: dealCard, error: fetchError } = await supabase
       .from('deal_cards')
       .select('celebrity_id, sender_id, deal_type')
@@ -76,10 +75,7 @@ export function useDealCards(celebrityId?: string | null) {
       .single();
     
     if (!fetchError && dealCard && user) {
-      // Check if current user is a manager acting on behalf of a celebrity
-      // (user.id !== celebrityId means the user is not the celebrity themselves)
       if (user.id !== dealCard.celebrity_id) {
-        // User is a manager acting for the celebrity
         const statusLabels: Record<string, string> = {
           accepted: 'مقبول',
           declined: 'مرفوض',
@@ -96,7 +92,7 @@ export function useDealCards(celebrityId?: string | null) {
           sender_role: 'manager',
           managed_celebrity_id: dealCard.celebrity_id,
           deal_id: id,
-        });
+        } as any);
       }
     }
     

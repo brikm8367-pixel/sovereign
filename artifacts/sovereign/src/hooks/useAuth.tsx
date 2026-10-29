@@ -17,12 +17,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function transliterateArabicToEnglish(text: string): string {
   const arabicToEnglishMap: Record<string, string> = {
-    'Ø§': 'a', 'Ø¨': 'b', 'Øª': 't', 'Ø«': 'th', 'Ø¬': 'j', 'Ø­': 'h', 'Ø®': 'kh',
-    'Ø¯': 'd', 'Ø°': 'dh', 'Ø±': 'r', 'Ø²': 'z', 'Ø³': 's', 'Ø´': 'sh', 'Øµ': 's',
-    'Ø¶': 'd', 'Ø·': 't', 'Ø¸': 'z', 'Ø¹': 'a', 'Øº': 'gh', 'Ù': 'f', 'Ù‚': 'q',
-    'Ùƒ': 'k', 'Ù„': 'l', 'Ù…': 'm', 'Ù†': 'n', 'Ù‡': 'h', 'Ùˆ': 'w', 'ÙŠ': 'y',
-    'Ø¡': '', 'Ø¢': 'a', 'Ø£': 'a', 'Ø¥': 'i', 'Ø¤': 'u', 'Ø¦': 'i', 'Ø©': 'h',
-    'Ù‰': 'a',
+    'ا': 'a', 'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'j', 'ح': 'h', 'خ': 'kh',
+    'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh', 'ص': 's',
+    'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh', 'ف': 'f', 'ق': 'q',
+    'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n', 'ه': 'h', 'و': 'w', 'ي': 'y',
+    'ء': '', 'آ': 'a', 'أ': 'a', 'إ': 'i', 'ؤ': 'u', 'ئ': 'i', 'ة': 'h',
+    'ى': 'a',
   };
   let result = '';
   for (const char of text) {
@@ -68,12 +68,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // STEP 1A: Add ref to track if initial session has been handled
   const initialSessionHandledRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
-    // Safety timeout: force loading to false after 10 seconds to prevent stuck loading screen
     const safetyTimeout = setTimeout(() => {
       if (mounted) {
         const hasSession = !!Object.keys(localStorage).find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
@@ -90,12 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         setSession(session);
         setUser(session?.user ?? null);
-        // STEP 1B: Mark initial session as handled
         initialSessionHandledRef.current = true;
-        // Set loading false IMMEDIATELY after session/user are set
         if (mounted) setLoading(false);
         
-        // Initialize E2E keys for existing session in background (non-awaited)
         if (session?.user) {
           ensureUserE2EReady(session.user.id).then(hasKeys => {
             if (!hasKeys) return initE2EKeys(session.user.id);
@@ -113,7 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
       
-      // STEP 1C: Skip duplicate INITIAL_SESSION event that fires right after initializeAuth
       if (!initialSessionHandledRef.current && _event === 'INITIAL_SESSION') {
         initialSessionHandledRef.current = true;
       }
@@ -121,10 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       
-      // Set loading false IMMEDIATELY after session/user are set
       if (mounted) setLoading(false);
       
-      // STEP 1D: Clean E2E initialization block - no outer try/catch, promise owns its errors
       if (session?.user) {
         const backupPassword = sessionStorage.getItem('login_password_for_backup');
         console.log('[AUTH-DIAG] onAuthStateChange event:', _event, 'hasPassword:', !!backupPassword);
@@ -134,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               const { downloadKeyBackup, uploadKeyBackup } = await import('@/utils/e2eBackup');
               const { getStoredKeysSecure } = await import('@/utils/encryption');
-              const localKeys = await getStoredKeysSecure();
+              const localKeys = await getStoredKeysSecure(session.user.id);
               console.log('[AUTH-DIAG] localKeys present:', !!localKeys);
               if (!localKeys) {
                 const dl = await downloadKeyBackup(backupPassword, session.user.id);
@@ -223,12 +215,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, { onConflict: 'id' });
     if (profileError) return { error: profileError };
 
-    // Initialize E2E keys for the new user immediately (even before email confirmation)
     try {
       await initE2EKeys(data.user.id);
     } catch (e) {
       console.error('[Auth] E2E key initialization failed during signup', e);
-      // Don't fail signup if E2E init fails - will retry on first login
     }
 
     return { error: null, userId: data.user.id };

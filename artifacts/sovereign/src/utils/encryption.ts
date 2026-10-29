@@ -10,7 +10,7 @@ const ALGO = 'AES-GCM';
 const KEY_ALGO = { name: 'ECDH', namedCurve: 'P-256' };
 export const E2E_PREFIX = 'E2Ev1:';
 
-// ---------- Per‑user IndexedDB key helpers ----------
+// ---------- Per-user IndexedDB key helpers ----------
 function idbKeys(userId: string) {
   return {
     pub: `directly_e2e_public_key_v2_${userId}`,
@@ -101,7 +101,7 @@ export function isEncryptedMessage(content: string): boolean {
   return typeof content === 'string' && content.startsWith(E2E_PREFIX);
 }
 
-// ---------- Encrypted-at-rest key storage (IndexedDB) ----------
+// ---------- Encrypted-at-rest key storage (IndexedDB, per-user) ----------
 export async function storeKeysSecure(
   publicKey: string,
   privateKey: string,
@@ -117,8 +117,8 @@ export async function storeKeysSecure(
 }
 
 export async function getStoredKeysSecure(
-  passphrase?: string,
-  userId: string
+  userId: string,
+  passphrase?: string
 ): Promise<{ publicKey: string; privateKey: string } | null> {
   const keys = idbKeys(userId);
   const pub = await idbGet<string>(keys.pub);
@@ -140,7 +140,6 @@ export async function clearKeysSecure(userId: string): Promise<void> {
   await idbDel(keys.pub);
   await idbDel(keys.blob);
   await idbDel(keys.salt);
-  // Also clear legacy
   localStorage.removeItem(LEGACY_PRIVATE);
   localStorage.removeItem(LEGACY_PUBLIC);
 }
@@ -148,12 +147,14 @@ export async function clearKeysSecure(userId: string): Promise<void> {
 /**
  * One-time migration: if old plaintext keys exist in localStorage, move them
  * into encrypted IndexedDB storage and wipe the originals.
+ * Requires userId — if not provided, skip migration.
  */
-export async function migrateLegacyKeysIfPresent(): Promise<boolean> {
+export async function migrateLegacyKeysIfPresent(userId?: string): Promise<boolean> {
   const legacyPub = localStorage.getItem(LEGACY_PUBLIC);
   const legacyPriv = localStorage.getItem(LEGACY_PRIVATE);
   if (!legacyPub || !legacyPriv) return false;
-  await storeKeysSecure(legacyPub, legacyPriv, getOrCreateDeviceSecret());
+  if (!userId) return false;
+  await storeKeysSecure(legacyPub, legacyPriv, getOrCreateDeviceSecret(userId), userId);
   localStorage.removeItem(LEGACY_PUBLIC);
   localStorage.removeItem(LEGACY_PRIVATE);
   return true;

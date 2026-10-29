@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { KeyRound, Download, Upload, Loader2, ShieldCheck } from 'lucide-react';
@@ -9,9 +10,9 @@ import { exportKeyBackup, importKeyBackup, downloadBackupFile } from '@/utils/e2
 
 const ease: [number, number, number, number] = [0.25, 0.1, 0.25, 1];
 
-/** Encrypted export/import of the user's E2EE private key. */
 export function KeyBackupCard() {
   const { isRTL } = useLanguage();
+  const { user } = useAuth();
   const [mode, setMode] = useState<'idle' | 'export' | 'import'>('idle');
   const [pass, setPass] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,7 +27,7 @@ export function KeyBackupCard() {
       return;
     }
     setBusy(true);
-    const res = await exportKeyBackup(pass);
+    const res = await exportKeyBackup(pass, user?.id || '');
     setBusy(false);
     if (!res.success) {
       toast.error(
@@ -62,7 +63,7 @@ export function KeyBackupCard() {
       return;
     }
     setBusy(true);
-    const res = await importKeyBackup(pendingFile.current, pass);
+    const res = await importKeyBackup(pendingFile.current, pass, user?.id || '');
     setBusy(false);
     if (!res.success) {
       toast.error(

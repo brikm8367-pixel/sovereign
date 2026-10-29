@@ -49,7 +49,7 @@ export const ar: Translations = {
       description: 'كل رسالة تذهب لمكانها الصحيح تلقائياً',
     },
     feature3: {
-      title: 'احمِ وقتك',
+      title: 'احم وقتك',
       description: 'الرسائل المهمة فقط تصلك، الباقي ينتظر',
     },
     feature4: {
@@ -71,7 +71,7 @@ export const ar: Translations = {
     },
     step2: {
       title: 'دع Sovereign يعمل',
-      description: 'كل رسالة تُوجّه تلقائياً للمستوى الصحيح',
+      description: 'كل رسالة توجّه تلقائياً للمستوى الصحيح',
     },
     step3: {
       title: 'تواصل بذكاء',
@@ -288,6 +288,8 @@ export const ar: Translations = {
     noMessages: 'لا توجد رسائل بعد',
     startConversation: 'ابدأ المحادثة',
     regardingDeal: 'بخصوص هذا العرض',
+    openChat: 'فتح المحادثة',
+    error: 'خطأ',
   },
   settings: {
     language: 'اللغة',

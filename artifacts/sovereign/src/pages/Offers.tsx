@@ -40,14 +40,12 @@ export default function OffersPage() {
   const [checkingManager, setCheckingManager] = useState(false);
   const useAgentLabels = role === 'celebrity' && hasManager === true;
 
-  // Redirect managers to home
   useEffect(() => {
     if (!loading && role === 'manager') {
       navigate('/home', { replace: true });
     }
   }, [loading, role, navigate]);
 
-  // Check for active manager link for celebrities
   useEffect(() => {
     if (!user || role !== 'celebrity') {
       setHasManager(false);
@@ -78,7 +76,6 @@ export default function OffersPage() {
     };
   }, [user, role]);
 
-  // Fetch deals for sender (company) or celebrity
   useEffect(() => {
     if (!user || (role !== 'sender' && role !== 'celebrity')) return;
     
@@ -94,7 +91,7 @@ export default function OffersPage() {
         const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) throw error;
-        setDeals(data || []);
+        setDeals((data || []) as any);
       } catch (error) {
         console.error('Error fetching deals:', error);
       } finally {
@@ -104,7 +101,6 @@ export default function OffersPage() {
 
     fetchDeals();
 
-    // Realtime subscription for deal updates
     const filterColumn = role === 'sender' ? 'sender_id' : 'celebrity_id';
     const channel = supabase
       .channel('offers-realtime-' + user.id)
@@ -242,11 +238,10 @@ export default function OffersPage() {
     return <div className="border-t border-border/50 my-3" />;
   }
 
-  // Filter deals based on selected tab
   const filteredDeals = deals.filter(deal => {
     switch (selectedTab) {
       case 'sent':
-        return true; // all sent deals
+        return true;
       case 'seen':
         return deal.status === 'seen';
       case 'accepted':
@@ -290,7 +285,6 @@ export default function OffersPage() {
       </header>
 
       <main className="max-w-lg mx-auto pt-16 pb-20 px-4 space-y-6">
-        {/* Status Tabs */}
         <div className="overflow-x-auto pb-2 -mx-4 px-4">
           <div className="flex gap-2 min-w-max">
             {tabs.map((tab) => (
@@ -335,7 +329,6 @@ export default function OffersPage() {
                     key={deal.id} 
                     className="rounded-2xl border border-border bg-card shadow-sm hover:shadow-md transition-shadow p-5"
                   >
-                    {/* Header Section */}
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -352,7 +345,6 @@ export default function OffersPage() {
                         </div>
                       </div>
                       
-                      {/* Prominent Status Badge */}
                       <Badge 
                         variant="outline" 
                         className={cn('rounded-full px-3 py-1.5 text-xs font-semibold h-7 shrink-0', statusConfig.bg, statusConfig.text, statusConfig.border)}
@@ -361,9 +353,7 @@ export default function OffersPage() {
                       </Badge>
                     </div>
 
-                    {/* Main Details Section */}
                     <div className="space-y-4">
-                      {/* Budget Range */}
                       {deal.budget_range && (
                         <FieldRow 
                           label={t('الميزانية', 'Budget')} 
@@ -373,7 +363,6 @@ export default function OffersPage() {
                         </FieldRow>
                       )}
 
-                      {/* Budget Currency */}
                       {deal.budget_currency && (
                         <FieldRow 
                           label={t('العملة', 'Currency')} 
@@ -386,7 +375,6 @@ export default function OffersPage() {
                         </FieldRow>
                       )}
 
-                      {/* Budget Cycle */}
                       {deal.budget_cycle && (
                         <FieldRow 
                           label={t('دورة الميزانية', 'Budget Cycle')} 
@@ -396,7 +384,6 @@ export default function OffersPage() {
                         </FieldRow>
                       )}
 
-                      {/* Timeline */}
                       {deal.timeline && (
                         <FieldRow 
                           label={t('الجدول الزمني', 'Timeline')} 
@@ -408,7 +395,6 @@ export default function OffersPage() {
 
                       <SectionDivider />
 
-                      {/* Website URL */}
                       {deal.website_url && (
                         <FieldRow 
                           label={t('الموقع الإلكتروني', 'Website')} 
@@ -420,7 +406,6 @@ export default function OffersPage() {
                         </FieldRow>
                       )}
 
-                      {/* Exclusivity */}
                       {deal.exclusivity && (
                         <FieldRow 
                           label={t('الحصرية', 'Exclusivity')} 
@@ -430,7 +415,6 @@ export default function OffersPage() {
                         </FieldRow>
                       )}
 
-                      {/* Deliverables */}
                       {deal.deliverables && (
                         <FieldRow 
                           label={t('المخرجات', 'Deliverables')} 
@@ -440,7 +424,6 @@ export default function OffersPage() {
                         </FieldRow>
                       )}
 
-                      {/* Why Them */}
                       {deal.why_them && (
                         <FieldRow 
                           label={t('لماذا هم', 'Why Them')} 
@@ -450,7 +433,6 @@ export default function OffersPage() {
                         </FieldRow>
                       )}
 
-                      {/* Description / Pitch */}
                       {deal.details && (
                         <>
                           <SectionDivider />

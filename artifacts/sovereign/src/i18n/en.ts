@@ -288,6 +288,8 @@ export const en: Translations = {
     noMessages: 'No messages yet',
     startConversation: 'Start the conversation',
     regardingDeal: 'Regarding this deal',
+    openChat: 'Open Chat',
+    error: 'Something went wrong',
   },
   settings: {
     language: 'Language',

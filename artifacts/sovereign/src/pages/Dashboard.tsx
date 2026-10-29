@@ -32,28 +32,26 @@ import {
 import { cn } from '@/lib/utils';
 import { DealCardInline } from '@/components/deals/DealCardInline';
 import MessageComposer from '@/components/messaging/MessageComposer';
-import { initE2EKeys, ensureUserE2EReady, decryptFromSender, getOwnMessagePlaintext, isEncryptedMessage } from '@/utils/e2eManager';
+import { initE2EKeys, ensureUserE2EReady, decryptFromSender, getOwnMessagePlaintext, isEncryptedMessage, encryptForRecipient } from '@/utils/e2eManager';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-// STEP 3: Add getStoredKeysSecure import
 import { getStoredKeysSecure } from '@/utils/encryption';
 
-// Module-level cache for E2E key verification
 let lastVerifiedUserId: string | null = null;
 
 interface Deal {
   id: string;
-  sender_id: string;
-  celebrity_id: string;
-  company_name: string;
-  website_url: string;
-  budget_range: string;
-  budget_cycle: string;
-  deal_type: string;
-  details: string;
+  sender_id: string | null;
+  celebrity_id: string | null;
+  company_name: string | null;
+  website_url: string | null;
+  budget_range: string | null;
+  budget_cycle: string | null;
+  deal_type: string | null;
+  details: string | null;
   deliverables: string | null;
-  timeline: string;
-  exclusivity: string;
+  timeline: string | null;
+  exclusivity: string | null;
   why_them: string | null;
   status: 'pending' | 'accepted' | 'declined' | 'completed' | 'countered';
   created_at: string;
@@ -81,23 +79,6 @@ interface Message {
   deal_id?: string | null;
   sender_role?: string | null;
   deal_status?: string | null;
-}
-
-interface Deal {
-  id: string;
-  deal_type: string | null;
-  company_name: string | null;
-  budget_range: string | null;
-  timeline: string | null;
-  details: string | null;
-  website_url: string | null;
-  budget_cycle: string | null;
-  deliverables: string | null;
-  exclusivity: string | null;
-  why_them: string | null;
-  status: string;
-  celebrity_id: string | null;
-  sender_id: string | null;
 }
 
 interface Conversation {
@@ -135,76 +116,53 @@ export default function Dashboard() {
   const [selectedDealForQuestion, setSelectedDealForQuestion] = useState<Deal | null>(null);
   const [unreadTotal, setUnreadTotal] = useState(0);
   const isMountedRef = useRef(true);
-  const fetchConversationsRef = useRef<() => Promise<void>>();
-  const fetchPendingDealsRef = useRef<() => Promise<void>>();
+  const fetchConversationsRef = useRef<((celebIdOverride?: string | null) => Promise<any>) | undefined>(undefined);
+  const fetchPendingDealsRef = useRef<((celebIdOverride?: string | null) => Promise<any>) | undefined>(undefined);
   const fetchConversationsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const decryptedCacheRef = useRef<Map<string, string>>(new Map());
-  // STEP 1: Stabilize role reference
   const roleRef = useRef(role);
-  // STEP 9: Ref for tracking retry timeouts
   const retryTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
-  // STEP 6: TanStack Query client
   const queryClient = useQueryClient();
-  // STEP 1: Add ref to track last handled celebrity id
   const lastHandledCelebRef = useRef<string | null>(null);
 
-  // STEP 2: Keep roleRef current
   useEffect(() => {
     roleRef.current = role;
   }, [role]);
 
-  // Auto-initialize E2E keys for existing users who may not have them yet
   useEffect(() => {
     let mounted = true;
 
     const initializeE2EKeys = async () => {
       if (!user) return;
-      
-      // Skip if we already verified this user
-      if (lastVerifiedUserId === user.id) {
-        console.log('[Dashboard] E2E keys already verified for user:', user.id);
-        return;
-      }
-
+      if (lastVerifiedUserId === user.id) return;
       try {
-        // Add 10 second timeout for E2E initialization (increased from 2000ms)
         const hasKeys = await Promise.race([
           ensureUserE2EReady(user.id),
           new Promise<boolean>((_, reject) => 
             setTimeout(() => reject(new Error('E2E initialization timeout')), 10000)
           )
         ]);
-        
         if (!hasKeys) {
-          console.log('[Dashboard] E2E keys missing for user, initializing...', user.id);
           await initE2EKeys(user.id);
-          if (mounted) {
-            console.log('[Dashboard] E2E keys initialized successfully for user:', user.id);
-          }
         }
-        // Cache the verified userId
         lastVerifiedUserId = user.id;
       } catch (error) {
-        console.error('[Dashboard] Failed to initialize E2E keys, will retry on next focus:', error);
-        // Error is logged, will retry on next window focus
+        console.error('[Dashboard] Failed to initialize E2E keys', error);
       }
     };
 
-    // Run on mount - deferred to after initial render and data fetch
     const runDeferred = () => {
       if (mounted && user) {
         initializeE2EKeys();
       }
     };
 
-    // Use requestIdleCallback if available, otherwise setTimeout with 0 delay
     if (typeof requestIdleCallback !== 'undefined') {
       requestIdleCallback(runDeferred, { timeout: 2000 });
     } else {
       setTimeout(runDeferred, 0);
     }
 
-    // Also run on window focus to retry if previous attempt failed
     const handleFocus = () => {
       if (mounted && user) {
         initializeE2EKeys();
@@ -218,7 +176,6 @@ export default function Dashboard() {
     };
   }, [user]);
 
-  // STEP 1: Wrap resolveDisplayContent in useCallback with empty deps
   const resolveDisplayContent = useCallback(async (
     msgContent: string,
     senderId: string,
@@ -232,7 +189,6 @@ export default function Dashboard() {
       return decryptedCacheRef.current.get(messageId)!;
     }
     try {
-      // If message is from current user, try fast IndexedDB lookup
       if (senderId === currentUserId) {
         const ownPlaintext = await getOwnMessagePlaintext(messageId);
         if (ownPlaintext) {
@@ -240,15 +196,13 @@ export default function Dashboard() {
           return ownPlaintext;
         }
       }
-      // Try decrypt with sender's key
-      const decrypted = await decryptFromSender(msgContent, senderId);
+      const decrypted = await decryptFromSender(msgContent, senderId, currentUserId);
       if (decrypted.success && decrypted.plaintext) {
         decryptedCacheRef.current.set(messageId, decrypted.plaintext);
         return decrypted.plaintext;
       }
-      // If managed celebrity and different from sender, try with managed celebrity's key
       if (managedCelebrityId && managedCelebrityId !== senderId) {
-        const decrypted2 = await decryptFromSender(msgContent, managedCelebrityId);
+        const decrypted2 = await decryptFromSender(msgContent, managedCelebrityId, currentUserId);
         if (decrypted2.success && decrypted2.plaintext) {
           decryptedCacheRef.current.set(messageId, decrypted2.plaintext);
           return decrypted2.plaintext;
@@ -257,7 +211,6 @@ export default function Dashboard() {
     } catch (e) {
       console.warn('[Dashboard] Decryption failed for message:', messageId, e);
     }
-    // Fallback: schedule retry in background, show '...' immediately
     const timeoutId = setTimeout(() => {
       retryTimeoutsRef.current.delete(timeoutId);
       resolveDisplayContent(msgContent, senderId, messageId, currentUserId, managedCelebrityId).then(fresh => {
@@ -273,10 +226,7 @@ export default function Dashboard() {
 
   const fetchPendingDeals = useCallback(async (celebIdOverride?: string | null) => {
     if (!user) return;
-    
     const celebId = celebIdOverride !== undefined ? celebIdOverride : managedCelebrityId;
-    
-    // STEP 3: Use roleRef.current
     if (roleRef.current === 'manager' && !celebId) {
       if (isMountedRef.current && celebIdOverride === undefined) {
         setPendingDeals([]);
@@ -284,15 +234,8 @@ export default function Dashboard() {
       }
       return;
     }
-
     try {
-      console.log('[Dashboard] Fetching pending deals for:', roleRef.current === 'manager' ? celebId : user.id);
-      const query = supabase
-        .from('deal_cards')
-        .select('*')
-        .eq('status', 'pending');
-
-      // STEP 3: Use roleRef.current
+      const query = supabase.from('deal_cards').select('*').eq('status', 'pending');
       if (roleRef.current === 'manager' && celebId) {
         query.eq('celebrity_id', celebId);
       } else if (roleRef.current === 'sender') {
@@ -300,15 +243,11 @@ export default function Dashboard() {
       } else {
         query.eq('celebrity_id', user.id);
       }
-
       const { data, error } = await query.order('created_at', { ascending: false });
-
       if (error) throw error;
-      
       if (isMountedRef.current && celebIdOverride === undefined) {
         setPendingDeals(data as Deal[] || []);
         setIsLoadingDeals(false);
-        console.log('[Dashboard] Fetched pending deals:', data?.length || 0);
       }
       return data as Deal[] || [];
     } catch (error) {
@@ -322,10 +261,7 @@ export default function Dashboard() {
 
   const fetchConversations = useCallback(async (celebIdOverride?: string | null) => {
     if (!user) return;
-
     const celebId = celebIdOverride !== undefined ? celebIdOverride : managedCelebrityId;
-    
-    // STEP 4: Use roleRef.current
     if (roleRef.current === 'manager' && !celebId) {
       if (isMountedRef.current && celebIdOverride === undefined) {
         setConversations([]);
@@ -333,35 +269,23 @@ export default function Dashboard() {
       }
       return;
     }
-
     try {
-      // FIX: Always use user.id as currentUserId since messages are sent with sender_id = user.id (agent's own identity)
       const currentUserId = user.id;
-
-      console.log('[Dashboard] Fetching conversations for:', currentUserId, 'role:', roleRef.current);
-
       let query = supabase
         .from('messages')
         .select('id, sender_id, receiver_id, content, created_at, is_read, category, deal_id, sender_role, managed_celebrity_id, deal_cards!messages_deal_id_fkey(status)')
         .eq('category', 'work')
         .not('deal_cards.status', 'eq', 'declined')
         .order('created_at', { ascending: false })
-        .limit(200); // Limit to 200 most recent messages per conversation
-
-      // FIX: Use user.id for all roles including manager - messages are sent with agent's user.id
+        .limit(200);
       if (roleRef.current === 'manager' && celebId) {
         query = query.or(`and(sender_id.eq.${user.id},managed_celebrity_id.eq.${celebId}),and(receiver_id.eq.${user.id},sender_id.eq.${celebId})`);
       } else {
         query = query.or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`);
       }
-
       const { data, error } = await query;
-
       if (error) throw error;
-
       const messages = (data as any[]) || [];
-      
-      // Resolve display content for all messages in parallel
       const resolvedMap = new Map<string, string>();
       await Promise.all(messages.map(async (msg) => {
         const r = await Promise.race([
@@ -370,44 +294,28 @@ export default function Dashboard() {
         ]);
         resolvedMap.set(msg.id, r);
       }));
-
-      // Collect all unique otherUserIds
       const otherUserIds = new Set<string>();
       for (const msg of messages) {
         const otherUserId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
-        if (otherUserId) {
-          otherUserIds.add(otherUserId);
-        }
+        if (otherUserId) otherUserIds.add(otherUserId);
       }
-
-      // Batch fetch all profiles in one query
       const profilesMap = new Map<string, any>();
       if (otherUserIds.size > 0) {
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
           .select('id, display_name, username, avatar_url')
           .in('id', Array.from(otherUserIds));
-        
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-        } else if (profiles) {
-          for (const profile of profiles) {
-            profilesMap.set(profile.id, profile);
-          }
+        if (!profilesError && profiles) {
+          for (const profile of profiles) profilesMap.set(profile.id, profile);
         }
       }
-
       const conversationsMap = new Map<string, Conversation>();
-      
       for (const msg of messages) {
         const otherUserId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
         if (!otherUserId) continue;
-
         const convId = msg.deal_id || otherUserId;
-        
         if (!conversationsMap.has(convId)) {
           const profile = profilesMap.get(otherUserId);
-          // Get deal_status from the joined deal_cards table
           const dealStatus = msg.deal_cards?.status || msg.deal_status || null;
           conversationsMap.set(convId, {
             id: convId,
@@ -428,26 +336,20 @@ export default function Dashboard() {
           if (new Date(msg.created_at) > new Date(existing.last_message_time)) {
             existing.last_message = resolvedMap.get(msg.id) || '';
             existing.last_message_time = msg.created_at;
-            // Update sender_role and deal_status from latest message
             existing.sender_role = msg.sender_role || null;
-            // Get deal_status from the joined deal_cards table
             const dealStatus = msg.deal_cards?.status || msg.deal_status || null;
             existing.deal_status = dealStatus;
           }
-          // FIX: Check unread against currentUserId (user.id)
           if (!msg.is_read && msg.receiver_id === currentUserId) {
             existing.unread_count += 1;
           }
         }
       }
-
       const conversationsList = Array.from(conversationsMap.values())
         .sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
-
       if (isMountedRef.current && celebIdOverride === undefined) {
         setConversations(conversationsList);
         setIsLoadingMessages(false);
-        console.log('[Dashboard] Fetched conversations:', conversationsList.length);
       }
       return conversationsList;
     } catch (error) {
@@ -457,9 +359,8 @@ export default function Dashboard() {
       }
       throw error;
     }
-  }, [user?.id, managedCelebrityId]);
+  }, [user?.id, managedCelebrityId, resolveDisplayContent]);
 
-  // TanStack Query for conversations - caches for 30 seconds
   const { data: conversationsFromQuery, isLoading: isLoadingConversations } = useQuery({
     queryKey: ['conversations', user?.id, managedCelebrityId],
     queryFn: () => fetchConversations(),
@@ -469,7 +370,6 @@ export default function Dashboard() {
     enabled: !!user && !(roleRef.current === 'manager' && !managedCelebrityId)
   });
 
-  // Sync query result into existing state - keeps all consumers working
   useEffect(() => {
     if (conversationsFromQuery) {
       setConversations(conversationsFromQuery);
@@ -477,7 +377,6 @@ export default function Dashboard() {
     }
   }, [conversationsFromQuery]);
 
-  // TanStack Query for pendingDeals - caches for 15 seconds
   const { data: pendingDealsFromQuery, isLoading: isLoadingPendingFromQuery } = useQuery({
     queryKey: ['pendingDeals', user?.id, managedCelebrityId],
     queryFn: () => fetchPendingDeals(),
@@ -487,7 +386,6 @@ export default function Dashboard() {
     enabled: !!user
   });
 
-  // Sync query result into existing state - keeps all consumers working
   useEffect(() => {
     if (pendingDealsFromQuery) {
       setPendingDeals(pendingDealsFromQuery);
@@ -495,7 +393,6 @@ export default function Dashboard() {
     }
   }, [pendingDealsFromQuery]);
 
-  // Store refs for use in effects
   useEffect(() => {
     fetchConversationsRef.current = fetchConversations;
   }, [fetchConversations]);
@@ -504,7 +401,6 @@ export default function Dashboard() {
     fetchPendingDealsRef.current = fetchPendingDeals;
   }, [fetchPendingDeals]);
 
-  // Prefetch data for other celebrities when on manager dashboard
   useEffect(() => {
     if (role !== 'manager' || !user?.id || managedCelebrities.length === 0) return;
     managedCelebrities.forEach((celeb) => {
@@ -521,12 +417,9 @@ export default function Dashboard() {
     });
   }, [managedCelebrities, user?.id, role, fetchConversations, fetchPendingDeals, queryClient]);
 
-
-  // Calculate unread total whenever conversations change
   useEffect(() => {
     const total = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
     setUnreadTotal(total);
-    // Update document title with unread indicator
     if (total > 0) {
       document.title = `(${total}) ${isRTL ? 'مباشر' : 'Directly'}`;
     } else {
@@ -537,25 +430,17 @@ export default function Dashboard() {
   const handleInterested = async (dealId: string) => {
     if (!user) return;
     setIsProcessing(true);
-
     try {
-      console.log('[Dashboard] Accepting deal:', dealId);
       const { data: deal, error: dealError } = await supabase
         .from('deal_cards')
         .select('*')
         .eq('id', dealId)
         .single();
-
       if (dealError) throw dealError;
-
       const celebrityId = managedCelebrityId || deal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
-
-      // STEP 7: Use roleRef.current
       const senderIdForConversation = roleRef.current === 'manager' && managedCelebrityId ? user.id : celebrityId;
-
-      // STEP 1: Replace plain text with structured JSON message
-      const acceptorName = user.display_name || (roleRef.current === 'manager' ? 'Agent' : 'Talent');
+      const acceptorName = (user as any).display_name || (roleRef.current === 'manager' ? 'Agent' : 'Talent');
       const acceptorRole = roleRef.current === 'manager' ? 'manager' : 'celebrity';
       const acceptanceMessage = JSON.stringify({
         type: 'offer_accepted',
@@ -563,8 +448,6 @@ export default function Dashboard() {
         acceptorName: acceptorName,
         acceptorRole: acceptorRole
       });
-
-      // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
@@ -575,10 +458,8 @@ export default function Dashboard() {
           category: 'work',
           sender_role: roleRef.current === 'manager' ? 'manager' : 'celebrity',
           managed_celebrity_id: roleRef.current === 'manager' ? managedCelebrityId : null
-        });
-
+        } as any);
       if (msgError) throw msgError;
-
       const { error: updateError } = await supabase
         .from('deal_cards')
         .update({
@@ -586,10 +467,7 @@ export default function Dashboard() {
           updated_at: new Date().toISOString(),
         })
         .eq('id', dealId);
-
       if (updateError) throw updateError;
-
-      // STEP 7: Use roleRef.current
       if (roleRef.current === 'manager') {
         toast.success(isRTL ? 'تم قبول العرض للموهبة التي تديرها' : 'Offer accepted for talent you manage');
       } else if (roleRef.current === 'sender') {
@@ -597,9 +475,7 @@ export default function Dashboard() {
       } else {
         toast.success(isRTL ? 'تم قبول العرض' : 'Offer accepted');
       }
-      console.log('[Dashboard] Deal accepted successfully');
       await fetchPendingDeals();
-      
     } catch (error: any) {
       console.error('Error accepting deal:', error);
       toast.error(t.dashboard.acceptFailed + ': ' + (error.message || ''));
@@ -611,20 +487,15 @@ export default function Dashboard() {
   const handleReject = async (dealId: string) => {
     if (!user) return;
     setIsProcessing(true);
-
     try {
-      console.log('[Dashboard] Rejecting deal:', dealId);
       const { data: deal, error: dealError } = await supabase
         .from('deal_cards')
         .select('*')
         .eq('id', dealId)
         .single();
-
       if (dealError) throw dealError;
-
       const celebrityId = managedCelebrityId || deal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
-
       const { error: updateError } = await supabase
         .from('deal_cards')
         .update({
@@ -632,10 +503,7 @@ export default function Dashboard() {
           updated_at: new Date().toISOString()
         })
         .eq('id', dealId);
-
       if (updateError) throw updateError;
-
-      // STEP 7: Use roleRef.current
       if (roleRef.current === 'manager') {
         toast.success(isRTL ? 'تم رفض العرض للموهبة التي تديرها' : 'Offer declined for talent you manage');
       } else if (roleRef.current === 'sender') {
@@ -643,9 +511,7 @@ export default function Dashboard() {
       } else {
         toast.success(isRTL ? 'تم رفض العرض' : 'Offer declined');
       }
-      console.log('[Dashboard] Deal rejected successfully');
       await fetchPendingDeals();
-      
     } catch (error: any) {
       console.error('Error rejecting deal:', error);
       toast.error(t.dashboard.rejectFailed + ': ' + (error.message || ''));
@@ -656,67 +522,46 @@ export default function Dashboard() {
 
   const handleAskTalentSubmit = async () => {
     if (!user || !askTalentDeal) return;
-    
     const question = askTalentQuestion.trim();
     if (!question) {
       toast.error(t.dashboard.writeQuestion);
       return;
     }
-
     setIsSubmittingAsk(true);
-
     try {
       const celebrityId = managedCelebrityId || askTalentDeal.celebrity_id;
       if (!celebrityId) throw new Error('No celebrity selected');
-
-      console.log('[Dashboard] Sending Ask Talent question for deal:', askTalentDeal.id);
-
-      // FIX: Use managedCelebrityId first, then fallback to askTalentDeal.celebrity_id
-      // Log the exact receiver_id being used
-      console.log('[Dashboard] Ask Talent receiver_id:', celebrityId, '(managedCelebrityId:', managedCelebrityId, ', deal.celebrity_id:', askTalentDeal.celebrity_id, ')');
-
-      // STEP 3: Auto-recover missing local keys before encryption
-      let localKeys = await getStoredKeysSecure();
+      let localKeys = await getStoredKeysSecure(user.id);
       if (!localKeys && user) {
-        console.warn('[Dashboard] Local keys missing, auto-initializing...');
         await initE2EKeys(user.id);
       }
-
-      // Encrypt the question for the celebrity
       let contentToSend = question;
-      const enc = await encryptForRecipient(question, celebrityId);
+      const enc = await encryptForRecipient(question, celebrityId, user.id);
       if (enc.success) {
         contentToSend = enc.payload;
       } else {
-        console.warn('[Dashboard] Encryption failed for Ask Talent question, sending as plaintext:', enc.reason);
+        console.warn('[Dashboard] Encryption failed for Ask Talent question:', (enc as any).reason);
       }
-
-      // @ts-ignore
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
-          sender_id: user.id, // Agent's own user.id for E2E
-          receiver_id: celebrityId, // Use managedCelebrityId first, fallback to deal.celebrity_id
+          sender_id: user.id,
+          receiver_id: celebrityId,
           deal_id: askTalentDeal.id,
           content: contentToSend,
           category: 'work',
           sender_role: 'manager',
           managed_celebrity_id: managedCelebrityId
-        });
-
+        } as any);
       if (msgError) throw msgError;
-
-      // STEP 7: Use roleRef.current
       if (roleRef.current === 'manager') {
         toast.success(isRTL ? 'تم إرسال السؤال للموهبة التي تديرها' : 'Question sent to talent you manage');
       } else {
         toast.success(isRTL ? 'تم إرسال السؤال' : 'Question sent');
       }
-      console.log('[Dashboard] Ask Talent question sent successfully');
       setAskTalentDeal(null);
       setAskTalentQuestion('');
       await fetchConversations();
-      
     } catch (error: any) {
       console.error('Error sending question:', error);
       toast.error(t.dashboard.questionFailed + ': ' + (error.message || ''));
@@ -725,79 +570,51 @@ export default function Dashboard() {
     }
   };
 
-  // Load data on mount
   useEffect(() => {
     if (authLoading || !user) return;
-
-    // Run fetchPendingDeals and fetchConversations in parallel
     Promise.all([fetchPendingDeals(), fetchConversations()]);
-
     const subscription = supabase
       .channel('dashboard-changes')
       .on('postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'deal_cards' },
         (payload) => {
-          console.log('[Dashboard] Realtime: New deal inserted', payload);
           const newDeal = payload.new as Deal;
-          // Directly prepend to pendingDeals state
           setPendingDeals(prev => [newDeal, ...prev]);
-          // Update document title
           document.title = `🔔 ${isRTL ? 'عرض جديد' : 'New Offer'} - ${isRTL ? 'مباشر' : 'Directly'}`;
-          // Show toast notification
           toast.info(tLocal('عرض جديد', 'New offer'));
-          // Also fetch in background for consistency
           fetchPendingDeals();
         }
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'deal_cards', filter: `status=eq.pending` },
-        (payload) => {
-          console.log('[Dashboard] Realtime: Deal updated', payload);
+        () => {
           fetchPendingDeals();
         }
       )
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
-          console.log('[Dashboard] Realtime: New message inserted', payload);
           const newMessage = payload.new as Message;
           if (!newMessage || newMessage.category !== 'work') return;
-          
           const currentUserId = user?.id;
           if (!currentUserId) return;
-
-          // Check for agent_decision messages
           const isAgentDecision = typeof newMessage.content === 'string' && newMessage.content.startsWith('{"type":"agent_decision"');
-          
-          // If this is an agent_decision message for the current user, show special toast
           if (isAgentDecision && newMessage.receiver_id === currentUserId) {
             toast.info(tLocal('قرار من وكيلك', 'Decision from your agent'));
-            // Play sound
             try {
               import('@/utils/sounds').then(({ resumeAudioContext }) => {
                 resumeAudioContext();
               }).catch(() => {});
-            } catch (e) {
-              // Ignore sound errors
-            }
-            // Update document title
+            } catch (e) {}
             document.title = `🔔 ${tLocal('قرار وكيلك', 'Agent Decision')} - ${isRTL ? 'مباشر' : 'Directly'}`;
           }
-
-          // Determine the other user ID
           const otherUserId = newMessage.sender_id === currentUserId ? newMessage.receiver_id : newMessage.sender_id;
           if (!otherUserId) return;
-
           const convId = newMessage.deal_id || otherUserId;
-
-          // Resolve display content for the new message
           resolveDisplayContent(newMessage.content || '', newMessage.sender_id, newMessage.id, currentUserId, managedCelebrityId || null).then(resolved => {
-            // Directly update conversations state IMMEDIATELY
             setConversations(prev => {
               const existingIndex = prev.findIndex(c => c.id === convId);
               if (existingIndex === -1) {
-                // Conversation doesn't exist locally - create new entry
-                console.log('[Dashboard] Creating new conversation entry for:', convId);
                 const newConv: Conversation = {
                   id: convId,
                   user_id: otherUserId,
@@ -814,149 +631,89 @@ export default function Dashboard() {
                 };
                 return [newConv, ...prev].sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
               }
-
               const updated = [...prev];
               const conv = { ...updated[existingIndex] };
-              
-              // Update last message and time if newer
               if (new Date(newMessage.created_at) > new Date(conv.last_message_time)) {
                 conv.last_message = resolved;
                 conv.last_message_time = newMessage.created_at;
                 conv.sender_role = newMessage.sender_role || null;
                 conv.deal_status = newMessage.deal_status || null;
               }
-              
-              // Increment unread if message is for current user and unread
               if (!newMessage.is_read && newMessage.receiver_id === currentUserId) {
                 conv.unread_count += 1;
               }
-
               updated[existingIndex] = conv;
-              
-              // Re-sort by last_message_time descending
               return updated.sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
             });
           });
-
-          // Show toast notification for incoming messages (not sent by current user)
           if (newMessage.sender_id !== currentUserId && !isAgentDecision) {
             const preview = newMessage.content?.substring(0, 40) || '';
             toast.success(`${tLocal('رسالة جديدة', 'New message')}: ${preview}...`);
-            // Update document title
             document.title = `💬 ${tLocal('رسالة جديدة', 'New Message')} - ${isRTL ? 'مباشر' : 'Directly'}`;
-            // Play sound
             try {
               import('@/utils/sounds').then(({ resumeAudioContext }) => {
                 resumeAudioContext();
               }).catch(() => {});
-            } catch (e) {
-              // Ignore sound errors
-            }
+            } catch (e) {}
           }
-
-          // Also fetch in background for consistency
           fetchConversations();
         }
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'messages' },
         (payload) => {
-          console.log('[Dashboard] Realtime: Message updated', payload);
           const updatedMessage = payload.new as Message;
           if (!updatedMessage || updatedMessage.category !== 'work') return;
-          
           const currentUserId = user?.id;
           if (!currentUserId) return;
-
-          // Determine the other user ID
           const otherUserId = updatedMessage.sender_id === currentUserId ? updatedMessage.receiver_id : updatedMessage.sender_id;
           if (!otherUserId) return;
-
           const convId = updatedMessage.deal_id || otherUserId;
-
           setConversations(prev => {
             const existingIndex = prev.findIndex(c => c.id === convId);
             if (existingIndex === -1) {
-              // Conversation doesn't exist locally, fallback to full fetch (batched)
-              console.log('[Dashboard] Conversation not found locally, scheduling batched fetch');
-              if (fetchConversationsTimeoutRef.current) {
-                clearTimeout(fetchConversationsTimeoutRef.current);
-              }
-              fetchConversationsTimeoutRef.current = setTimeout(() => {
-                fetchConversations();
-              }, 500);
+              if (fetchConversationsTimeoutRef.current) clearTimeout(fetchConversationsTimeoutRef.current);
+              fetchConversationsTimeoutRef.current = setTimeout(() => { fetchConversations(); }, 500);
               return prev;
             }
-
             const updated = [...prev];
             const conv = { ...updated[existingIndex] };
-            
-            // Update last message and time if newer
             if (new Date(updatedMessage.created_at) > new Date(conv.last_message_time)) {
-              // We need to resolve the content for the updated message
-              // Since this is an update, we can't easily resolve async here, so we'll trigger a background fetch
-              // and keep the old content for now to avoid flicker
-              console.log('[Dashboard] Message updated, scheduling batched fetch for decryption');
-              if (fetchConversationsTimeoutRef.current) {
-                clearTimeout(fetchConversationsTimeoutRef.current);
-              }
-              fetchConversationsTimeoutRef.current = setTimeout(() => {
-                fetchConversations();
-              }, 500);
+              if (fetchConversationsTimeoutRef.current) clearTimeout(fetchConversationsTimeoutRef.current);
+              fetchConversationsTimeoutRef.current = setTimeout(() => { fetchConversations(); }, 500);
               return prev;
             }
-            
-            // Handle read status change - decrement unread if message was marked as read
             if (updatedMessage.is_read && updatedMessage.receiver_id === currentUserId) {
-              // We don't know the previous state, so we can't reliably decrement
-              // Fallback to full fetch for read status changes to be safe (batched)
-              console.log('[Dashboard] Message read status changed, scheduling batched fetch');
-              if (fetchConversationsTimeoutRef.current) {
-                clearTimeout(fetchConversationsTimeoutRef.current);
-              }
-              fetchConversationsTimeoutRef.current = setTimeout(() => {
-                fetchConversations();
-              }, 500);
+              if (fetchConversationsTimeoutRef.current) clearTimeout(fetchConversationsTimeoutRef.current);
+              fetchConversationsTimeoutRef.current = setTimeout(() => { fetchConversations(); }, 500);
               return prev;
             }
-
             updated[existingIndex] = conv;
-            
-            // Re-sort by last_message_time descending
             return updated.sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime());
           });
         }
       )
       .subscribe();
-
     return () => {
       isMountedRef.current = false;
-      if (fetchConversationsTimeoutRef.current) {
-        clearTimeout(fetchConversationsTimeoutRef.current);
-      }
-      // STEP 9: Clean up all retry timeouts on unmount
+      if (fetchConversationsTimeoutRef.current) clearTimeout(fetchConversationsTimeoutRef.current);
       retryTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
       retryTimeoutsRef.current.clear();
       subscription.unsubscribe();
     };
-  // STEP 4: Add guard for manager without managedCelebrityId, remove role from deps
   }, [user, authLoading, managedCelebrityId, fetchPendingDeals, fetchConversations, isRTL]);
 
-  // Refresh when navigating back to dashboard
   useEffect(() => {
     const handleFocus = () => {
       if (isMountedRef.current && user) {
-        console.log('[Dashboard] Window focus, refreshing data');
         fetchPendingDeals();
         fetchConversations();
       }
     };
-    
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [user, fetchPendingDeals, fetchConversations]);
 
-  // Memoize conversations to prevent unnecessary re-renders
   const memoizedConversations = useMemo(() => conversations, [conversations]);
 
   const getStatusConfig = (status: string) => {
@@ -1008,14 +765,12 @@ export default function Dashboard() {
             <h1 className="font-bold text-lg">
               {roleRef.current === 'manager' ? t.dashboard.agentDashboard : t.dashboard.home}
             </h1>
-            {/* Agent badge in header */}
             {roleRef.current === 'manager' && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                 <ShieldCheck className="h-3 w-3" />
                 {tLocal('وكيل', 'Agent')}
               </span>
             )}
-            {/* Unread total badge */}
             {unreadTotal > 0 && (
               <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 font-medium">
                 {unreadTotal > 99 ? '99+' : unreadTotal}
@@ -1024,24 +779,10 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
-              className="h-11 w-11 rounded-xl touch-feedback"
-            >
-              {theme === 'dark' ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
+            <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-11 w-11 rounded-xl touch-feedback">
+              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/profile')}
-              className="h-11 w-11 rounded-xl touch-feedback"
-            >
+            <Button variant="ghost" size="icon" onClick={() => navigate('/profile')} className="h-11 w-11 rounded-xl touch-feedback">
               <User className="h-5 w-5" />
             </Button>
           </div>
@@ -1051,7 +792,6 @@ export default function Dashboard() {
       <main className="max-w-lg mx-auto pt-16 pb-20 px-4 space-y-6">
         {roleRef.current === 'manager' && managedCelebrities.length > 0 && (
           <div className="space-y-3">
-            {/* Label above celebrity switcher */}
             <p className="text-xs text-muted-foreground uppercase tracking-wider px-1">
               {tLocal('المشاهير الذين تديرهم', 'Celebrities you manage')}
             </p>
@@ -1084,7 +824,6 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
-            {/* Context bar when celebrity is selected */}
             {managedCelebrityId && (
               <div className="bg-primary/5 border border-primary/10 rounded-xl p-3">
                 <p className="text-sm font-medium text-primary flex items-center gap-1.5">
@@ -1124,7 +863,6 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {pendingDeals.map((deal) => (
                   <div key={deal.id} className="bg-card rounded-2xl border border-border p-4 space-y-3">
-                    {/* Celebrity name prominently at top for manager */}
                     {managedCelebrityId && (
                       <div className="flex items-center gap-2 mb-2">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
@@ -1140,7 +878,7 @@ export default function Dashboard() {
                       isRTL={isRTL} 
                       onToggleDetails={() => setShowDealDetails(prev => ({ ...prev, [deal.id]: !prev[deal.id] }))}
                       showDetails={showDealDetails[deal.id] || false}
-                      showStatusBadge={false} // Main home page: no status badge
+                      showStatusBadge={false}
                     />
                     
                     {managedCelebrityId && (
@@ -1259,7 +997,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* MessageComposer for Ask Talent Question */}
       {showDealQuestion && selectedDealForQuestion && (
         <MessageComposer
           isOpen={true}
