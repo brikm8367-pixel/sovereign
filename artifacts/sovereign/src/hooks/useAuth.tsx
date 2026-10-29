@@ -160,6 +160,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               } else {
                 await uploadKeyBackup(backupPassword, session.user.id);
                 console.log('[AUTH-DIAG] Upload complete - should be in DB now');
+                if (backupPassword) {
+                  const { autoRecoverKeys } = await import('../utils/e2eManager');
+                  const result = await autoRecoverKeys(session.user.id, backupPassword);
+                  console.log('[Auth] autoRecoverKeys result:', result);
+                }
               }
             } catch (e) {
               console.log('[AUTH-DIAG] Backup sync catch triggered:', e);
