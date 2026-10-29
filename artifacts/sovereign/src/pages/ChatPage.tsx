@@ -296,7 +296,7 @@ export default function ChatPage() {
 
       // Only apply deal_id filter when dealId exists in the URL
       if (dealId) {
-        query = query.eq('deal_id', dealId);
+        query = query.eq('deal_id' as any, dealId);
       }
 
       const { data, error } = await query.order('created_at', { ascending: true }).limit(100);
@@ -317,7 +317,7 @@ export default function ChatPage() {
         if (isEncryptedMessage(msg.content)) {
           try {
             const r = await Promise.race([
-              decryptFromSender(msg.content, msg.sender_id),
+              decryptFromSender(msg.content, msg.sender_id, user.id),
               new Promise<string>((resolve) => setTimeout(() => resolve('🔒'), 500))
             ]);
             if (r === '🔒') {
@@ -443,13 +443,13 @@ export default function ChatPage() {
               let processedMsg = newMsg;
               if (isEncryptedMessage(newMsg.content)) {
                 try {
-                  const res = await decryptFromSender(newMsg.content, newMsg.sender_id);
+                  const res = await decryptFromSender(newMsg.content, newMsg.sender_id, user.id);
                   if (res.success) {
                     processedMsg = { ...newMsg, content: res.plaintext };
                   } else {
                     // Try fallback with managed_celebrity_id
                     if (newMsg.managed_celebrity_id && newMsg.managed_celebrity_id !== newMsg.sender_id) {
-                      const fallbackRes = await decryptFromSender(newMsg.content, newMsg.managed_celebrity_id);
+                      const fallbackRes = await decryptFromSender(newMsg.content, newMsg.managed_celebrity_id, user.id);
                       if (fallbackRes.success) {
                         processedMsg = { ...newMsg, content: fallbackRes.plaintext, sender_id: newMsg.managed_celebrity_id };
                       } else {
@@ -737,13 +737,13 @@ export default function ChatPage() {
       const contentToSend = text || (mediaType === 'video' ? '🎥' : mediaType === 'image' ? '📷' : '🎤');
       
       // STEP 4: Auto-recover missing local keys before encryption
-      let localKeys = await getStoredKeysSecure();
+      let localKeys = await getStoredKeysSecure(user.id);
       if (!localKeys && user) {
         console.warn('[ChatPage] Local keys missing, auto-initializing...');
         await initE2EKeys(user.id);
       }
 
-      const enc = await encryptForRecipient(contentToSend, userId);
+      const enc = await encryptForRecipient(contentToSend, userId, user.id);
       if (!enc.success) {
         // Encryption failed — block sending with clear error
         let errorMsg = '';
@@ -1241,7 +1241,7 @@ export default function ChatPage() {
                           </div>
                         ) : msg.content && !['📷', '🎥', '🎤'].includes(typeof msg.content === 'string' ? msg.content : '') && !isAgentDecision && !isOfferAccepted ? (
                           <p className="whitespace-pre-wrap">
-                            {msg._decryptionFailed ? (
+                            {(msg as any)._decryptionFailed ? (
                               <span className="flex items-center gap-1.5 text-muted-foreground/60 italic text-sm">
                                 <Info className="h-3.5 w-3.5 flex-shrink-0" />
                                 {typeof msg.content === 'string' ? msg.content : ''}
