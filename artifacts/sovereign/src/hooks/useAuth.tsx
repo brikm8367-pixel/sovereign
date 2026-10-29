@@ -139,7 +139,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (!localKeys) {
                 const dl = await downloadKeyBackup(backupPassword, session.user.id);
                 if (!dl.success && dl.error === 'no_backup_found') {
-                  await initE2EKeys(session.user.id);
+                  try {
+                    await initE2EKeys(session.user.id);
+                  } catch (e) {
+                    if (e && e.message === 'e2e_key_pair_corrupted' && backupPassword) {
+                      const { autoRecoverKeys } = await import('../utils/e2eManager');
+                      const result = await autoRecoverKeys(session.user.id, backupPassword);
+                      console.log('[Auth] autoRecoverKeys result:', result);
+                    } else {
+                      console.error('[Auth] E2E key initialization failed during backup sync', e);
+                    }
+                  }
+                  if (backupPassword) {
+                    const { autoRecoverKeys } = await import('../utils/e2eManager');
+                    const result = await autoRecoverKeys(session.user.id, backupPassword);
+                    console.log('[Auth] autoRecoverKeys result:', result);
+                  }
                   await uploadKeyBackup(backupPassword, session.user.id);
                 }
               } else {
@@ -154,8 +169,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           })();
         } else {
-          ensureUserE2EReady(session.user.id).then(hasKeys => {
-            if (!hasKeys) return initE2EKeys(session.user.id);
+          ensureUserE2EReady(session.user.id).then(async (hasKeys) => {
+            if (!hasKeys) {
+              try {
+                await initE2EKeys(session.user.id);
+              } catch (e) {
+                if (e && e.message === 'e2e_key_pair_corrupted' && backupPassword) {
+                  const { autoRecoverKeys } = await import('../utils/e2eManager');
+                  const result = await autoRecoverKeys(session.user.id, backupPassword);
+                  console.log('[Auth] autoRecoverKeys result:', result);
+                } else {
+                  console.error('[Auth] E2E key initialization failed on auth state change', e);
+                }
+              }
+              if (backupPassword) {
+                const { autoRecoverKeys } = await import('../utils/e2eManager');
+                const result = await autoRecoverKeys(session.user.id, backupPassword);
+                console.log('[Auth] autoRecoverKeys result:', result);
+              }
+            }
           }).catch(err => console.error('[Auth] E2E key initialization failed on auth state change', err));
         }
       }
