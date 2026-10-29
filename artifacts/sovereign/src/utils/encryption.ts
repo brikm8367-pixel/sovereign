@@ -1,11 +1,3 @@
-/**
- * E2E Encryption using Web Crypto API (AES-GCM + ECDH key exchange)
- *
- * - ECDH P-256 key pairs per device.
- * - Shared AES-GCM key derived per recipient.
- * - Messages prefixed with `E2Ev1:` for unambiguous detection.
- * - Private key is stored encrypted at rest (see e2eManager + cryptoHelpers).
- */
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import {
   deriveKeyFromPassword,
@@ -18,8 +10,20 @@ const ALGO = 'AES-GCM';
 const KEY_ALGO = { name: 'ECDH', namedCurve: 'P-256' };
 export const E2E_PREFIX = 'E2Ev1:';
 
-// ---------- Key generation & import ----------
+// ---------- Per‑user IndexedDB key helpers ----------
+function idbKeys(userId: string) {
+  return {
+    pub: `directly_e2e_public_key_v2_${userId}`,
+    blob: `directly_e2e_private_blob_v2_${userId}`,
+    salt: `directly_e2e_private_salt_v2_${userId}`,
+  };
+}
 
+// Legacy plaintext keys (will be migrated and cleared)
+const LEGACY_PRIVATE = 'directly_e2e_private_key';
+const LEGACY_PUBLIC = 'directly_e2e_public_key';
+
+// ---------- Key generation & import ----------
 export async function generateKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
   const keyPair = await crypto.subtle.generateKey(KEY_ALGO, true, ['deriveKey']);
   const publicKeyRaw = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
@@ -64,7 +68,6 @@ function base64ToBytes(b64: string): Uint8Array {
 }
 
 // ---------- Message encryption ----------
-
 export async function encryptMessage(
   plaintext: string,
   senderPrivateKey: string,
@@ -99,31 +102,30 @@ export function isEncryptedMessage(content: string): boolean {
 }
 
 // ---------- Encrypted-at-rest key storage (IndexedDB) ----------
-
-const IDB_PUBLIC_KEY = 'directly_e2e_public_key_v2';
-const IDB_PRIVATE_BLOB = 'directly_e2e_private_blob_v2';
-const IDB_PRIVATE_SALT = 'directly_e2e_private_salt_v2';
-
-// Legacy plaintext keys (will be migrated and cleared)
-const LEGACY_PRIVATE = 'directly_e2e_private_key';
-const LEGACY_PUBLIC = 'directly_e2e_public_key';
-
-export async function storeKeysSecure(publicKey: string, privateKey: string, passphrase: string): Promise<void> {
+export async function storeKeysSecure(
+  publicKey: string,
+  privateKey: string,
+  passphrase: string,
+  userId: string
+): Promise<void> {
   const { key, saltBase64 } = await deriveKeyFromPassword(passphrase);
   const blob = await encryptBlobAESGCM(key, privateKey);
-  await idbSet(IDB_PUBLIC_KEY, publicKey);
-  await idbSet(IDB_PRIVATE_BLOB, blob);
-  await idbSet(IDB_PRIVATE_SALT, saltBase64);
+  const keys = idbKeys(userId);
+  await idbSet(keys.pub, publicKey);
+  await idbSet(keys.blob, blob);
+  await idbSet(keys.salt, saltBase64);
 }
 
 export async function getStoredKeysSecure(
-  passphrase?: string
+  passphrase?: string,
+  userId: string
 ): Promise<{ publicKey: string; privateKey: string } | null> {
-  const pub = await idbGet<string>(IDB_PUBLIC_KEY);
-  const blob = await idbGet<string>(IDB_PRIVATE_BLOB);
-  const salt = await idbGet<string>(IDB_PRIVATE_SALT);
+  const keys = idbKeys(userId);
+  const pub = await idbGet<string>(keys.pub);
+  const blob = await idbGet<string>(keys.blob);
+  const salt = await idbGet<string>(keys.salt);
   if (!pub || !blob || !salt) return null;
-  const pass = passphrase ?? getOrCreateDeviceSecret();
+  const pass = passphrase ?? getOrCreateDeviceSecret(userId);
   try {
     const { key } = await deriveKeyFromPassword(pass, salt);
     const privateKey = await decryptBlobAESGCM(key, blob);
@@ -133,10 +135,11 @@ export async function getStoredKeysSecure(
   }
 }
 
-export async function clearKeysSecure(): Promise<void> {
-  await idbDel(IDB_PUBLIC_KEY);
-  await idbDel(IDB_PRIVATE_BLOB);
-  await idbDel(IDB_PRIVATE_SALT);
+export async function clearKeysSecure(userId: string): Promise<void> {
+  const keys = idbKeys(userId);
+  await idbDel(keys.pub);
+  await idbDel(keys.blob);
+  await idbDel(keys.salt);
   // Also clear legacy
   localStorage.removeItem(LEGACY_PRIVATE);
   localStorage.removeItem(LEGACY_PUBLIC);
