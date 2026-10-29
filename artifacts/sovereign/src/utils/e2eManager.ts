@@ -179,6 +179,33 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
   }
 }
 
+export async function autoRecoverKeys(userId: string, password: string): Promise<{ recovered: boolean; regenerated: boolean }> {
+  try {
+    const localKeys = await getStoredKeysSecure();
+    if (!localKeys) {
+      await initE2EKeys(userId, password);
+      return { recovered: false, regenerated: true };
+    }
+    const serverPublicKey = await getRecipientPublicKey(userId);
+    if (!serverPublicKey || localKeys.publicKey === serverPublicKey) {
+      return { recovered: false, regenerated: false };
+    }
+    const { downloadKeyBackup } = await import('./e2eBackup');
+    const result = await downloadKeyBackup(password, userId);
+    if (result.success) {
+      return { recovered: true, regenerated: false };
+    }
+    await clearKeysSecure();
+    localStorage.removeItem('directly_device_secret_v1');
+    localStorage.removeItem('directly_device_id_v1');
+    await initE2EKeys(userId, password);
+    return { recovered: false, regenerated: true };
+  } catch (err) {
+    console.error('[E2E] autoRecoverKeys failed', err);
+    return { recovered: false, regenerated: false };
+  }
+}
+
 // Restore sessions from cloud
 async function restoreCloudSessions(userId: string, password: string) {
   try {
