@@ -124,7 +124,7 @@ export async function uploadKeyBackup(password: string, userId: string): Promise
     if (!keys) return { success: false, error: 'no_local_keys' };
     await supabase.from('device_keys' as any).upsert({ user_id: userId, device_id: getOrCreateDeviceId(), public_key: keys.publicKey, last_seen: new Date().toISOString() }, { onConflict: 'user_id,device_id' });
     const { key, saltBase64 } = await deriveKeyFromPassword(password);
-    const encryptedPrivateKey = await encryptBlobAESGCM(key, keys.privateKey);
+    const encryptedPrivateKey = await encryptBlobAESGCM(key, JSON.stringify({ privateKey: keys.privateKey, deviceId: getOrCreateDeviceId() }));
     const encryptedPublicKey = await encryptBlobAESGCM(key, keys.publicKey);
     const { error } = await supabase.from('encrypted_key_backups' as any).upsert({
       user_id: userId,
@@ -149,20 +149,40 @@ export async function downloadKeyBackup(password: string, userId: string): Promi
     if (error) return { success: false, error: error.message };
     if (!data) return { success: false, error: 'no_backup_found' };
     const { key } = await deriveKeyFromPassword(password, data.salt);
-    let privateKey: string;
+    let privateKeyRaw: string;
     let publicKey: string;
     try {
-      privateKey = await decryptBlobAESGCM(key, data.encrypted_private_key);
+      privateKeyRaw = await decryptBlobAESGCM(key, data.encrypted_private_key);
       publicKey = await decryptBlobAESGCM(key, data.encrypted_public_key);
     } catch {
       return { success: false, error: 'wrong_password' };
     }
+    // parse privateKeyRaw for possible deviceId
+    let privateKey: string;
+    let recoveredDeviceId: string;
+    try {
+      const parsed = JSON.parse(privateKeyRaw);
+      if (parsed && typeof parsed === 'object' && parsed.privateKey && parsed.deviceId) {
+        privateKey = parsed.privateKey;
+        recoveredDeviceId = parsed.deviceId;
+      } else {
+        throw new Error('invalid format');
+      }
+    } catch {
+      privateKey = privateKeyRaw;
+      recoveredDeviceId = getOrCreateDeviceId();
+    }
     const existing = await getStoredKeysSecure();
     if (existing && existing.privateKey === privateKey) return { success: true, restored: false };
+    // persist recovered deviceId if different
+    const currentDeviceId = getOrCreateDeviceId();
+    if (recoveredDeviceId !== currentDeviceId) {
+      localStorage.setItem('directly_device_id_v1', recoveredDeviceId);
+    }
     await storeKeysSecure(publicKey, privateKey, getOrCreateDeviceSecret());
     await supabase.from('device_keys' as any).upsert({
       user_id: userId,
-      device_id: getOrCreateDeviceId(),
+      device_id: recoveredDeviceId,
       public_key: publicKey,
       last_seen: new Date().toISOString(),
     }, { onConflict: 'user_id,device_id' });
