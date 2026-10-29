@@ -1,4 +1,4 @@
-
+import { supabase } from '@/integrations/supabase/client';
 import {
   generateKeyPair,
   encryptMessage,
@@ -12,7 +12,6 @@ import {
 import { getOrCreateDeviceSecret, getOrCreateDeviceId, encryptSessionState, decryptSessionState } from './cryptoHelpers';
 import { setCloudSyncHandler, getSession } from './signalProtocol';
 import { set, get } from 'idb-keyval';
-import { supabase } from '../integrations/supabase/client';
 
 export type EncryptResult =
   | { success: true; payload: string }
@@ -76,7 +75,10 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
       await storeKeysSecure(keys.publicKey, keys.privateKey, passphrase);
     }
 
-    // Test roundtrip to verify key pair matches
+        // Test roundtrip to verify key pair matches.
+    // CRITICAL: If this fails, DO NOT silently regenerate — that destroys the private
+    // key and makes all previously-encrypted messages undecryptable. Instead, throw
+    // so the caller can show a clear error; user may explicitly re-generate from Settings.
     const testString = 'e2e-test-roundtrip';
     try {
       const encrypted = await encryptMessage(testString, keys.privateKey, keys.publicKey);
@@ -85,10 +87,8 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
         throw new Error('Roundtrip test failed: decrypted text does not match');
       }
     } catch (err) {
-      console.warn('[E2E] Key pair roundtrip test failed, regenerating keys', err);
-      await clearKeysSecure();
-      keys = await generateKeyPair();
-      await storeKeysSecure(keys.publicKey, keys.privateKey, passphrase);
+      console.error('[E2E] Key pair roundtrip test failed — NOT regenerating automatically.', err);
+      throw new Error('e2e_key_pair_corrupted');
     }
 
     // Upsert this device's public key with retry (one row per device, never overwrites others).
@@ -107,19 +107,25 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
       if (error) throw error;
     });
 
-    // Backwards compatibility: ensure profiles.public_key has the current device's public key
-    // so older recipients (that read profiles.public_key) can still encrypt to us.
-    // Always update to the latest key to avoid stale keys causing decryption failures.
-    await withRetry(async () => {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert(
-          { id: userId, public_key: keys!.publicKey },
-          { onConflict: 'id' }
-        );
-      if (error) throw error;
-    });
-
+          // Backwards compatibility: ensure profiles.public_key exists for legacy readers.
+    // CRITICAL: only write if the profile has no key yet, OR it already matches ours.
+    // Never overwrite another device's key — that would pollute multi-device setup.
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('public_key')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!existingProfile?.public_key || existingProfile.public_key === keys!.publicKey) {
+      await withRetry(async () => {
+        const { error } = await supabase
+          .from('profiles')
+          .upsert(
+            { id: userId, public_key: keys!.publicKey },
+            { onConflict: 'id' }
+          );
+        if (error) throw error;
+      });
+    }
     // Restore cloud sessions if password is provided
     if (password) {
       await restoreCloudSessions(userId, password);
@@ -244,7 +250,7 @@ export async function ensureUserE2EReady(userId: string): Promise<boolean> {
     if (deviceKeyError) {
       console.warn('[E2E] ensureUserE2EReady device_keys query error', deviceKeyError);
     }
-    if (deviceKey?.public_key) return true;
+    if ((deviceKey as any)?.public_key) return true;
 
     // Fallback to profiles.public_key
     const { data: profile, error: profileError } = await supabase

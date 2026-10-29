@@ -123,7 +123,6 @@ export async function uploadKeyBackup(password: string, userId: string): Promise
     const keys = await getStoredKeysSecure();
     if (!keys) return { success: false, error: 'no_local_keys' };
     await supabase.from('device_keys' as any).upsert({ user_id: userId, device_id: getOrCreateDeviceId(), public_key: keys.publicKey, last_seen: new Date().toISOString() }, { onConflict: 'user_id,device_id' });
-    await supabase.from('profiles').upsert({ id: userId, public_key: keys.publicKey }, { onConflict: 'id' });
     const { key, saltBase64 } = await deriveKeyFromPassword(password);
     const encryptedPrivateKey = await encryptBlobAESGCM(key, keys.privateKey);
     const encryptedPublicKey = await encryptBlobAESGCM(key, keys.publicKey);
@@ -145,7 +144,8 @@ export async function uploadKeyBackup(password: string, userId: string): Promise
 /** Download encrypted key backup from cloud and restore locally if needed. */
 export async function downloadKeyBackup(password: string, userId: string): Promise<{ success: boolean; restored?: boolean; error?: string }> {
   try {
-    const { data, error } = await supabase.from('encrypted_key_backups' as any).select('encrypted_private_key, encrypted_public_key, salt').eq('user_id', userId).maybeSingle();
+    const { data: rawData, error } = await supabase.from('encrypted_key_backups' as any).select('encrypted_private_key, encrypted_public_key, salt').eq('user_id', userId).maybeSingle();
+    const data = rawData as any;
     if (error) return { success: false, error: error.message };
     if (!data) return { success: false, error: 'no_backup_found' };
     const { key } = await deriveKeyFromPassword(password, data.salt);
