@@ -126,6 +126,13 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
         if (error) throw error;
       });
     }
+    if (password) {
+      const { uploadKeyBackup } = await import('./e2eBackup');
+      const backupResult = await uploadKeyBackup(password, userId);
+      if (!backupResult.success) {
+        console.warn('[E2E] auto backup upload failed', backupResult.error);
+      }
+    }
     // Restore cloud sessions if password is provided
     if (password) {
       await restoreCloudSessions(userId, password);
