@@ -22,7 +22,6 @@ export const ComposePage = () => {
 
   const celebrityId = searchParams.get('celebrityId');
 
-  // Nouveaux états pour le formulaire de deal
   const [companyName, setCompanyName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [selectedBudget, setSelectedBudget] = useState<string>('');
@@ -34,7 +33,6 @@ export const ComposePage = () => {
   const [exclusivity, setExclusivity] = useState<'exclusive' | 'non_exclusive'>('non_exclusive');
   const [whyThem, setWhyThem] = useState('');
   
-  // Nouveaux états pour les champs "autre" et devise
   const [customDealType, setCustomDealType] = useState('');
   const [customBudgetCycle, setCustomBudgetCycle] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<'USD' | 'EUR' | 'GBP' | 'AED' | 'SAR' | 'KWD'>('USD');
@@ -42,14 +40,12 @@ export const ComposePage = () => {
   const [sending, setSending] = useState(false);
   const [recipientProfile, setRecipientProfile] = useState<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null>(null);
 
-  // Redirect managers to home
   useEffect(() => {
     if (!authLoading && role === 'manager') {
       navigate('/home', { replace: true });
     }
   }, [authLoading, role, navigate]);
 
-  // Charger le profil du destinataire si celebrityId est présent
   useEffect(() => {
     if (celebrityId && !recipientProfile) {
       supabase
@@ -63,19 +59,14 @@ export const ComposePage = () => {
     }
   }, [celebrityId]);
 
-  // Determine mode:
-  // - If celebrityId present → deal mode
-  // - Otherwise → redirect to search
   const isDealMode = !!celebrityId;
 
-  // Redirect to search if no celebrityId (selection screen removed)
   useEffect(() => {
     if (!authLoading && !isDealMode && role !== 'manager') {
       navigate('/search?type=deal', { replace: true });
     }
   }, [authLoading, isDealMode, role, navigate]);
 
-  // Budget options
   const BUDGETS = [
     { value: 'under_5k', label: { ar: 'أقل من 5000$', en: 'Under $5k' }, description: { ar: 'ميزانية صغيرة', en: 'Small budget' } },
     { value: '5k_10k', label: { ar: '5000$ - 10000$', en: '$5k - $10k' }, description: { ar: 'ميزانية متوسطة', en: 'Medium budget' } },
@@ -83,7 +74,6 @@ export const ComposePage = () => {
     { value: 'over_50k', label: { ar: 'أكثر من 50000$', en: 'Over $50k' }, description: { ar: 'ميزانية ضخمة', en: 'Huge budget' } },
   ];
 
-  // Currency options with flags
   const CURRENCY_FLAGS: Record<string, string> = {
     USD: '🇺🇸',
     EUR: '🇪🇺',
@@ -102,7 +92,6 @@ export const ComposePage = () => {
     { value: 'KWD', label: 'د.ك', flag: '🇰🇼', name: { ar: 'دينار كويتي', en: 'Kuwaiti Dinar' } },
   ];
 
-  // Deal type options - updated to match DealCardInline
   const DEAL_TYPES = [
     { value: 'sponsorship', label: { ar: 'رعاية', en: 'Sponsorship' }, description: { ar: 'رعاية علامة تجارية أو حدث', en: 'Brand or event sponsorship' } },
     { value: 'appearance', label: { ar: 'ظهور إعلاني', en: 'Brand Appearance' }, description: { ar: 'ظهور في إعلان أو حملة', en: 'Appearance in ad or campaign' } },
@@ -112,7 +101,6 @@ export const ComposePage = () => {
     { value: 'other', label: { ar: 'أخرى', en: 'Other' }, description: { ar: 'نوع عرض آخر', en: 'Other deal type' } },
   ];
 
-  // Timeline options
   const TIMELINE_OPTIONS = [
     { value: 'asap', label: { ar: 'عاجل', en: 'ASAP' }, description: { ar: 'في أقرب وقت ممكن', en: 'As soon as possible' } },
     { value: 'within_1_month', label: { ar: 'خلال شهر', en: 'Within 1 month' }, description: { ar: 'خلال 30 يوم', en: 'Within 30 days' } },
@@ -121,10 +109,8 @@ export const ComposePage = () => {
   ];
 
   const handleSendDeal = async () => {
-    // Validation des champs requis - deliverables maintenant requis
     if (!companyName.trim() || !websiteUrl.trim() || !selectedBudget || !selectedDealType || !campaignDescription.trim() || !deliverables.trim() || !selectedTimeline || !celebrityId || !user) return;
     
-    // Smart validation & spam detection
     const validation = validateDealCard({
       companyName,
       websiteUrl,
@@ -159,14 +145,24 @@ export const ComposePage = () => {
         status: 'pending',
         budget_currency: selectedCurrency,
       } as any);
-      if (error) throw error;
-      // Role-specific toast
+      if (error) {
+        console.error('DEAL_INSERT_ERROR:', JSON.stringify({
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          sender_id: user.id,
+          celebrity_id: celebrityId,
+          deal_type: selectedDealType === 'other' ? customDealType : selectedDealType,
+          budget_range: selectedBudget,
+        }));
+        throw error;
+      }
       if (role === 'sender') {
         toast.success(isRTL ? 'تم إرسال عرضك' : 'Your offer sent');
       } else {
         toast.success(isRTL ? 'تم إرسال العرض' : 'Offer sent');
       }
-      // Reset form
       setCompanyName('');
       setWebsiteUrl('');
       setSelectedBudget('');
@@ -190,11 +186,9 @@ export const ComposePage = () => {
   };
 
   const handleBack = () => {
-    // Nettoyer les params et revenir à l'écran de sélection
     setSearchParams({}, { replace: true });
   };
 
-  // Show loader while checking auth/role
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -203,21 +197,17 @@ export const ComposePage = () => {
     );
   }
 
-  // Return null when redirecting (manager)
   if (role === 'manager') {
     return null;
   }
 
-  // ===== MODE DEAL =====
   if (isDealMode) {
-    // Validation des champs requis pour le bouton - deliverables maintenant requis
     const isFormValid = companyName.trim() && websiteUrl.trim() && selectedBudget && selectedDealType && campaignDescription.trim() && deliverables.trim() && selectedTimeline && 
       (selectedDealType !== 'other' || customDealType.trim()) &&
       (budgetCycle !== 'other' || customBudgetCycle.trim());
 
     const tLocal = (ar: string, en: string) => isRTL ? ar : en;
 
-    // Section Header Component
     const SectionHeader = ({ icon: Icon, title, color = 'primary' }: { icon: React.ComponentType<{ className?: string }>; title: string; color?: string }) => (
       <div className="flex items-center gap-3 mb-4">
         <div className={cn('p-2 rounded-full shrink-0', `bg-${color}/10 text-${color}`)}>
@@ -227,7 +217,6 @@ export const ComposePage = () => {
       </div>
     );
 
-    // Choice Button Component
     const ChoiceButton = ({ 
       value, 
       selected, 
@@ -293,14 +282,11 @@ export const ComposePage = () => {
               </div>
             )}
 
-            {/* Deal Form Card */}
             <div className="bg-card border border-border rounded-2xl p-5 space-y-6">
-              {/* Section 1: Company Information */}
               <section>
                 <SectionHeader icon={Building2} title={tLocal('معلومات الشركة', 'Company Information')} color="blue" />
                 
                 <div className="space-y-4">
-                  {/* Company Name */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">
                       {tLocal('اسم الشركة', 'Company Name')}
@@ -317,7 +303,6 @@ export const ComposePage = () => {
                     </div>
                   </div>
 
-                  {/* Website URL */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">
                       {tLocal('الموقع الإلكتروني', 'Website URL')}
@@ -337,12 +322,10 @@ export const ComposePage = () => {
                 </div>
               </section>
 
-              {/* Section 2: Budget */}
               <section>
                 <SectionHeader icon={DollarSign} title={tLocal('الميزانية', 'Budget')} color="green" />
                 
                 <div className="space-y-4">
-                  {/* Budget Range - Choice Buttons */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
                       {tLocal('نطاق الميزانية', 'Budget Range')}
@@ -361,7 +344,6 @@ export const ComposePage = () => {
                     </div>
                   </div>
 
-                  {/* Currency Selector */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
                       {tLocal('العملة', 'Currency')}
@@ -391,7 +373,6 @@ export const ComposePage = () => {
                     </div>
                   </div>
 
-                  {/* Budget Cycle - Toggle Buttons */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
                       {tLocal('دورة الميزانية', 'Budget Cycle')}
@@ -414,7 +395,6 @@ export const ComposePage = () => {
                     </div>
                   </div>
 
-                  {/* Custom Budget Cycle Input */}
                   {budgetCycle === 'other' && (
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">
@@ -435,12 +415,10 @@ export const ComposePage = () => {
                 </div>
               </section>
 
-              {/* Section 3: Deal Type */}
               <section>
                 <SectionHeader icon={Briefcase} title={tLocal('نوع الصفقة', 'Deal Type')} color="purple" />
                 
                 <div className="space-y-4">
-                  {/* Deal Type - Choice Buttons */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
                       {tLocal('نوع التعاون', 'Collaboration Type')}
@@ -459,7 +437,6 @@ export const ComposePage = () => {
                     </div>
                   </div>
 
-                  {/* Custom Deal Type Input */}
                   {selectedDealType === 'other' && (
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">
@@ -480,12 +457,10 @@ export const ComposePage = () => {
                 </div>
               </section>
 
-              {/* Section 4: Timeline */}
               <section>
                 <SectionHeader icon={Calendar} title={tLocal('الجدول الزمني', 'Timeline')} color="orange" />
                 
                 <div className="space-y-4">
-                  {/* Timeline - Choice Buttons */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
                       {tLocal('الموعد النهائي', 'Deadline')}
@@ -504,7 +479,6 @@ export const ComposePage = () => {
                     </div>
                   </div>
 
-                  {/* Exclusivity - Toggle Buttons */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
                       {tLocal('الحصرية', 'Exclusivity')}
@@ -528,12 +502,10 @@ export const ComposePage = () => {
                 </div>
               </section>
 
-              {/* Section 5: Description */}
               <section>
                 <SectionHeader icon={FileText} title={tLocal('الوصف', 'Description')} color="amber" />
                 
                 <div className="space-y-4">
-                  {/* Campaign Description */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">
                       {tLocal('وصف الحملة', 'Campaign Description')}
@@ -548,7 +520,6 @@ export const ComposePage = () => {
                     />
                   </div>
 
-                  {/* Deliverables (required) - avec astérisque rouge et compteur de caractères */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5 flex items-center gap-1">
                       {tLocal('المخرجات المطلوبة', 'Required Deliverables')}
@@ -570,7 +541,6 @@ export const ComposePage = () => {
                     </div>
                   </div>
 
-                  {/* Why Them (optional) */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">
                       {tLocal('لماذا اخترت هذا المؤثر؟ (اختياري)', 'Why This Influencer? (Optional)')}
@@ -586,7 +556,6 @@ export const ComposePage = () => {
                 </div>
               </section>
 
-              {/* Submit Button */}
               <Button
                 onClick={handleSendDeal}
                 disabled={!isFormValid || sending}
@@ -611,7 +580,6 @@ export const ComposePage = () => {
     );
   }
 
-  // Loading state while redirecting to search
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <svg className="animate-spin -ml-1 mr-2 h-8 w-8 text-primary" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
