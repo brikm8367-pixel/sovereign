@@ -24,7 +24,7 @@ export default defineConfig({
       injectRegister: "auto",
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "pwa-192x192.png", "pwa-512x512.png"],
       injectManifest: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
+        globPatterns: ["**/*.{js,css,ico,png,svg,webp,woff2}"],
         // Do not generate a navigation fallback; we handle it in sw.ts with NetworkFirst
         // to avoid caching index.html aggressively and to keep auth state fresh.
         // This also prevents interference with Vercel rewrites.
