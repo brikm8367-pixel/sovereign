@@ -146,11 +146,13 @@ export async function getStoredKeysSecure(
     const privateKey = await decryptBlobAESGCM(key, blob);
     const privJwk = JSON.parse(privateKey);
     const pubJwk = JSON.parse(pub);
-    if (!privJwk?.x || !privJwk?.y || !pubJwk?.x || !pubJwk?.y) {
+    if (!privJwk?.d || !privJwk?.x || !privJwk?.y || !pubJwk?.x || !pubJwk?.y) {
       console.warn('[encryption] getStoredKeysSecure: invalid JWK — returning null');
       return null;
     }
-    if (privJwk.x !== pubJwk.x || privJwk.y !== pubJwk.y) {
+    const imported = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: privJwk.x, y: privJwk.y, d: privJwk.d, ext: true }, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+    const reExported = await crypto.subtle.exportKey('jwk', imported);
+    if (reExported.x !== pubJwk.x || reExported.y !== pubJwk.y) {
       console.warn('[encryption] getStoredKeysSecure: private key does NOT match public key — returning null');
       return null;
     }
