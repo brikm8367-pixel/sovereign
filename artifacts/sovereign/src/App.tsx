@@ -148,23 +148,6 @@ const App = () => {
                 <BrowserRouter>
                   <AppRoutes />
                 </BrowserRouter>
-                
-                {showUpdatePrompt && (
-                  <div className="fixed bottom-0 left-0 right-0 z-50 p-4 safe-area-inset-bottom">
-                    <div className="max-w-lg mx-auto bg-card border border-border rounded-2xl shadow-xl p-4 flex flex-col gap-3">
-                      <p className="text-center text-sm font-medium text-foreground">
-                        يوجد تحديث جديد للتطبيق
-                      </p>
-                      <button
-                        onClick={handleUpdate}
-                        disabled={isUpdating}
-                        className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-medium touch-feedback active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        تحديث الآن
-                      </button>
-                    </div>
-                  </div>
-                )}
               </TooltipProvider>
             </RoleProvider>
           </AuthProvider>
