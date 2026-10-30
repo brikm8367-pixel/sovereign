@@ -139,7 +139,6 @@ const App = () => {
                 <Toaster />
                 <Sonner />
                 <PWAInstallPrompt />
-                <UpdatePrompt />
                 
                 {showSplash && isFirstVisit && (
                   <SplashScreen onComplete={() => setShowSplash(false)} />
