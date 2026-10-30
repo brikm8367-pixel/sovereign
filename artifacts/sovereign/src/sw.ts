@@ -35,8 +35,11 @@ registerRoute(
   },
   new NetworkFirst({
     cacheName: "pages-cache",
-    networkTimeoutSeconds: 30,
-    plugins: [new CacheableResponsePlugin({ statuses: [0, 200] })],
+    networkTimeoutSeconds: 3,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 1, maxAgeSeconds: 60 }),
+    ],
   }),
 );
 
