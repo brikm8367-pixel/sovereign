@@ -102,19 +102,7 @@ export function isEncryptedMessage(content: string): boolean {
 }
 
 // ---------- Encrypted-at-rest key storage (IndexedDB, per-user) ----------
-export async function storeKeysSecure(
-  publicKey: string,
-  privateKey: string,
-  passphrase: string,
-  userId: string
-): Promise<void> {
-  const { key, saltBase64 } = await deriveKeyFromPassword(passphrase);
-  const blob = await encryptBlobAESGCM(key, privateKey);
-  const keys = idbKeys(userId);
-  await idbSet(keys.pub, publicKey);
-  await idbSet(keys.blob, blob);
-  await idbSet(keys.salt, saltBase64);
-}
+export async function storeKeysSecure(publicKey: string, privateKey: string, passphrase: string, userId: string): Promise<void> { const testString = 'e2e-store-roundtrip'; try { const testEncrypted = await encryptMessage(testString, privateKey, publicKey); const testDecrypted = await decryptMessage(testEncrypted, privateKey, publicKey); if (testDecrypted !== testString) { throw new Error('roundtrip_mismatch'); } } catch (err) { console.error('[encryption] storeKeysSecure: key pair is INVALID — refusing to store', err); throw new Error('e2e_invalid_key_pair'); } const { key, saltBase64 } = await deriveKeyFromPassword(passphrase); const blob = await encryptBlobAESGCM(key, privateKey); const keys = idbKeys(userId); await idbSet(keys.pub, publicKey); await idbSet(keys.blob, blob); await idbSet(keys.salt, saltBase64); }
 
 export async function getStoredKeysSecure(
   userId: string,
