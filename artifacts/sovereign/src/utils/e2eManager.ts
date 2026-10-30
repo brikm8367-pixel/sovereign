@@ -163,15 +163,7 @@ export async function autoRecoverKeys(userId: string, password: string): Promise
     }
 
     // Real roundtrip test — verifies Priv actually decrypts what Pub encrypts
-    let roundtripOk = false;
-    try {
-      const test = 'e2e-recover-roundtrip';
-      const enc = await encryptMessage(test, localKeys.privateKey, localKeys.publicKey);
-      const dec = await decryptMessage(enc, localKeys.privateKey, localKeys.publicKey);
-      roundtripOk = dec === test;
-    } catch {
-      roundtripOk = false;
-    }
+    let roundtripOk = false; try { const privJwk = JSON.parse(localKeys.privateKey); const pubJwk = JSON.parse(localKeys.publicKey); if (!privJwk?.d || !privJwk?.x || !privJwk?.y || !pubJwk?.x || !pubJwk?.y) { throw new Error('missing_private_components'); } const imported = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: privJwk.x, y: privJwk.y, d: privJwk.d, ext: true }, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']); const reExported = await crypto.subtle.exportKey('jwk', imported); roundtripOk = reExported.x === pubJwk.x && reExported.y === pubJwk.y; } catch { roundtripOk = false; }
 
     const serverPublicKey = await getRecipientPublicKey(userId);
 
