@@ -95,10 +95,6 @@ const AppRoutes = () => {
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [isFirstVisit, setIsFirstVisit] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
-  const currentVersionRef = useRef<string | null>(null);
-  const pendingReloadRef = useRef(false);
 
   useEffect(() => {
     const visited = sessionStorage.getItem('directly_visited');
@@ -110,45 +106,8 @@ const App = () => {
     }
   }, []);
 
-  const { updateServiceWorker } = useRegisterSW({
-    onRegisteredSW(swUrl, r) {
-      // Check for updates when user returns to the app (visibility change)
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible' && r) {
-          r.update();
-        }
-      };
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      // Check for updates when window regains focus
-      const handleFocus = () => {
-        if (r) {
-          r.update();
-        }
-      };
-      window.addEventListener('focus', handleFocus);
-
-      // Periodic check for updates every 5 minutes (300,000 ms)
-      const intervalId = setInterval(() => {
-        if (r) {
-          r.update();
-        }
-      }, 5 * 60 * 1000);
-    },
-    onNeedRefresh() {
-      setShowUpdatePrompt(true);
-    },
-    onOfflineReady() {
-      // Hide the update prompt when the app is ready for offline use
-      setShowUpdatePrompt(false);
-    },
-  });
-
-  // Automatic version-based update detection every 60 seconds
+  const currentVersionRef = useRef<string | null>(null);
   useEffect(() => {
-    let visibilityListener: (() => void) | null = null;
-    let controllerChangeListener: (() => void) | null = null;
-
     const checkForUpdates = async () => {
       try {
         const response = await fetch('/index.html', { cache: 'no-store' });
@@ -157,95 +116,17 @@ const App = () => {
         if (match) {
           const newVersion = match[0];
           if (currentVersionRef.current !== null && currentVersionRef.current !== newVersion) {
-            // Version mismatch detected
-            if (document.hidden) {
-              // Tab is hidden - update and reload immediately
-              updateServiceWorker(true);
-              setTimeout(() => {
-                window.location.reload();
-              }, 500);
-            } else {
-              // Tab is visible - set pending reload and wait for visibility change
-              pendingReloadRef.current = true;
-              
-              // Register visibility change listener if not already registered
-              if (!visibilityListener) {
-                visibilityListener = () => {
-                  if (document.hidden && pendingReloadRef.current) {
-                    updateServiceWorker(true);
-                    setTimeout(() => {
-                      window.location.reload();
-                    }, 500);
-                  }
-                };
-                document.addEventListener('visibilitychange', visibilityListener);
-              }
-            }
-          } else {
-            currentVersionRef.current = newVersion;
+            window.location.reload();
+            return;
           }
+          currentVersionRef.current = newVersion;
         }
-      } catch (error) {
-        console.error('Failed to check for updates:', error);
-      }
+      } catch { /* ignore offline */ }
     };
-
-    // Listen for service worker controller change (new SW took control)
-    controllerChangeListener = () => {
-      if (pendingReloadRef.current) {
-        window.location.reload();
-      }
-    };
-    navigator.serviceWorker.addEventListener('controllerchange', controllerChangeListener);
-
-    // Also check when tab becomes visible again
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkForUpdates();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Initial check
     checkForUpdates();
-
-    // Set up interval to check every 60 seconds
     const intervalId = setInterval(checkForUpdates, 60000);
-
-    return () => {
-      clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (visibilityListener) {
-        document.removeEventListener('visibilitychange', visibilityListener);
-      }
-      if (controllerChangeListener) {
-        navigator.serviceWorker.removeEventListener('controllerchange', controllerChangeListener);
-      }
-    };
-  }, [updateServiceWorker]);
-
-  const handleUpdate = () => {
-    setIsUpdating(true);
-    setShowUpdatePrompt(false); // Hide immediately to prevent double-clicks and reappearance after reload
-
-    const clearAllCaches = async () => {
-      try {
-        const cacheNames = await caches.keys();
-        await Promise.all(cacheNames.map(name => caches.delete(name)));
-        console.log('[SW] All caches cleared');
-      } catch (error) {
-        console.error('[SW] Failed to clear caches:', error);
-      }
-    };
-
-    clearAllCaches().then(() => {
-      updateServiceWorker(true);
-      // Fallback reload in case updateServiceWorker doesn't reload
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
-    });
-  };
+    return () => clearInterval(intervalId);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
