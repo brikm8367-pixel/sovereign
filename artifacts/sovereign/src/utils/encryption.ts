@@ -102,7 +102,32 @@ export function isEncryptedMessage(content: string): boolean {
 }
 
 // ---------- Encrypted-at-rest key storage (IndexedDB, per-user) ----------
-export async function storeKeysSecure(publicKey: string, privateKey: string, passphrase: string, userId: string): Promise<void> { const testString = 'e2e-store-roundtrip'; try { const testEncrypted = await encryptMessage(testString, privateKey, publicKey); const testDecrypted = await decryptMessage(testEncrypted, privateKey, publicKey); if (testDecrypted !== testString) { throw new Error('roundtrip_mismatch'); } } catch (err) { console.error('[encryption] storeKeysSecure: key pair is INVALID — refusing to store', err); throw new Error('e2e_invalid_key_pair'); } const { key, saltBase64 } = await deriveKeyFromPassword(passphrase); const blob = await encryptBlobAESGCM(key, privateKey); const keys = idbKeys(userId); await idbSet(keys.pub, publicKey); await idbSet(keys.blob, blob); await idbSet(keys.salt, saltBase64); }
+export async function storeKeysSecure(
+  publicKey: string,
+  privateKey: string,
+  passphrase: string,
+  userId: string
+): Promise<void> {
+  try {
+    const privJwk = JSON.parse(privateKey);
+    const pubJwk = JSON.parse(publicKey);
+    if (!privJwk?.x || !privJwk?.y || !pubJwk?.x || !pubJwk?.y) {
+      throw new Error('invalid_jwk');
+    }
+    if (privJwk.x !== pubJwk.x || privJwk.y !== pubJwk.y) {
+      throw new Error('priv_pub_mismatch');
+    }
+  } catch (err) {
+    console.error('[encryption] storeKeysSecure: key pair is INVALID — refusing to store', err);
+    throw new Error('e2e_invalid_key_pair');
+  }
+  const { key, saltBase64 } = await deriveKeyFromPassword(passphrase);
+  const blob = await encryptBlobAESGCM(key, privateKey);
+  const keys = idbKeys(userId);
+  await idbSet(keys.pub, publicKey);
+  await idbSet(keys.blob, blob);
+  await idbSet(keys.salt, saltBase64);
+}
 
 export async function getStoredKeysSecure(userId: string, passphrase?: string): Promise<{ publicKey: string; privateKey: string } | null> { const keys = idbKeys(userId); const pub = await idbGet<string>(keys.pub); const blob = await idbGet<string>(keys.blob); const salt = await idbGet<string>(keys.salt); if (!pub || !blob || !salt) return null; const pass = passphrase ?? getOrCreateDeviceSecret(userId); try { const { key } = await deriveKeyFromPassword(pass, salt); const privateKey = await decryptBlobAESGCM(key, blob); const testString = 'e2e-get-roundtrip'; const testEncrypted = await encryptMessage(testString, privateKey, pub); const testDecrypted = await decryptMessage(testEncrypted, privateKey, pub); if (testDecrypted !== testString) { console.warn('[encryption] getStoredKeysSecure: private key does NOT match public key — returning null'); return null; } return { publicKey: pub, privateKey }; } catch { return null; } }
 
