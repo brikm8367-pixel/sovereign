@@ -69,17 +69,7 @@ export async function initE2EKeys(userId: string, password?: string): Promise<vo
       await storeKeysSecure(keys.publicKey, keys.privateKey, passphrase, userId);
     }
 
-    const testString = 'e2e-test-roundtrip';
-    try {
-      const encrypted = await encryptMessage(testString, keys.privateKey, keys.publicKey);
-      const decrypted = await decryptMessage(encrypted, keys.privateKey, keys.publicKey);
-      if (decrypted !== testString) {
-        throw new Error('Roundtrip test failed: decrypted text does not match');
-      }
-    } catch (err) {
-      console.error('[E2E] Key pair roundtrip test failed — NOT regenerating automatically.', err);
-      throw new Error('e2e_key_pair_corrupted');
-    }
+    try { const privJwk = JSON.parse(keys.privateKey); const pubJwk = JSON.parse(keys.publicKey); if (!privJwk?.d || !privJwk?.x || !privJwk?.y || !pubJwk?.x || !pubJwk?.y) { throw new Error('missing_private_components'); } const imported = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: privJwk.x, y: privJwk.y, d: privJwk.d, ext: true }, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']); const reExported = await crypto.subtle.exportKey('jwk', imported); if (reExported.x !== pubJwk.x || reExported.y !== pubJwk.y) { throw new Error('priv_pub_mismatch'); } } catch (err) { console.error('[E2E] Key pair JWK validation failed — NOT regenerating automatically.', err); throw new Error('e2e_key_pair_corrupted'); }
 
     await withRetry(async () => {
       const { error } = await supabase
