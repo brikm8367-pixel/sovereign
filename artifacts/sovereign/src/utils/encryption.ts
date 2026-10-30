@@ -129,7 +129,34 @@ export async function storeKeysSecure(
   await idbSet(keys.salt, saltBase64);
 }
 
-export async function getStoredKeysSecure(userId: string, passphrase?: string): Promise<{ publicKey: string; privateKey: string } | null> { const keys = idbKeys(userId); const pub = await idbGet<string>(keys.pub); const blob = await idbGet<string>(keys.blob); const salt = await idbGet<string>(keys.salt); if (!pub || !blob || !salt) return null; const pass = passphrase ?? getOrCreateDeviceSecret(userId); try { const { key } = await deriveKeyFromPassword(pass, salt); const privateKey = await decryptBlobAESGCM(key, blob); const testString = 'e2e-get-roundtrip'; const testEncrypted = await encryptMessage(testString, privateKey, pub); const testDecrypted = await decryptMessage(testEncrypted, privateKey, pub); if (testDecrypted !== testString) { console.warn('[encryption] getStoredKeysSecure: private key does NOT match public key — returning null'); return null; } return { publicKey: pub, privateKey }; } catch { return null; } }
+export async function getStoredKeysSecure(
+  userId: string,
+  passphrase?: string
+): Promise<{ publicKey: string; privateKey: string } | null> {
+  const keys = idbKeys(userId);
+  const pub = await idbGet<string>(keys.pub);
+  const blob = await idbGet<string>(keys.blob);
+  const salt = await idbGet<string>(keys.salt);
+  if (!pub || !blob || !salt) return null;
+  const pass = passphrase ?? getOrCreateDeviceSecret(userId);
+  try {
+    const { key } = await deriveKeyFromPassword(pass, salt);
+    const privateKey = await decryptBlobAESGCM(key, blob);
+    const privJwk = JSON.parse(privateKey);
+    const pubJwk = JSON.parse(pub);
+    if (!privJwk?.x || !privJwk?.y || !pubJwk?.x || !pubJwk?.y) {
+      console.warn('[encryption] getStoredKeysSecure: invalid JWK — returning null');
+      return null;
+    }
+    if (privJwk.x !== pubJwk.x || privJwk.y !== pubJwk.y) {
+      console.warn('[encryption] getStoredKeysSecure: private key does NOT match public key — returning null');
+      return null;
+    }
+    return { publicKey: pub, privateKey };
+  } catch {
+    return null;
+  }
+}
 
 export async function clearKeysSecure(userId: string): Promise<void> {
   const keys = idbKeys(userId);
