@@ -111,10 +111,12 @@ export async function storeKeysSecure(
   try {
     const privJwk = JSON.parse(privateKey);
     const pubJwk = JSON.parse(publicKey);
-    if (!privJwk?.x || !privJwk?.y || !pubJwk?.x || !pubJwk?.y) {
-      throw new Error('invalid_jwk');
+    if (!privJwk?.d || !privJwk?.x || !privJwk?.y || !pubJwk?.x || !pubJwk?.y) {
+      throw new Error('missing_private_components');
     }
-    if (privJwk.x !== pubJwk.x || privJwk.y !== pubJwk.y) {
+    const imported = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: privJwk.x, y: privJwk.y, d: privJwk.d, ext: true }, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+    const reExported = await crypto.subtle.exportKey('jwk', imported);
+    if (reExported.x !== pubJwk.x || reExported.y !== pubJwk.y) {
       throw new Error('priv_pub_mismatch');
     }
   } catch (err) {
